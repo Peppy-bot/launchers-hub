@@ -1,0 +1,103 @@
+{
+  peppy_schema: "launcher_v1",
+  deployments: [
+    {
+      source: {
+        name: "collisions_detection:0.1.0",
+      },
+      instances: [
+        {
+          instance_id: "collisions",
+          arguments: {}
+        }
+      ],
+    },
+    {
+      source: {
+        name: "inverse_kinematics:0.1.0"
+      },
+      instances: [
+        {
+          instance_id: "ik",
+          arguments: {}
+        }
+      ]
+    },
+    {
+      source: {
+        name: "depth_camera",
+        tag: "0.1.0",
+        variant: {
+          name: "realsense_d435"
+        }
+      },
+      instances: [
+        {
+          instance_id: "torso_front_camera",
+          arguments: {}
+        }
+      ]
+    },
+    // This is currently forbidden, as it will erase the node declared above. Come up with a fix where the node stack now identify a node in the node stakc based on `node_name:node_tag@variant` instead of `node_name:node_tag`
+    // https://app.plane.so/peppy/browse/PEPPYOS-83/
+    {
+      source: {
+        name: "depth_camera",
+        tag: "0.1.0",
+        variant: {
+          name: "realsense_d405"
+        }
+      },
+      instances: [
+        {
+          instance_id: "left_arm",
+        },
+        {
+          instance_id: "right_arm",
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm01_arm:0.1.0"
+      },
+      instances: [
+        {
+          instance_id: "right_arm",
+          arguments: {}
+        },
+        {
+          instance_id: "left_arm",
+          arguments: {}
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm01_gripper:0.1.0"
+      },
+      instances: [
+        {
+          instance_id: "right_gripper",
+          arguments: {}
+        },
+        {
+          instance_id: "left_gripper",
+          arguments: {}
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm01_backbone",
+        tag: "0.1.0"
+      },
+      instances: [
+        {
+          instance_id: "backbone",
+          arguments: {}
+        }
+      ]
+    }
+  ]
+}

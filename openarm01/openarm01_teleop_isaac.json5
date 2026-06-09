@@ -5,7 +5,7 @@
 //   openarm01_arm_isaac     (×2)      — left + right arm, Rust runtime per side
 //   openarm01_gripper_isaac (×2)      — left + right gripper, Rust runtime per side
 //   openarm01_backbone      (×1)      — joint-space orchestrator, pinned link_ids
-//   openarm01_joint_commander(×1)     — ratatui operator TUI
+//   openarm01_joint_commander(×1)     — axum HTTP+WS browser UI on :8765 (PEPPY_JC_PORT, PEPPY_JC_BIND_IP)
 //
 // MVP scope: no IK / collisions_detection / cameras. Add when those nodes
 // migrate to v0.10 (Module 4 — Safety Pipeline).
@@ -26,12 +26,12 @@
         {
           instance_id: "left_arm_inst",
           arguments: { arm_id: 0 },
-          bindings: { sim: "sim" }
+          bindings: { sim: "sim" },
         },
         {
           instance_id: "right_arm_inst",
           arguments: { arm_id: 1 },
-          bindings: { sim: "sim" }
+          bindings: { sim: "sim" },
         }
       ]
     },
@@ -41,12 +41,12 @@
         {
           instance_id: "left_grip_inst",
           arguments: { gripper_id: 0 },
-          bindings: { sim: "sim" }
+          bindings: { sim: "sim" },
         },
         {
           instance_id: "right_grip_inst",
           arguments: { gripper_id: 1 },
-          bindings: { sim: "sim" }
+          bindings: { sim: "sim" },
         }
       ]
     },
@@ -61,23 +61,18 @@
             right_arm:     "right_arm_inst",
             left_gripper:  "left_grip_inst",
             right_gripper: "right_grip_inst"
-          }
+          },
         }
       ]
     },
-    // joint_commander is a TUI — runs separately as `cargo run --release`
-    // in a real terminal so ratatui can own stdin/stdout/tty. Daemonized
-    // launch via stack would hand it a non-interactive pipe and the TUI
-    // would not render. Uncomment once peppy gives stack-launched nodes
-    // a pty (or once joint_commander gains a non-TUI mode).
-    // {
-    //   source: { name: "openarm01_joint_commander", tag: "v1" },
-    //   instances: [
-    //     {
-    //       instance_id: "commander",
-    //       bindings: { backbone: "backbone_inst" }
-    //     }
-    //   ]
-    // }
+    {
+      source: { name: "openarm01_joint_commander", tag: "v1" },
+      instances: [
+        {
+          instance_id: "commander",
+          bindings: { backbone: "backbone_inst" },
+        }
+      ]
+    }
   ]
 }

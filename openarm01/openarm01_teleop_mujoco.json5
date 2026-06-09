@@ -1,16 +1,5 @@
-// openarm01 bimanual teleop on MuJoCo — v0.10 deployment shape.
-//
-// Brings up the full MVP stack:
-//   robot_initializer_mujoco (×1)     — owns the MuJoCo process + bridge_extension
-//   openarm01_arm_mujoco     (×2)     — left + right arm, Rust runtime per side
-//   openarm01_gripper_mujoco (×2)     — left + right gripper, Rust runtime per side
-//   openarm01_backbone       (×1)     — joint-space orchestrator, pinned link_ids
-//   openarm01_joint_commander(×1)     — axum HTTP+WS browser UI on :8765 (PEPPY_JC_PORT, PEPPY_JC_BIND_IP)
-//
-// MVP scope: no IK / collisions_detection / cameras. Add when those nodes
-// migrate to v0.10 (Module 4 — Safety Pipeline).
-//
-// Launch:  peppy stack launch ./openarm01_teleop_mujoco.json5
+// openarm01 bimanual MuJoCo teleop. MVP scope: joint-space passthrough; IK +
+// CD + cameras land post-MVP. Launch: peppy stack launch ./openarm01_teleop_mujoco.json5
 {
   peppy_schema: "launcher_v1",
   deployments: [

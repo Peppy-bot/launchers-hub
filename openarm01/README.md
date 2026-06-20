@@ -31,6 +31,17 @@ The launcher starts all eight instances in dependency order (sim first, then arm
 
 Move a slider, press **Send**, and watch the arm follow. To stop everything, Ctrl-C the launch terminal, or stop instances individually with `peppy node stop <instance_id>`.
 
+## Real robot
+
+`openarm01_teleop.json5` drives the physical arms over CAN instead of a sim, so there is no viewer port: the only UI is the control panel at **http://localhost:8765**. Before launching, bring the buses up (the launcher wires left arm + gripper to `can0` and right arm + gripper to `can1`):
+
+```sh
+sudo ip link set can0 up type can bitrate 1000000 dbitrate 5000000 fd on
+sudo ip link set can1 up type can bitrate 1000000 dbitrate 5000000 fd on
+```
+
+The arms load the V1.0 description for their gravity/Coriolis feedforward; it is baked into the `openarm01_arm` container, so unlike the rate and CAN arguments there is no host path to set. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the launcher if your wiring or loop budget differs.
+
 ## Troubleshooting
 
 **`failed to resolve source for deployment repo:<node>:v1 ... not found in nodes.json5`**

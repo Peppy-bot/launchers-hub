@@ -1,101 +1,92 @@
+// openarm01 bimanual real-hardware teleop. Same node graph as the _isaac /
+// _mujoco launchers, but the robot_initializer, arm, and gripper slots are
+// filled by the real-hardware nodes (no sim binding; the arms talk to the
+// motors over CAN). MVP scope: joint-space passthrough; IK + CD + cameras land
+// post-MVP. Launch: peppy stack launch ./openarm01_teleop.json5
+//
+// CAN topology: left arm + left gripper share can0, right arm + right gripper
+// share can1 (OpenArm V1.0 reference wiring). control_rate_hz/state_rate_hz are
+// the 500 Hz hardware loop and a 100 Hz measured-state stream; urdf_path and the
+// feedforward gains fall back to the arm node defaults (the V1.0 description is
+// baked into the arm container, so no host path is needed here).
 {
   peppy_schema: "launcher_v1",
   deployments: [
     {
-      source: {
-        name: "collisions_detection:0.1.0",
-      },
+      source: { name: "openarm01_robot_initializer", tag: "v1" },
       instances: [
-        {
-          instance_id: "collisions",
-          arguments: {}
-        }
-      ],
-    },
-    {
-      source: {
-        name: "inverse_kinematics:0.1.0"
-      },
-      instances: [
-        {
-          instance_id: "ik",
-          arguments: {}
-        }
+        { instance_id: "robot_init" }
       ]
     },
     {
-      source: {
-        name: "depth_camera",
-        tag: "0.1.0",
-        variant: {
-          name: "realsense_d435"
-        }
-      },
+      source: { name: "openarm01_arm", tag: "v1" },
       instances: [
         {
-          instance_id: "torso_front_camera",
-          arguments: {}
-        }
-      ]
-    },
-    // This is currently forbidden, as it will erase the node declared above. Come up with a fix where the node stack now identify a node in the node stakc based on `node_name:node_tag@variant` instead of `node_name:node_tag`
-    // https://app.plane.so/peppy/browse/PEPPYOS-83/
-    {
-      source: {
-        name: "depth_camera",
-        tag: "0.1.0",
-        variant: {
-          name: "realsense_d405"
-        }
-      },
-      instances: [
-        {
-          instance_id: "left_arm",
+          instance_id: "left_arm_inst",
+          arguments: {
+            arm_id: 0,
+            can_interface: "can0",
+            base_link: "openarm_left_link0",
+            control_rate_hz: 500,
+            state_rate_hz: 100,
+            stream_timeout_s: 0.5
+          },
         },
         {
-          instance_id: "right_arm",
+          instance_id: "right_arm_inst",
+          arguments: {
+            arm_id: 1,
+            can_interface: "can1",
+            base_link: "openarm_right_link0",
+            control_rate_hz: 500,
+            state_rate_hz: 100,
+            stream_timeout_s: 0.5
+          },
         }
       ]
     },
     {
-      source: {
-        name: "openarm01_arm:0.1.0"
-      },
+      source: { name: "openarm01_gripper", tag: "v1" },
       instances: [
         {
-          instance_id: "right_arm",
-          arguments: {}
+          instance_id: "left_grip_inst",
+          arguments: {
+            gripper_id: 0,
+            can_interface: "can0",
+            control_rate_hz: 500
+          },
         },
         {
-          instance_id: "left_arm",
-          arguments: {}
+          instance_id: "right_grip_inst",
+          arguments: {
+            gripper_id: 1,
+            can_interface: "can1",
+            control_rate_hz: 500
+          },
         }
       ]
     },
     {
-      source: {
-        name: "openarm01_gripper:0.1.0"
-      },
+      source: { name: "openarm01_backbone", tag: "v1" },
       instances: [
         {
-          instance_id: "right_gripper",
-          arguments: {}
-        },
-        {
-          instance_id: "left_gripper",
-          arguments: {}
+          instance_id: "backbone_inst",
+          bindings: {
+            robot_init:    "robot_init",
+            left_arm:      "left_arm_inst",
+            right_arm:     "right_arm_inst",
+            left_gripper:  "left_grip_inst",
+            right_gripper: "right_grip_inst"
+          },
         }
       ]
     },
     {
-      source: {
-        name: "openarm01_backbone",
-        tag: "0.1.0"
-      },
+      source: { name: "openarm01_joint_commander", tag: "v1" },
       instances: [
         {
-          instance_id: "backbone",
-          arguments: {}
+          instance_id: "commander",
+          bindings: { backbone: "backbone_inst" },
         }
       ]
     }

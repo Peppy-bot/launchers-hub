@@ -14,12 +14,12 @@
       instances: [
         {
           instance_id: "left_arm_inst",
-          arguments: { arm_id: 0 },
+          arguments: { arm_id: 0, control_rate_hz: 100, stream_timeout_s: 0.5 },
           bindings: { sim: "sim" },
         },
         {
           instance_id: "right_arm_inst",
-          arguments: { arm_id: 1 },
+          arguments: { arm_id: 1, control_rate_hz: 100, stream_timeout_s: 0.5 },
           bindings: { sim: "sim" },
         }
       ]

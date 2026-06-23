@@ -53,7 +53,9 @@
           arguments: {
             gripper_id: 0,
             can_interface: "can0",
-            control_rate_hz: 500
+            control_rate_hz: 500,
+            state_rate_hz: 100,
+            stream_timeout_s: 0.5
           },
         },
         {
@@ -61,7 +63,9 @@
           arguments: {
             gripper_id: 1,
             can_interface: "can1",
-            control_rate_hz: 500
+            control_rate_hz: 500,
+            state_rate_hz: 100,
+            stream_timeout_s: 0.5
           },
         }
       ]

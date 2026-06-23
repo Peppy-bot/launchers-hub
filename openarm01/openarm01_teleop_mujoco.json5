@@ -6,7 +6,12 @@
     {
       source: { name: "openarm01_robot_initializer_mujoco", tag: "v1" },
       instances: [
-        { instance_id: "sim" }
+        {
+          instance_id: "sim",
+          // Rate (Hz) of the sim's measured-state streams (joint_states /
+          // gripper_states). Aligns with the arm/gripper control loops.
+          arguments: { state_rate_hz: 100 },
+        }
       ]
     },
     {
@@ -15,12 +20,10 @@
         {
           instance_id: "left_arm_inst",
           arguments: { arm_id: 0, control_rate_hz: 100, stream_timeout_s: 0.5 },
-          bindings: { sim: "sim" },
         },
         {
           instance_id: "right_arm_inst",
           arguments: { arm_id: 1, control_rate_hz: 100, stream_timeout_s: 0.5 },
-          bindings: { sim: "sim" },
         }
       ]
     },
@@ -30,12 +33,10 @@
         {
           instance_id: "left_grip_inst",
           arguments: { gripper_id: 0, control_rate_hz: 100, stream_timeout_s: 0.5 },
-          bindings: { sim: "sim" },
         },
         {
           instance_id: "right_grip_inst",
           arguments: { gripper_id: 1, control_rate_hz: 100, stream_timeout_s: 0.5 },
-          bindings: { sim: "sim" },
         }
       ]
     },

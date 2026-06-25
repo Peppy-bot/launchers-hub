@@ -1,5 +1,9 @@
-// openarm01 bimanual MuJoCo teleop. MVP scope: joint-space passthrough; IK +
-// CD + cameras land post-MVP. Launch: peppy stack launch ./openarm01_teleop_mujoco.json5
+// openarm01 bimanual MuJoCo teleop with self-collision avoidance. The backbone
+// is the coordination hub: it consumes the commander's joint stream + the sim's
+// joint_states + the collision toggle, runs the self-collision governor over both
+// arms, and streams governed setpoints the sim arms relabel onto the engine. The
+// sim arms are thin followers (governed_setpoints -> arm_sim_passthrough).
+// Launch: peppy stack launch ./openarm01_teleop_mujoco.json5
 {
   peppy_schema: "launcher/v1",
   deployments: [
@@ -9,7 +13,7 @@
         {
           instance_id: "sim",
           // Rate (Hz) of the sim's measured-state streams (joint_states /
-          // gripper_states). Aligns with the arm/gripper control loops.
+          // gripper_states). The hub consumes joint_states for the governor.
           arguments: { state_rate_hz: 100 },
         }
       ]
@@ -17,14 +21,10 @@
     {
       source: { name: "openarm01_arm_mujoco", tag: "v1" },
       instances: [
-        {
-          instance_id: "left_arm_inst",
-          arguments: { arm_id: 0, control_rate_hz: 100, stream_timeout_s: 0.5 },
-        },
-        {
-          instance_id: "right_arm_inst",
-          arguments: { arm_id: 1, control_rate_hz: 100, stream_timeout_s: 0.5 },
-        }
+        // Thin followers: each relabels the hub's governed_setpoints for its
+        // arm_id onto arm_sim_passthrough. No motion params (the hub owns those).
+        { instance_id: "left_arm_inst", arguments: { arm_id: 0 } },
+        { instance_id: "right_arm_inst", arguments: { arm_id: 1 } }
       ]
     },
     {
@@ -45,10 +45,13 @@
       instances: [
         {
           instance_id: "backbone_inst",
+          // The hub coordination rate and the operator-stream watchdog. URDF,
+          // meshes, base links, and the governor band (d_stop/d_safe) take their
+          // vendored / validated defaults. joint_commands, joint_states, and the
+          // collision toggle resolve via from_any, so they need no bindings.
+          arguments: { control_rate_hz: 100, stream_timeout_s: 0.5 },
           bindings: {
             robot_init:    "sim",
-            left_arm:      "left_arm_inst",
-            right_arm:     "right_arm_inst",
             left_gripper:  "left_grip_inst",
             right_gripper: "right_grip_inst"
           },

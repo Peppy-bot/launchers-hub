@@ -49,7 +49,7 @@
           // meshes, base links, and the governor band (d_stop/d_safe) take their
           // vendored / validated defaults. joint_commands, joint_states, and the
           // collision toggle resolve via from_any, so they need no bindings.
-          arguments: { control_rate_hz: 100, stream_timeout_s: 0.5 },
+          arguments: { control_rate_hz: 100, stream_timeout_s: 0.5, max_ee_velocity_m_s: 1.0 },
           bindings: {
             robot_init:    "sim",
             left_gripper:  "left_grip_inst",

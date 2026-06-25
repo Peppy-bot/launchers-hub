@@ -13,12 +13,6 @@
   peppy_schema: "launcher/v1",
   deployments: [
     {
-      source: { name: "openarm01_robot_initializer", tag: "v1" },
-      instances: [
-        { instance_id: "robot_init" }
-      ]
-    },
-    {
       source: { name: "openarm01_arm", tag: "v1" },
       instances: [
         {
@@ -66,6 +60,22 @@
             control_rate_hz: 500,
             state_rate_hz: 100,
             stream_timeout_s: 0.5
+          },
+        }
+      ]
+    },
+    {
+      // Declared after the arms/grippers it aggregates: the real initializer polls
+      // each component's is_ready and reports the robot ready only when all are up.
+      source: { name: "openarm01_robot_initializer", tag: "v1" },
+      instances: [
+        {
+          instance_id: "robot_init",
+          bindings: {
+            left_arm:      "left_arm_inst",
+            right_arm:     "right_arm_inst",
+            left_gripper:  "left_grip_inst",
+            right_gripper: "right_grip_inst"
           },
         }
       ]

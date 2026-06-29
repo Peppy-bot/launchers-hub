@@ -2,7 +2,7 @@
 // node graph as the _isaac / _mujoco launchers, but the robot_initializer and arm
 // slots are the real-hardware nodes (the arms talk to the motors over CAN). The
 // backbone is the coordination hub: it consumes the commander's joint stream +
-// both arms' joint_states + the collision toggle, runs the self-collision
+// both arms' arm_states + the collision toggle, runs the self-collision
 // governor, and streams governed setpoints the real arms track with their MIT
 // loop + feedforward. Launch: peppy stack launch ./openarm01_teleop.json5
 //
@@ -91,7 +91,7 @@
           // Hub coordination rate + operator-stream watchdog. The whole stack runs
           // at a unified 100 Hz: the hub streams governed setpoints at this rate and
           // the real arms run their MIT loop at the same rate holding the latest
-          // setpoint. joint_commands, joint_states, and the collision toggle resolve
+          // setpoint. arm_joint_commands, arm_states, and the collision toggle resolve
           // via from_any (no bindings).
           arguments: { control_rate_hz: 100, stream_timeout_s: 0.5 },
           bindings: {

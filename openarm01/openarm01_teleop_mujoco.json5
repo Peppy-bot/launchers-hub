@@ -1,8 +1,8 @@
 // openarm01 bimanual MuJoCo teleop with self-collision avoidance. The backbone
 // is the coordination hub: it consumes the commander's joint stream + the sim's
-// joint_states + the collision toggle, runs the self-collision governor over both
+// arm_states + the collision toggle, runs the self-collision governor over both
 // arms, and streams governed setpoints the sim arms relabel onto the engine. The
-// sim arms are thin followers (governed_setpoints -> arm_sim_passthrough).
+// sim arms are thin followers (arm_governed_setpoints -> arm_sim_passthrough).
 // Launch: peppy stack launch ./openarm01_teleop_mujoco.json5
 {
   peppy_schema: "launcher/v1",
@@ -12,8 +12,8 @@
       instances: [
         {
           instance_id: "sim",
-          // Rate (Hz) of the sim's measured-state streams (joint_states /
-          // gripper_states). The hub consumes joint_states for the governor.
+          // Rate (Hz) of the sim's measured-state streams (arm_states /
+          // gripper_states). The hub consumes arm_states for the governor.
           arguments: { state_rate_hz: 100 },
         }
       ]
@@ -21,7 +21,7 @@
     {
       source: { name: "openarm01_arm_mujoco", tag: "v1" },
       instances: [
-        // Thin followers: each relabels the hub's governed_setpoints for its
+        // Thin followers: each relabels the hub's arm_governed_setpoints for its
         // arm_id onto arm_sim_passthrough. No motion params (the hub owns those).
         { instance_id: "left_arm_inst", arguments: { arm_id: 0 } },
         { instance_id: "right_arm_inst", arguments: { arm_id: 1 } }
@@ -47,7 +47,7 @@
           instance_id: "backbone_inst",
           // The hub coordination rate and the operator-stream watchdog. URDF,
           // meshes, base links, and the governor band (d_stop/d_safe) take their
-          // vendored / validated defaults. joint_commands, joint_states, and the
+          // vendored / validated defaults. arm_joint_commands, arm_states, and the
           // collision toggle resolve via from_any, so they need no bindings.
           arguments: { control_rate_hz: 100, stream_timeout_s: 0.5, max_ee_velocity_m_s: 1.0 },
           bindings: {

@@ -45,7 +45,20 @@
       instances: [
         {
           instance_id: "backbone_inst",
-          arguments: { control_rate_hz: 100, stream_timeout_s: 0.5 },
+          // The hub coordination rate and operator-stream watchdog. URDF, meshes, and
+          // base links take their vendored container defaults. The governor's launch
+          // band, enable, and startup EE-speed cap are required arguments (no node
+          // defaults) until the operator's live governor_control stream takes over;
+          // the sim cap is permissive. arm_joint_commands, arm_states, and the live
+          // governor controls resolve via from_any, so they need no bindings.
+          arguments: {
+            control_rate_hz: 100,
+            stream_timeout_s: 0.5,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            collision_governor_enabled: true,
+            max_ee_velocity_m_s: 1.0
+          },
           bindings: {
             robot_init:    "sim",
             left_gripper:  "left_grip_inst",
@@ -59,6 +72,16 @@
       instances: [
         {
           instance_id: "commander",
+          // Sim runs fast: raise the operator EE-speed cap (streamed to the hub)
+          // above the conservative real-arm value. Band + launch enable kept in step
+          // with backbone_inst.
+          arguments: {
+            command_rate_hz: 100,
+            collision_governor_enabled: true,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            max_ee_velocity_m_s: 1.0
+          },
           bindings: { backbone: "backbone_inst" },
         }
       ]

@@ -6,11 +6,8 @@
 // governor, and streams governed setpoints the real arms track with their MIT
 // loop + feedforward. Launch: peppy stack launch ./openarm01_teleop.json5
 //
-// SAFETY: both arms run with dry_run=true, so they hold pose and log the targets
-// they would follow without moving. The grippers run live. This hub re-arch has
-// NOT been bench-tested on hardware; verify on the bench before flipping dry_run
-// to false. CAN topology: left arm + left gripper share can0, right arm + right
-// gripper share can1 (OpenArm V1.0 reference wiring).
+// CAN topology: left arm + left gripper share can0, right arm + right gripper
+// share can1 (OpenArm V1.0 reference wiring).
 {
   peppy_schema: "launcher/v1",
   deployments: [
@@ -24,9 +21,7 @@
             can_interface: "can0",
             base_link: "openarm_left_link0",
             control_rate_hz: 100,
-            state_rate_hz: 100,
-            // Bring-up safety: hold pose and log targets, do not follow governed motion.
-            dry_run: true
+            state_rate_hz: 100
           },
         },
         {
@@ -36,8 +31,7 @@
             can_interface: "can1",
             base_link: "openarm_right_link0",
             control_rate_hz: 100,
-            state_rate_hz: 100,
-            dry_run: true
+            state_rate_hz: 100
           },
         }
       ]
@@ -92,8 +86,17 @@
           // at a unified 100 Hz: the hub streams governed setpoints at this rate and
           // the real arms run their MIT loop at the same rate holding the latest
           // setpoint. arm_joint_commands, arm_states, and the collision toggle resolve
-          // via from_any (no bindings).
-          arguments: { control_rate_hz: 100, stream_timeout_s: 0.5 },
+          // via from_any (no bindings). The governor band, launch enable, and startup
+          // EE-speed cap are required arguments (no node defaults); the cap is
+          // conservative for the real arm until the operator's live cap takes over.
+          arguments: {
+            control_rate_hz: 100,
+            stream_timeout_s: 0.5,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            collision_governor_enabled: true,
+            max_ee_velocity_m_s: 0.25
+          },
           bindings: {
             robot_init:    "robot_init",
             left_gripper:  "left_grip_inst",
@@ -107,6 +110,15 @@
       instances: [
         {
           instance_id: "commander",
+          // Governor launch defaults the operator then streams live, kept in step
+          // with backbone_inst; conservative EE-speed cap for the real arm.
+          arguments: {
+            command_rate_hz: 100,
+            collision_governor_enabled: true,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            max_ee_velocity_m_s: 0.25
+          },
           bindings: { backbone: "backbone_inst" },
         }
       ]

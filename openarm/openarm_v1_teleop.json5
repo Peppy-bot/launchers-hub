@@ -18,6 +18,7 @@
           instance_id: "left_arm_inst",
           arguments: {
             arm_id: 0,
+            hardware_version: "v1",
             can_interface: "can0",
             base_link: "openarm_left_link0",
             control_rate_hz: 100,
@@ -28,6 +29,7 @@
           instance_id: "right_arm_inst",
           arguments: {
             arm_id: 1,
+            hardware_version: "v1",
             can_interface: "can1",
             base_link: "openarm_right_link0",
             control_rate_hz: 100,
@@ -90,6 +92,7 @@
           // EE-speed cap are required arguments (no node defaults); the cap is
           // conservative for the real arm until the operator's live cap takes over.
           arguments: {
+            hardware_version: "v1",
             control_rate_hz: 100,
             stream_timeout_s: 0.5,
             d_stop: 0.005,

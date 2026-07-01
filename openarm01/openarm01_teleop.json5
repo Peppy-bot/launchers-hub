@@ -1,14 +1,13 @@
-// openarm01 bimanual real-hardware teleop. Same node graph as the _isaac /
-// _mujoco launchers, but the robot_initializer, arm, and gripper slots are
-// filled by the real-hardware nodes (no sim binding; the arms talk to the
-// motors over CAN). MVP scope: joint-space passthrough; IK + CD + cameras land
-// post-MVP. Launch: peppy stack launch ./openarm01_teleop.json5
+// openarm01 bimanual real-hardware teleop with self-collision avoidance. Same
+// node graph as the _isaac / _mujoco launchers, but the robot_initializer and arm
+// slots are the real-hardware nodes (the arms talk to the motors over CAN). The
+// backbone is the coordination hub: it consumes the commander's joint stream +
+// both arms' arm_states + the collision toggle, runs the self-collision
+// governor, and streams governed setpoints the real arms track with their MIT
+// loop + feedforward. Launch: peppy stack launch ./openarm01_teleop.json5
 //
 // CAN topology: left arm + left gripper share can0, right arm + right gripper
-// share can1 (OpenArm V1.0 reference wiring). control_rate_hz/state_rate_hz are
-// the 500 Hz hardware loop and a 100 Hz measured-state stream; urdf_path and the
-// feedforward gains fall back to the arm node defaults (the V1.0 description is
-// baked into the arm container, so no host path is needed here).
+// share can1 (OpenArm V1.0 reference wiring).
 {
   peppy_schema: "launcher/v1",
   deployments: [
@@ -21,9 +20,8 @@
             arm_id: 0,
             can_interface: "can0",
             base_link: "openarm_left_link0",
-            control_rate_hz: 500,
-            state_rate_hz: 100,
-            stream_timeout_s: 0.5
+            control_rate_hz: 100,
+            state_rate_hz: 100
           },
         },
         {
@@ -32,9 +30,8 @@
             arm_id: 1,
             can_interface: "can1",
             base_link: "openarm_right_link0",
-            control_rate_hz: 500,
-            state_rate_hz: 100,
-            stream_timeout_s: 0.5
+            control_rate_hz: 100,
+            state_rate_hz: 100
           },
         }
       ]
@@ -47,7 +44,7 @@
           arguments: {
             gripper_id: 0,
             can_interface: "can0",
-            control_rate_hz: 500,
+            control_rate_hz: 100,
             state_rate_hz: 100,
             stream_timeout_s: 0.5
           },
@@ -57,7 +54,7 @@
           arguments: {
             gripper_id: 1,
             can_interface: "can1",
-            control_rate_hz: 500,
+            control_rate_hz: 100,
             state_rate_hz: 100,
             stream_timeout_s: 0.5
           },
@@ -85,10 +82,23 @@
       instances: [
         {
           instance_id: "backbone_inst",
+          // Hub coordination rate + operator-stream watchdog. The whole stack runs
+          // at a unified 100 Hz: the hub streams governed setpoints at this rate and
+          // the real arms run their MIT loop at the same rate holding the latest
+          // setpoint. arm_joint_commands, arm_states, and the collision toggle resolve
+          // via from_any (no bindings). The governor band, launch enable, and startup
+          // EE-speed cap are required arguments (no node defaults); the cap is
+          // conservative for the real arm until the operator's live cap takes over.
+          arguments: {
+            control_rate_hz: 100,
+            stream_timeout_s: 0.5,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            collision_governor_enabled: true,
+            max_ee_velocity_m_s: 0.25
+          },
           bindings: {
             robot_init:    "robot_init",
-            left_arm:      "left_arm_inst",
-            right_arm:     "right_arm_inst",
             left_gripper:  "left_grip_inst",
             right_gripper: "right_grip_inst"
           },
@@ -100,6 +110,15 @@
       instances: [
         {
           instance_id: "commander",
+          // Governor launch defaults the operator then streams live, kept in step
+          // with backbone_inst; conservative EE-speed cap for the real arm.
+          arguments: {
+            command_rate_hz: 100,
+            collision_governor_enabled: true,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            max_ee_velocity_m_s: 0.25
+          },
           bindings: { backbone: "backbone_inst" },
         }
       ]

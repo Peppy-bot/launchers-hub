@@ -32,11 +32,11 @@
       instances: [
         {
           instance_id: "left_grip_inst",
-          arguments: { gripper_id: 0, control_rate_hz: 100, stream_timeout_s: 0.5 },
+          arguments: { gripper_id: 0, hardware_version: "v2", control_rate_hz: 100, stream_timeout_s: 0.5 },
         },
         {
           instance_id: "right_grip_inst",
-          arguments: { gripper_id: 1, control_rate_hz: 100, stream_timeout_s: 0.5 },
+          arguments: { gripper_id: 1, hardware_version: "v2", control_rate_hz: 100, stream_timeout_s: 0.5 },
         }
       ]
     },

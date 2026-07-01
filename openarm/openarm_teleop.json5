@@ -1,10 +1,10 @@
-// openarm01 bimanual real-hardware teleop with self-collision avoidance. Same
+// openarm bimanual real-hardware teleop with self-collision avoidance. Same
 // node graph as the _isaac / _mujoco launchers, but the robot_initializer and arm
 // slots are the real-hardware nodes (the arms talk to the motors over CAN). The
 // backbone is the coordination hub: it consumes the commander's joint stream +
 // both arms' arm_states + the collision toggle, runs the self-collision
 // governor, and streams governed setpoints the real arms track with their MIT
-// loop + feedforward. Launch: peppy stack launch ./openarm01_teleop.json5
+// loop + feedforward. Launch: peppy stack launch ./openarm_teleop.json5
 //
 // CAN topology: left arm + left gripper share can0, right arm + right gripper
 // share can1 (OpenArm V1.0 reference wiring).
@@ -12,7 +12,7 @@
   peppy_schema: "launcher/v1",
   deployments: [
     {
-      source: { name: "openarm01_arm", tag: "v1" },
+      source: { name: "openarm_arm", tag: "v1" },
       instances: [
         {
           instance_id: "left_arm_inst",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      source: { name: "openarm01_gripper", tag: "v1" },
+      source: { name: "openarm_gripper", tag: "v1" },
       instances: [
         {
           instance_id: "left_grip_inst",
@@ -64,7 +64,7 @@
     {
       // Declared after the arms/grippers it aggregates: the real initializer polls
       // each component's is_ready and reports the robot ready only when all are up.
-      source: { name: "openarm01_robot_initializer", tag: "v1" },
+      source: { name: "openarm_robot_initializer", tag: "v1" },
       instances: [
         {
           instance_id: "robot_init",
@@ -78,7 +78,7 @@
       ]
     },
     {
-      source: { name: "openarm01_backbone", tag: "v1" },
+      source: { name: "openarm_backbone", tag: "v1" },
       instances: [
         {
           instance_id: "backbone_inst",
@@ -106,7 +106,7 @@
       ]
     },
     {
-      source: { name: "openarm01_joint_commander", tag: "v1" },
+      source: { name: "openarm_joint_commander", tag: "v1" },
       instances: [
         {
           instance_id: "commander",

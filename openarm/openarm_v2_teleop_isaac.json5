@@ -1,25 +1,25 @@
-// openarm01 bimanual MuJoCo teleop with self-collision avoidance. The backbone
+// OpenArm v2.0 bimanual Isaac Sim teleop with self-collision avoidance. The backbone
 // is the coordination hub: it consumes the commander's joint stream + the sim's
 // arm_states + the collision toggle, runs the self-collision governor over both
 // arms, and streams governed setpoints the sim arms relabel onto the engine. The
 // sim arms are thin followers (arm_governed_setpoints -> arm_sim_passthrough).
-// Launch: peppy stack launch ./openarm01_teleop_mujoco.json5
+// Launch: peppy stack launch ./openarm_v2_teleop_isaac.json5
 {
   peppy_schema: "launcher/v1",
   deployments: [
     {
-      source: { name: "openarm01_robot_initializer_mujoco", tag: "v1" },
+      source: { name: "openarm_robot_initializer_isaac", tag: "v1" },
       instances: [
         {
           instance_id: "sim",
           // Rate (Hz) of the sim's measured-state streams (arm_states /
           // gripper_states). The hub consumes arm_states for the governor.
-          arguments: { state_rate_hz: 100 },
+          arguments: { hardware_version: "v2", state_rate_hz: 100 },
         }
       ]
     },
     {
-      source: { name: "openarm01_arm_mujoco", tag: "v1" },
+      source: { name: "openarm_arm_isaac", tag: "v1" },
       instances: [
         // Thin followers: each relabels the hub's arm_governed_setpoints for its
         // arm_id onto arm_sim_passthrough. No motion params (the hub owns those).
@@ -28,30 +28,33 @@
       ]
     },
     {
-      source: { name: "openarm01_gripper_mujoco", tag: "v1" },
+      source: { name: "openarm_gripper_isaac", tag: "v1" },
       instances: [
         {
           instance_id: "left_grip_inst",
-          arguments: { gripper_id: 0, control_rate_hz: 100, stream_timeout_s: 0.5 },
+          arguments: { gripper_id: 0, hardware_version: "v2", control_rate_hz: 100, stream_timeout_s: 0.5 },
         },
         {
           instance_id: "right_grip_inst",
-          arguments: { gripper_id: 1, control_rate_hz: 100, stream_timeout_s: 0.5 },
+          arguments: { gripper_id: 1, hardware_version: "v2", control_rate_hz: 100, stream_timeout_s: 0.5 },
         }
       ]
     },
     {
-      source: { name: "openarm01_backbone", tag: "v1" },
+      source: { name: "openarm_backbone", tag: "v1" },
       instances: [
         {
           instance_id: "backbone_inst",
-          // The hub coordination rate and operator-stream watchdog. URDF, meshes, and
-          // base links take their vendored container defaults. The governor's launch
+          // The hub coordination rate and operator-stream watchdog. URDF and meshes
+          // come from the v2 description; left_base/right_base name the v2 mounts below. The governor's launch
           // band, enable, and startup EE-speed cap are required arguments (no node
           // defaults) until the operator's live governor_control stream takes over;
           // the sim cap is permissive. arm_joint_commands, arm_states, and the live
           // governor controls resolve via from_any, so they need no bindings.
           arguments: {
+            hardware_version: "v2",
+            left_base: "openarm_left_base_link",
+            right_base: "openarm_right_base_link",
             control_rate_hz: 100,
             stream_timeout_s: 0.5,
             d_stop: 0.005,
@@ -68,7 +71,7 @@
       ]
     },
     {
-      source: { name: "openarm01_joint_commander", tag: "v1" },
+      source: { name: "openarm_joint_commander", tag: "v1" },
       instances: [
         {
           instance_id: "commander",
@@ -79,6 +82,7 @@
           // what sets that margin. Band + launch enable kept in step with backbone_inst.
           arguments: {
             command_rate_hz: 100,
+            hardware_version: "v2",
             collision_governor_enabled: true,
             d_stop: 0.005,
             d_safe: 0.02,

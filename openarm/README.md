@@ -1,12 +1,15 @@
 # openarm launchers
 
-Launchers for the OpenArm V10 bimanual teleop stack. All three bring up the same node graph (one robot_initializer, two arms, two grippers, one backbone, one joint_commander) and differ only in which implementation fills each slot:
+Launchers for the OpenArm bimanual teleop stack, one per hardware generation and backend. All six bring up the same node graph (one robot_initializer, two arms, two grippers, one backbone, one joint_commander) and differ only in which implementation fills each slot and which `hardware_version` the nodes receive:
 
-| Launcher | Runs against |
-|---|---|
-| `openarm_teleop.json5` | the real robot |
-| `openarm_teleop_isaac.json5` | Isaac Sim |
-| `openarm_teleop_mujoco.json5` | MuJoCo |
+| Launcher | Generation | Runs against |
+|---|---|---|
+| `openarm_v1_teleop.json5` | v1.0 | the real robot |
+| `openarm_v1_teleop_isaac.json5` | v1.0 | Isaac Sim |
+| `openarm_v1_teleop_mujoco.json5` | v1.0 | MuJoCo |
+| `openarm_v2_teleop.json5` | v2.0 | the real robot |
+| `openarm_v2_teleop_isaac.json5` | v2.0 | Isaac Sim |
+| `openarm_v2_teleop_mujoco.json5` | v2.0 | MuJoCo |
 
 ## Before launching
 
@@ -21,7 +24,7 @@ Every node the launcher references should show `Stage: Ready`.
 ## Launch
 
 ```sh
-peppy stack launch ./openarm_teleop_mujoco.json5
+peppy stack launch ./openarm_v1_teleop_mujoco.json5
 ```
 
 The launcher starts all eight instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the bindings between them. Once it prints `Launch complete`:
@@ -33,7 +36,7 @@ Move a slider, press **Send**, and watch the arm follow. To stop everything, Ctr
 
 ## Real robot
 
-`openarm_teleop.json5` drives the physical arms over CAN instead of a sim, so there is no viewer port: the only UI is the control panel at **http://localhost:8765**. Before launching, bring the buses up (the launcher wires left arm + gripper to `can0` and right arm + gripper to `can1`):
+`openarm_v1_teleop.json5` / `openarm_v2_teleop.json5` drive the physical arms over CAN instead of a sim, so there is no viewer port: the only UI is the control panel at **http://localhost:8765**. Before launching, bring the buses up (the launcher wires left arm + gripper to `can0` and right arm + gripper to `can1`):
 
 ```sh
 sudo ip link set can0 up type can bitrate 1000000 dbitrate 5000000 fd on

@@ -45,8 +45,8 @@
       instances: [
         {
           instance_id: "backbone_inst",
-          // The hub coordination rate and operator-stream watchdog. URDF, meshes, and
-          // base links take their vendored container defaults. The governor's launch
+          // The hub coordination rate and operator-stream watchdog. URDF and meshes
+          // come from the v2 description; left_base/right_base name the v2 mounts below. The governor's launch
           // band, enable, and startup EE-speed cap are required arguments (no node
           // defaults) until the operator's live governor_control stream takes over;
           // the sim cap is permissive. arm_joint_commands, arm_states, and the live

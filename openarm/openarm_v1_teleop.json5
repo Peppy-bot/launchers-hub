@@ -4,7 +4,7 @@
 // backbone is the coordination hub: it consumes the commander's joint stream +
 // both arms' arm_states + the collision toggle, runs the self-collision
 // governor, and streams governed setpoints the real arms track with their MIT
-// loop + feedforward. Launch: peppy stack launch ./openarm_teleop.json5
+// loop + feedforward. Launch: peppy stack launch ./openarm_v1_teleop.json5
 //
 // CAN topology: left arm + left gripper share can0, right arm + right gripper
 // share can1 (OpenArm V1.0 reference wiring).

@@ -3,7 +3,7 @@
 // arm_states + the collision toggle, runs the self-collision governor over both
 // arms, and streams governed setpoints the sim arms relabel onto the engine. The
 // sim arms are thin followers (arm_governed_setpoints -> arm_sim_passthrough).
-// Launch: peppy stack launch ./openarm_teleop_mujoco.json5
+// Launch: peppy stack launch ./openarm_v1_teleop_mujoco.json5
 {
   peppy_schema: "launcher/v1",
   deployments: [

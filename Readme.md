@@ -17,7 +17,7 @@ Each `.json5` file is a self-contained launcher manifest declaring its `deployme
 
 Different launcher files describe alternative configurations of the same system. Common patterns include:
 
-- **Real hardware** (e.g. `openarm_teleop`) — runs against the physical robot
-- **Simulator-specific** (e.g. `openarm_teleop_isaac`, `openarm_teleop_mujoco`) — same stack wired to a simulator
+- **Real hardware** (e.g. `openarm_teleop`): runs against the physical robot
+- **Simulator-specific** (e.g. `openarm_teleop_isaac`, `openarm_teleop_mujoco`): same stack wired to a simulator
 
 See the [Peppy documentation](https://github.com/Peppy-bot/peppy) for the full launcher schema.

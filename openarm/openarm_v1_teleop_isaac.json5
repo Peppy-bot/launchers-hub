@@ -80,6 +80,7 @@
           // what sets that margin. Band + launch enable kept in step with backbone_inst.
           arguments: {
             command_rate_hz: 100,
+            hardware_version: "v1",
             collision_governor_enabled: true,
             d_stop: 0.005,
             d_safe: 0.02,

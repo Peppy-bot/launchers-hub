@@ -61,6 +61,15 @@
         {
           instance_id: "commander",
           bindings: { backbone: "backbone_inst" },
+          // Pair each command slot with its component instance. Declared once
+          // here; the launcher establishes each pair as its second endpoint
+          // comes up, and setpoints/state flow per pair with no id demux.
+          pairings: {
+            left_arm:      "left_arm_inst",
+            right_arm:     "right_arm_inst",
+            left_gripper:  "left_grip_inst",
+            right_gripper: "right_grip_inst"
+          },
         }
       ]
     }

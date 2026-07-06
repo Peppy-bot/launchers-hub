@@ -8,40 +8,75 @@
   peppy_schema: "launcher/v1",
   deployments: [
     {
-      source: { name: "openarm_robot_initializer_mujoco", tag: "v1" },
+      source: {
+        name: "openarm_robot_initializer_mujoco",
+        tag: "v1"
+      },
       instances: [
         {
           instance_id: "sim",
           // Rate (Hz) of the sim's measured-state streams (arm_states /
           // gripper_states). The hub consumes arm_states for the governor.
-          arguments: { hardware_version: "v2", state_rate_hz: 100 },
+          arguments: {
+            hardware_version: "v2",
+            state_rate_hz: 100
+          },
         }
       ]
     },
     {
-      source: { name: "openarm_arm_mujoco", tag: "v1" },
+      source: {
+        name: "openarm_arm_mujoco",
+        tag: "v1"
+      },
       instances: [
         // Thin followers: each relabels the hub's arm_governed_setpoints for its
         // arm_id onto arm_sim_passthrough. No motion params (the hub owns those).
-        { instance_id: "left_arm_inst", arguments: { arm_id: 0 } },
-        { instance_id: "right_arm_inst", arguments: { arm_id: 1 } }
-      ]
-    },
-    {
-      source: { name: "openarm_gripper_mujoco", tag: "v1" },
-      instances: [
         {
-          instance_id: "left_grip_inst",
-          arguments: { gripper_id: 0, hardware_version: "v2", control_rate_hz: 100, stream_timeout_s: 0.5 },
+          instance_id: "left_arm_inst",
+          arguments: {
+            arm_id: 0
+          }
         },
         {
-          instance_id: "right_grip_inst",
-          arguments: { gripper_id: 1, hardware_version: "v2", control_rate_hz: 100, stream_timeout_s: 0.5 },
+          instance_id: "right_arm_inst",
+          arguments: {
+            arm_id: 1
+          }
         }
       ]
     },
     {
-      source: { name: "openarm_backbone", tag: "v1" },
+      source: {
+        name: "openarm_gripper_mujoco",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "left_grip_inst",
+          arguments: {
+            gripper_id: 0,
+            hardware_version: "v2",
+            control_rate_hz: 100,
+            stream_timeout_s: 0.5
+          },
+        },
+        {
+          instance_id: "right_grip_inst",
+          arguments: {
+            gripper_id: 1,
+            hardware_version: "v2",
+            control_rate_hz: 100,
+            stream_timeout_s: 0.5
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_backbone",
+        tag: "v1"
+      },
       instances: [
         {
           instance_id: "backbone_inst",
@@ -63,15 +98,18 @@
             max_ee_velocity_m_s: 0.5
           },
           bindings: {
-            robot_init:    "sim",
-            left_gripper:  "left_grip_inst",
+            robot_init: "sim",
+            left_gripper: "left_grip_inst",
             right_gripper: "right_grip_inst"
           },
         }
       ]
     },
     {
-      source: { name: "openarm_joint_commander", tag: "v1" },
+      source: {
+        name: "openarm_joint_commander",
+        tag: "v1"
+      },
       instances: [
         {
           instance_id: "commander",
@@ -88,7 +126,18 @@
             d_safe: 0.02,
             max_ee_velocity_m_s: 0.5
           },
-          bindings: { backbone: "backbone_inst" },
+          bindings: {
+            backbone: "backbone_inst"
+          },
+          // Pair each gripper slot with its gripper instance. Declared once
+          // here; the launcher establishes each pair as its second endpoint
+          // comes up, and setpoints/aperture flow per pair with no id demux.
+          // The arms are not paired: their command path runs through the hub
+          // (arm_joint_commands -> arm_governed_setpoints).
+          pairings: {
+            left_gripper: "left_grip_inst",
+            right_gripper: "right_grip_inst"
+          },
         }
       ]
     }

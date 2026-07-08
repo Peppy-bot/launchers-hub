@@ -108,9 +108,16 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            robot_init: "robot_init",
-            left_gripper: "left_grip_inst",
-            right_gripper: "right_grip_inst"
+            robot_init: "robot_init"
+          },
+          // Pair each gripper slot with its gripper instance: the hub plays the
+          // commander role of gripper_link and streams the GOVERNED opening per
+          // pair (no id demux), so both command streams (arm and gripper) run
+          // through the governor: arm_joint_commands -> arm_governed_setpoints,
+          // gripper_commands -> the pairing.
+          pairings: {
+            left_gripper_link: "left_grip_inst",
+            right_gripper_link: "right_grip_inst"
           },
         }
       ]
@@ -133,15 +140,6 @@
           },
           bindings: {
             backbone: "backbone_inst"
-          },
-          // Pair each gripper slot with its gripper instance. Declared once
-          // here; the launcher establishes each pair as its second endpoint
-          // comes up, and setpoints/aperture flow per pair with no id demux.
-          // The arms are not paired: their command path runs through the hub
-          // (arm_joint_commands -> arm_governed_setpoints).
-          pairings: {
-            left_gripper: "left_grip_inst",
-            right_gripper: "right_grip_inst"
           },
         }
       ]

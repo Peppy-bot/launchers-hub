@@ -84,8 +84,9 @@
           // base links take their vendored container defaults. The governor's launch
           // band, enable, and startup EE-speed cap are required arguments (no node
           // defaults) until the operator's live governor_control stream takes over;
-          // the sim cap is permissive. arm_joint_commands, arm_states, and the live
-          // governor controls resolve via from_any, so they need no bindings.
+          // the sim cap is permissive. The operator streams and the live
+          // governor controls resolve via from_any; the arms and grippers are
+          // paired below.
           arguments: {
             hardware_version: "v1",
             control_rate_hz: 100,
@@ -98,12 +99,15 @@
           bindings: {
             robot_init: "sim"
           },
-          // Pair each gripper slot with its gripper instance: the hub plays the
-          // commander role of gripper_link and streams the GOVERNED opening per
-          // pair (no id demux), so both command streams (arm and gripper) run
-          // through the governor: arm_joint_commands -> arm_governed_setpoints,
-          // gripper_commands -> the pairing.
+          // Pair each arm and each gripper with the hub: the hub plays the
+          // commander role of arm_link / gripper_link, streams the GOVERNED
+          // setpoint down each pair (no id demux), and reads that follower's
+          // measured state back on the same pair. Both operator streams
+          // (arm_joint_commands, gripper_commands) run through the governor
+          // before anything reaches a follower.
           pairings: {
+            left_arm_link: "left_arm_inst",
+            right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
             right_gripper_link: "right_grip_inst"
           },

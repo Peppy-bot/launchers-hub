@@ -1,7 +1,7 @@
 // openarm bimanual real-hardware teleop with self-collision avoidance. Same
 // node graph as the _isaac / _mujoco launchers, but the robot_initializer and arm
 // slots are the real-hardware nodes (the arms talk to the motors over CAN). The
-// backbone is the coordination hub: it consumes the commander's joint stream +
+// backbone is the coordinator: it consumes the commander's joint stream +
 // both arms' arm_states + the collision toggle, runs the self-collision
 // governor, and streams governed setpoints the real arms track with their MIT
 // loop + feedforward. Launch: peppy stack launch ./openarm_v1_teleop.json5
@@ -96,8 +96,8 @@
       instances: [
         {
           instance_id: "backbone_inst",
-          // Hub coordination rate + operator-stream watchdog. The whole stack runs
-          // at a unified 100 Hz: the hub streams governed setpoints at this rate and
+          // Backbone coordination rate + operator-stream watchdog. The whole stack runs
+          // at a unified 100 Hz: the backbone streams governed setpoints at this rate and
           // the real arms run their MIT loop at the same rate holding the latest
           // setpoint. The operator streams and the collision toggle resolve
           // via from_any; the arms and grippers are paired below. The governor band, launch enable, and startup
@@ -115,7 +115,7 @@
           bindings: {
             robot_init: "robot_init"
           },
-          // Pair each arm and each gripper with the hub: the hub plays the
+          // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
           // measured state back on the same pair. Both operator streams

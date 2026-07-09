@@ -110,7 +110,7 @@
           bindings: {
             robot_init: "robot_init"
           },
-          // Pair each arm and each gripper with the hub: the hub plays the
+          // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
           // measured state back on the same pair. Both operator streams

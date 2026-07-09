@@ -95,7 +95,7 @@
       },
       instances: [
         {
-          instance_id: "backbone_inst",
+          instance_id: "backbone",
           // Backbone coordination rate + operator-stream watchdog. The whole stack runs
           // at a unified 100 Hz: the backbone streams governed setpoints at this rate and
           // the real arms run their MIT loop at the same rate holding the latest
@@ -139,7 +139,7 @@
         {
           instance_id: "commander",
           // Governor launch defaults the operator then streams live, kept in step
-          // with backbone_inst; conservative EE-speed cap for the real arm.
+          // with backbone; conservative EE-speed cap for the real arm.
           arguments: {
             command_rate_hz: 100,
             hardware_version: "v1",
@@ -149,7 +149,7 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            backbone: "backbone_inst"
+            backbone: "backbone"
           },
         }
       ]

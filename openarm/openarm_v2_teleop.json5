@@ -91,7 +91,7 @@
       },
       instances: [
         {
-          instance_id: "backbone_inst",
+          instance_id: "backbone",
           // Unified 100 Hz stack; hardware_version selects the v2 collision model. The
           // governor band, launch enable, and startup EE-speed cap are required (no node
           // defaults); the cap is conservative for the real arm until the operator's live
@@ -110,7 +110,7 @@
           bindings: {
             robot_init: "robot_init"
           },
-          // Pair each arm and each gripper with the hub: the hub plays the
+          // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
           // measured state back on the same pair. Both operator streams
@@ -127,7 +127,7 @@
     },
     {
       source: {
-        name: "openarm_joint_commander",
+        name: "openarm_commander",
         tag: "v1"
       },
       instances: [
@@ -142,7 +142,7 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            backbone: "backbone_inst"
+            backbone: "backbone"
           },
         }
       ]

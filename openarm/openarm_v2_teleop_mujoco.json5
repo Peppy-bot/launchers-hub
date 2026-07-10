@@ -1,5 +1,5 @@
 // OpenArm v2.0 bimanual MuJoCo teleop with self-collision avoidance. The backbone
-// is the coordination hub: it consumes the commander's joint stream + the sim's
+// is the coordinator: it consumes the commander's joint stream + the sim's
 // arm_states + the collision toggle, runs the self-collision governor over both
 // arms, and streams governed setpoints the sim arms relabel onto the engine. The
 // sim arms are thin followers (arm_governed_setpoints -> arm_sim_passthrough).
@@ -16,7 +16,7 @@
         {
           instance_id: "sim",
           // Rate (Hz) of the sim's measured-state streams (arm_states /
-          // gripper_states). The hub consumes arm_states for the governor.
+          // gripper_states). The backbone consumes arm_states for the governor.
           arguments: {
             hardware_version: "v2",
             state_rate_hz: 100
@@ -30,8 +30,8 @@
         tag: "v1"
       },
       instances: [
-        // Thin followers: each relabels the hub's arm_governed_setpoints for its
-        // arm_id onto arm_sim_passthrough. No motion params (the hub owns those).
+        // Thin followers: each relabels the backbone's arm_governed_setpoints for its
+        // arm_id onto arm_sim_passthrough. No motion params (the backbone owns those).
         {
           instance_id: "left_arm_inst",
           arguments: {
@@ -79,8 +79,8 @@
       },
       instances: [
         {
-          instance_id: "backbone_inst",
-          // The hub coordination rate and operator-stream watchdog. URDF and meshes
+          instance_id: "backbone",
+          // The backbone coordination rate and operator-stream watchdog. URDF and meshes
           // come from the v2 description; left_base/right_base name the v2 mounts below. The governor's launch
           // band, enable, and startup EE-speed cap are required arguments (no node
           // defaults) until the operator's live governor_control stream takes over;
@@ -101,7 +101,7 @@
           bindings: {
             robot_init: "sim"
           },
-          // Pair each arm and each gripper with the hub: the hub plays the
+          // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
           // measured state back on the same pair. Both operator streams
@@ -118,17 +118,17 @@
     },
     {
       source: {
-        name: "openarm_joint_commander",
+        name: "openarm_commander",
         tag: "v1"
       },
       instances: [
         {
           instance_id: "commander",
           // Sim runs faster than the real arm: the operator EE-speed cap (streamed
-          // to the hub) is above the conservative real value, but bounded so the
+          // to the backbone) is above the conservative real value, but bounded so the
           // d_safe..d_stop band still spans a couple of control cycles of reaction.
           // The band cannot widen past the ~24 mm rest-pose clearance, so the cap is
-          // what sets that margin. Band + launch enable kept in step with backbone_inst.
+          // what sets that margin. Band + launch enable kept in step with backbone.
           arguments: {
             command_rate_hz: 100,
             hardware_version: "v2",
@@ -138,7 +138,7 @@
             max_ee_velocity_m_s: 0.5
           },
           bindings: {
-            backbone: "backbone_inst"
+            backbone: "backbone"
           },
         }
       ]

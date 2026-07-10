@@ -21,6 +21,13 @@
             hardware_version: "v2",
             state_rate_hz: 100
           },
+          bindings: {
+            // One relabeling follower per side: the sim delivers each
+            // side's passthrough setpoints to exactly these followers,
+            // told apart by arm_id / gripper_id.
+            arm_cmd: ["left_arm_inst", "right_arm_inst"],
+            gripper_cmd: ["left_grip_inst", "right_grip_inst"]
+          },
         }
       ]
     },
@@ -36,13 +43,21 @@
           instance_id: "left_arm_inst",
           arguments: {
             arm_id: 0
-          }
+          },
+          bindings: {
+            // Measured joint state from the sim engine.
+            state: "sim"
+          },
         },
         {
           instance_id: "right_arm_inst",
           arguments: {
             arm_id: 1
-          }
+          },
+          bindings: {
+            // Measured joint state from the sim engine.
+            state: "sim"
+          },
         }
       ]
     },
@@ -60,6 +75,10 @@
             control_rate_hz: 100,
             stream_timeout_s: 0.5
           },
+          bindings: {
+            // Measured opening from the sim engine.
+            state: "sim"
+          },
         },
         {
           instance_id: "right_grip_inst",
@@ -68,6 +87,10 @@
             hardware_version: "v2",
             control_rate_hz: 100,
             stream_timeout_s: 0.5
+          },
+          bindings: {
+            // Measured opening from the sim engine.
+            state: "sim"
           },
         }
       ]
@@ -99,7 +122,14 @@
             max_ee_velocity_m_s: 0.5
           },
           bindings: {
-            robot_init: "sim"
+            robot_init: "sim",
+            // Operator streams and the governor toggle, all bound to the
+            // panel instance. A from_any slot listens ONLY to what is bound
+            // here; removing a line leaves that slot silent (no wildcard
+            // fallback).
+            commander: "commander",
+            commander_gripper: "commander",
+            collision_ctrl: "commander"
           },
           // Pair each arm and each gripper with the hub: the hub plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
@@ -138,7 +168,13 @@
             max_ee_velocity_m_s: 0.5
           },
           bindings: {
-            backbone: "backbone_inst"
+            backbone: "backbone_inst",
+            // Live readouts: the sim engine streams both sides' measured
+            // state (told apart by arm_id / gripper_id); proximity comes
+            // from the hub.
+            arm_states: "sim",
+            gripper_states: "sim",
+            proximity: "backbone_inst"
           },
         }
       ]

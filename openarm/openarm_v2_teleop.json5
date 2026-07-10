@@ -108,7 +108,14 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            robot_init: "robot_init"
+            robot_init: "robot_init",
+            // Operator streams and the governor toggle, all bound to the
+            // panel instance. A from_any slot listens ONLY to what is bound
+            // here; removing a line leaves that slot silent (no wildcard
+            // fallback).
+            commander: "commander",
+            commander_gripper: "commander",
+            collision_ctrl: "commander"
           },
           // Pair each arm and each gripper with the hub: the hub plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
@@ -142,7 +149,13 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            backbone: "backbone_inst"
+            backbone: "backbone_inst",
+            // Live readouts: measured joint / gripper state from both sides
+            // (an array binds every listed producer to the slot) and the
+            // hub's proximity stream.
+            arm_states: ["left_arm_inst", "right_arm_inst"],
+            gripper_states: ["left_grip_inst", "right_grip_inst"],
+            proximity: "backbone_inst"
           },
         }
       ]

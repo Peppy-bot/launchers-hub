@@ -127,7 +127,7 @@
     },
     {
       source: {
-        name: "openarm_joint_commander",
+        name: "openarm_commander",
         tag: "v1"
       },
       instances: [

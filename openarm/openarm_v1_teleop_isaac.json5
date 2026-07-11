@@ -108,8 +108,8 @@
           // band, enable, and startup EE-speed cap are required arguments (no node
           // defaults) until the operator's live governor_control stream takes over;
           // the sim cap is permissive. The operator streams and the live
-          // governor controls resolve via from_any; the arms and grippers are
-          // paired below.
+          // governor controls are bound to the panel below; the arms and
+          // grippers are paired below.
           arguments: {
             hardware_version: "v1",
             control_rate_hz: 100,
@@ -122,9 +122,10 @@
           bindings: {
             robot_init: "sim",
             // Operator streams and the governor toggle, all bound to the
-            // panel instance. A from_any slot listens ONLY to what is bound
-            // here; removing a line leaves that slot silent (no wildcard
-            // fallback).
+            // panel instance. A slot receives ONLY from the one producer
+            // bound here (no wildcard fallback); removing a line is a
+            // launch validation error, since every declared slot must be
+            // bound.
             commander: "commander",
             commander_gripper: "commander",
             collision_ctrl: "commander"

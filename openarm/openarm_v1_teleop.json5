@@ -54,7 +54,6 @@
             can_interface: "can0",
             control_rate_hz: 100,
             state_rate_hz: 100,
-            stream_timeout_s: 0.5
           },
         },
         {
@@ -64,7 +63,6 @@
             can_interface: "can1",
             control_rate_hz: 100,
             state_rate_hz: 100,
-            stream_timeout_s: 0.5
           },
         }
       ]
@@ -107,7 +105,6 @@
           arguments: {
             hardware_version: "v1",
             control_rate_hz: 100,
-            stream_timeout_s: 0.5,
             d_stop: 0.005,
             d_safe: 0.02,
             collision_governor_enabled: true,

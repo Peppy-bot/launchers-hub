@@ -22,11 +22,12 @@
             state_rate_hz: 100
           },
           bindings: {
-            // One relabeling follower per side: the sim delivers each
-            // side's passthrough setpoints to exactly these followers,
-            // told apart by arm_id / gripper_id.
-            arm_cmd: ["left_arm_inst", "right_arm_inst"],
-            gripper_cmd: ["left_grip_inst", "right_grip_inst"]
+            // One contract slot per relabeling follower: the sim delivers each
+            // side's passthrough setpoints to exactly that producer.
+            left_arm_cmd: "left_arm_inst",
+            right_arm_cmd: "right_arm_inst",
+            left_gripper_cmd: "left_grip_inst",
+            right_gripper_cmd: "right_grip_inst"
           },
         }
       ]
@@ -170,11 +171,13 @@
           },
           bindings: {
             backbone: "backbone",
-            // Live readouts: the sim engine streams both sides' measured
-            // state (told apart by arm_id / gripper_id); proximity comes
-            // from the backbone.
-            arm_states: "sim",
-            gripper_states: "sim",
+            // Live readouts: each side has its own contract slot. The sim
+            // instance implements all four slots; arm_id / gripper_id still
+            // identifies the side in each message.
+            left_arm_states: "sim",
+            right_arm_states: "sim",
+            left_gripper_states: "sim",
+            right_gripper_states: "sim",
             proximity: "backbone"
           },
         }

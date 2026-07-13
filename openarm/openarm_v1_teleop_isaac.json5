@@ -14,7 +14,7 @@
       },
       instances: [
         {
-          instance_id: "sim",
+          instance_id: "sim_inst",
           // Rate (Hz) of the sim's measured-state streams (arm_states /
           // gripper_states). The backbone consumes arm_states for the governor.
           arguments: {
@@ -22,8 +22,8 @@
             state_rate_hz: 100
           },
           bindings: {
-            // One contract slot per relabeling follower: the sim delivers each
-            // side's passthrough setpoints to exactly that producer.
+            // One contract slot per relabeling follower: the sim consumes each
+            // side's passthrough setpoints from exactly that follower.
             left_arm_cmd: "left_arm_inst",
             right_arm_cmd: "right_arm_inst",
             left_gripper_cmd: "left_grip_inst",
@@ -47,7 +47,7 @@
           },
           bindings: {
             // Measured joint state from the sim engine.
-            state: "sim"
+            engine_states: "sim_inst"
           },
         },
         {
@@ -57,7 +57,7 @@
           },
           bindings: {
             // Measured joint state from the sim engine.
-            state: "sim"
+            engine_states: "sim_inst"
           },
         }
       ]
@@ -78,7 +78,7 @@
           },
           bindings: {
             // Measured opening from the sim engine.
-            state: "sim"
+            engine_states: "sim_inst"
           },
         },
         {
@@ -91,7 +91,7 @@
           },
           bindings: {
             // Measured opening from the sim engine.
-            state: "sim"
+            engine_states: "sim_inst"
           },
         }
       ]
@@ -103,12 +103,12 @@
       },
       instances: [
         {
-          instance_id: "backbone",
-          // The backbone coordination rate and operator-stream watchdog. URDF, meshes, and
+          instance_id: "backbone_inst",
+          // The backbone coordination rate and commander-stream watchdog. URDF, meshes, and
           // base links take their vendored container defaults. The governor's launch
           // band, enable, and startup EE-speed cap are required arguments (no node
-          // defaults) until the operator's live governor_control stream takes over;
-          // the sim cap is permissive. The operator streams and the live
+          // defaults) until the commander's live governor_control stream takes over;
+          // the sim cap is permissive. The commander streams and the live
           // governor controls are bound to the panel below; the arms and
           // grippers are paired below.
           arguments: {
@@ -121,20 +121,18 @@
             max_ee_velocity_m_s: 0.5
           },
           bindings: {
-            robot_init: "sim",
-            // Operator streams and the governor toggle, all bound to the
-            // panel instance. A slot receives ONLY from the one producer
-            // bound here (no wildcard fallback); removing a line is a
-            // launch validation error, since every declared slot must be
-            // bound.
-            commander: "commander",
-            commander_gripper: "commander",
-            collision_ctrl: "commander"
+            robot_init: "sim_inst",
+            // The commander's setpoint streams and its governor toggle. A slot
+            // receives ONLY from the one producer bound here (no wildcard
+            // fallback); removing a line is a launch validation error, since
+            // every declared slot must be bound.
+            commander: "commander_inst",
+            collision_ctrl: "commander_inst"
           },
           // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
-          // measured state back on the same pair. Both operator streams
+          // measured state back on the same pair. Both commander streams
           // (arm_joint_commands, gripper_commands) run through the governor
           // before anything reaches a follower.
           pairings: {
@@ -153,8 +151,8 @@
       },
       instances: [
         {
-          instance_id: "commander",
-          // Sim runs faster than the real arm: the operator EE-speed cap (streamed
+          instance_id: "commander_inst",
+          // Sim runs faster than the real arm: the commander's EE-speed cap (streamed
           // to the backbone) is above the conservative real value, but bounded so the
           // d_safe..d_stop band still spans a couple of control cycles of reaction.
           // The band cannot widen past the ~24 mm rest-pose clearance, so the cap is
@@ -168,15 +166,14 @@
             max_ee_velocity_m_s: 0.5
           },
           bindings: {
-            backbone: "backbone",
-            // Live readouts: each side has its own contract slot. The sim
-            // instance implements all four slots; arm_id / gripper_id still
-            // identifies the side in each message.
-            left_arm_states: "sim",
-            right_arm_states: "sim",
-            left_gripper_states: "sim",
-            right_gripper_states: "sim",
-            proximity: "backbone"
+            // The backbone: move actions + the collision_status proximity feed.
+            backbone: "backbone_inst",
+            // Live readouts: each side's state slot binds that side's arm or
+            // gripper instance, so the slot itself names the side.
+            left_arm_states: "left_arm_inst",
+            right_arm_states: "right_arm_inst",
+            left_gripper_states: "left_grip_inst",
+            right_gripper_states: "right_grip_inst",
           },
         }
       ]

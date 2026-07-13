@@ -3,7 +3,7 @@
 // (reoriented frames, v2 base links) and the gripper slot is openarm_gripper_v2 (revolute
 // pinch gripper, POS_FORCE with force feedback). Launch: peppy stack launch ./openarm_v2_teleop.json5
 //
-// CAN topology: left arm + left gripper share can0, right arm + right gripper share can1.
+// CAN topology: left arm + left gripper share the left_arm channel, right arm + right gripper share right_arm.
 {
   peppy_schema: "launcher/v1",
   deployments: [
@@ -18,7 +18,7 @@
           arguments: {
             arm_id: 0,
             hardware_version: "v2",
-            can_interface: "can0",
+            can_interface: "left_arm",
             base_link: "openarm_left_base_link",
             control_rate_hz: 100,
             state_rate_hz: 100
@@ -29,7 +29,7 @@
           arguments: {
             arm_id: 1,
             hardware_version: "v2",
-            can_interface: "can1",
+            can_interface: "right_arm",
             base_link: "openarm_right_base_link",
             control_rate_hz: 100,
             state_rate_hz: 100
@@ -47,7 +47,7 @@
           instance_id: "left_grip_inst",
           arguments: {
             gripper_id: 0,
-            can_interface: "can0",
+            can_interface: "left_arm",
             control_rate_hz: 100,
             state_rate_hz: 100,
             stream_timeout_s: 0.5
@@ -57,7 +57,7 @@
           instance_id: "right_grip_inst",
           arguments: {
             gripper_id: 1,
-            can_interface: "can1",
+            can_interface: "right_arm",
             control_rate_hz: 100,
             state_rate_hz: 100,
             stream_timeout_s: 0.5
@@ -74,7 +74,7 @@
       },
       instances: [
         {
-          instance_id: "robot_init",
+          instance_id: "robot_init_inst",
           bindings: {
             left_arm: "left_arm_inst",
             right_arm: "right_arm_inst",
@@ -91,10 +91,10 @@
       },
       instances: [
         {
-          instance_id: "backbone",
+          instance_id: "backbone_inst",
           // Unified 100 Hz stack; hardware_version selects the v2 collision model. The
           // governor band, launch enable, and startup EE-speed cap are required (no node
-          // defaults); the cap is conservative for the real arm until the operator's live
+          // defaults); the cap is conservative for the real arm until the commander's live
           // cap takes over.
           arguments: {
             hardware_version: "v2",
@@ -108,12 +108,18 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            robot_init: "robot_init"
+            robot_init: "robot_init_inst",
+            // The commander's setpoint streams and its governor toggle. A slot
+            // receives ONLY from the one producer bound here (no wildcard
+            // fallback); removing a line is a launch validation error, since
+            // every declared slot must be bound.
+            commander: "commander_inst",
+            collision_ctrl: "commander_inst"
           },
           // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
-          // measured state back on the same pair. Both operator streams
+          // measured state back on the same pair. Both commander streams
           // (arm_joint_commands, gripper_commands) run through the governor
           // before anything reaches a follower.
           pairings: {
@@ -132,7 +138,7 @@
       },
       instances: [
         {
-          instance_id: "commander",
+          instance_id: "commander_inst",
           arguments: {
             command_rate_hz: 100,
             hardware_version: "v2",
@@ -142,7 +148,14 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            backbone: "backbone"
+            // The backbone: move actions + the collision_status proximity feed.
+            backbone: "backbone_inst",
+            // Live readouts: each side has its own one-producer contract slot,
+            // plus the backbone's proximity stream.
+            left_arm_states: "left_arm_inst",
+            right_arm_states: "right_arm_inst",
+            left_gripper_states: "left_grip_inst",
+            right_gripper_states: "right_grip_inst",
           },
         }
       ]

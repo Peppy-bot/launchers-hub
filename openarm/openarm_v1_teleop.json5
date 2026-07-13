@@ -78,7 +78,7 @@
       },
       instances: [
         {
-          instance_id: "robot_init",
+          instance_id: "robot_init_inst",
           bindings: {
             left_arm: "left_arm_inst",
             right_arm: "right_arm_inst",
@@ -95,14 +95,15 @@
       },
       instances: [
         {
-          instance_id: "backbone",
-          // Backbone coordination rate + operator-stream watchdog. The whole stack runs
+          instance_id: "backbone_inst",
+          // Backbone coordination rate + commander-stream watchdog. The whole stack runs
           // at a unified 100 Hz: the backbone streams governed setpoints at this rate and
           // the real arms run their MIT loop at the same rate holding the latest
-          // setpoint. The operator streams and the collision toggle resolve
-          // via from_any; the arms and grippers are paired below. The governor band, launch enable, and startup
+          // setpoint. The commander streams and the collision toggle are
+          // bound to the panel below; the arms and grippers are paired below.
+          // The governor band, launch enable, and startup
           // EE-speed cap are required arguments (no node defaults); the cap is
-          // conservative for the real arm until the operator's live cap takes over.
+          // conservative for the real arm until the commander's live cap takes over.
           arguments: {
             hardware_version: "v1",
             control_rate_hz: 100,
@@ -113,12 +114,18 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            robot_init: "robot_init"
+            robot_init: "robot_init_inst",
+            // The commander's setpoint streams and its governor toggle. A slot
+            // receives ONLY from the one producer bound here (no wildcard
+            // fallback); removing a line is a launch validation error, since
+            // every declared slot must be bound.
+            commander: "commander_inst",
+            collision_ctrl: "commander_inst"
           },
           // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
-          // measured state back on the same pair. Both operator streams
+          // measured state back on the same pair. Both commander streams
           // (arm_joint_commands, gripper_commands) run through the governor
           // before anything reaches a follower.
           pairings: {
@@ -137,8 +144,8 @@
       },
       instances: [
         {
-          instance_id: "commander",
-          // Governor launch defaults the operator then streams live, kept in step
+          instance_id: "commander_inst",
+          // Governor launch defaults the commander then streams live, kept in step
           // with backbone; conservative EE-speed cap for the real arm.
           arguments: {
             command_rate_hz: 100,
@@ -149,7 +156,14 @@
             max_ee_velocity_m_s: 0.25
           },
           bindings: {
-            backbone: "backbone"
+            // The backbone: move actions + the collision_status proximity feed.
+            backbone: "backbone_inst",
+            // Live readouts: each side has its own one-producer contract slot,
+            // plus the backbone's proximity stream.
+            left_arm_states: "left_arm_inst",
+            right_arm_states: "right_arm_inst",
+            left_gripper_states: "left_grip_inst",
+            right_gripper_states: "right_grip_inst",
           },
         }
       ]

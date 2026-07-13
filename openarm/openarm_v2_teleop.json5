@@ -3,7 +3,7 @@
 // (reoriented frames, v2 base links) and the gripper slot is openarm_gripper_v2 (revolute
 // pinch gripper, POS_FORCE with force feedback). Launch: peppy stack launch ./openarm_v2_teleop.json5
 //
-// CAN topology: left arm + left gripper share can0, right arm + right gripper share can1.
+// CAN topology: left arm + left gripper share the left_arm channel, right arm + right gripper share right_arm.
 {
   peppy_schema: "launcher/v1",
   deployments: [
@@ -18,7 +18,7 @@
           arguments: {
             arm_id: 0,
             hardware_version: "v2",
-            can_interface: "can0",
+            can_interface: "left_arm",
             base_link: "openarm_left_base_link",
             control_rate_hz: 100,
             state_rate_hz: 100
@@ -29,7 +29,7 @@
           arguments: {
             arm_id: 1,
             hardware_version: "v2",
-            can_interface: "can1",
+            can_interface: "right_arm",
             base_link: "openarm_right_base_link",
             control_rate_hz: 100,
             state_rate_hz: 100
@@ -47,7 +47,7 @@
           instance_id: "left_grip_inst",
           arguments: {
             gripper_id: 0,
-            can_interface: "can0",
+            can_interface: "left_arm",
             control_rate_hz: 100,
             state_rate_hz: 100,
             stream_timeout_s: 0.5
@@ -57,7 +57,7 @@
           instance_id: "right_grip_inst",
           arguments: {
             gripper_id: 1,
-            can_interface: "can1",
+            can_interface: "right_arm",
             control_rate_hz: 100,
             state_rate_hz: 100,
             stream_timeout_s: 0.5

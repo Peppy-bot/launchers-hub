@@ -50,7 +50,6 @@
             can_interface: "left_arm",
             control_rate_hz: 100,
             state_rate_hz: 100,
-            stream_timeout_s: 0.5
           },
         },
         {
@@ -60,7 +59,6 @@
             can_interface: "right_arm",
             control_rate_hz: 100,
             state_rate_hz: 100,
-            stream_timeout_s: 0.5
           },
         }
       ]
@@ -101,7 +99,6 @@
             left_base: "openarm_left_base_link",
             right_base: "openarm_right_base_link",
             control_rate_hz: 100,
-            stream_timeout_s: 0.5,
             d_stop: 0.005,
             d_safe: 0.02,
             collision_governor_enabled: true,

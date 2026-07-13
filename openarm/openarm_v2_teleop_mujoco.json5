@@ -74,7 +74,6 @@
             gripper_id: 0,
             hardware_version: "v2",
             control_rate_hz: 100,
-            stream_timeout_s: 0.5
           },
           bindings: {
             // Measured opening from the sim engine.
@@ -87,7 +86,6 @@
             gripper_id: 1,
             hardware_version: "v2",
             control_rate_hz: 100,
-            stream_timeout_s: 0.5
           },
           bindings: {
             // Measured opening from the sim engine.
@@ -116,7 +114,6 @@
             left_base: "openarm_left_base_link",
             right_base: "openarm_right_base_link",
             control_rate_hz: 100,
-            stream_timeout_s: 0.5,
             d_stop: 0.005,
             d_safe: 0.02,
             collision_governor_enabled: true,

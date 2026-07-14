@@ -100,17 +100,15 @@
       instances: [
         {
           instance_id: "backbone_inst",
-          // The backbone coordination rate and commander-stream watchdog. URDF and meshes
-          // come from the v2 description; left_base/right_base name the v2 mounts below. The governor's launch
-          // band, enable, and startup EE-speed cap are required arguments (no node
-          // defaults) until the commander's live governor_control stream takes over;
-          // the sim cap is permissive. The commander streams and the live
-          // governor controls are bound to the panel below; the arms and
+          // The backbone coordination rate and commander-stream watchdog. URDF, meshes,
+          // and the per-side chain base links all come from the v2 description. The
+          // governor's launch band, enable, and startup EE-speed cap are required
+          // arguments (no node defaults) until the commander's live governor_control
+          // stream takes over; the sim cap is permissive. The commander streams and the
+          // live governor controls are bound to the panel below; the arms and
           // grippers are paired below.
           arguments: {
             hardware_version: "v2",
-            left_base: "openarm_left_base_link",
-            right_base: "openarm_right_base_link",
             control_rate_hz: 100,
             d_stop: 0.005,
             d_safe: 0.02,

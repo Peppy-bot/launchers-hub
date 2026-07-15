@@ -1,0 +1,31 @@
+// Try-it-out launcher for the Unitree G1 MuJoCo backend. Brings up a single
+// g1_node_mujoco instance with the viewer on: the G1 loads in MuJoCo, stands
+// under the PD hold, and streams g1_state / g1_imu / g1_joint_states /
+// g1_odometry on peppy topics. To make it walk, publish base_velocity_commands
+// or fire the set_posture action (a commander is the next piece); the base
+// glides to the commanded velocity today.
+//
+// Prereqs: the g1 nodes repo and the g1 contracts repo are registered
+// (`peppy repo add`) and refreshed, and g1_node_mujoco is built
+// (`peppy node add <path> -b`). Then: `peppy stack launch ./g1_mujoco.json5`.
+{
+  peppy_schema: "launcher/v1",
+  deployments: [
+    {
+      source: { name: "g1_node_mujoco", tag: "v1" },
+      instances: [
+        {
+          instance_id: "g1_mujoco",
+          arguments: {
+            physics_rate_hz: 200,
+            state_rate_hz: 50,
+            pd_kp: 150.0,
+            pd_kd: 5.0,
+            // Open the MuJoCo viewer so the robot is visible locally.
+            headless: false,
+          },
+        },
+      ],
+    },
+  ],
+}

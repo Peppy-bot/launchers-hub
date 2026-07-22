@@ -23,7 +23,7 @@
       instances: [
         {
           instance_id: "the_brain",
-          bindings: {
+          links: {
             camera: "the_camera",
             robot_controller: "the_controller"
           }
@@ -38,7 +38,7 @@
       instances: [
         {
           instance_id: "the_controller",
-          bindings: {
+          links: {
             left_robot_arm: "the_left_arm",
             right_robot_arm: "the_right_arm"
           }
@@ -87,7 +87,7 @@
       instances: [
         {
           instance_id: "video_reconstruction_1",
-          bindings: {
+          links: {
             camera: "the_camera"
           },
           arguments: {

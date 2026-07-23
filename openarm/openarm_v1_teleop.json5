@@ -152,10 +152,10 @@
             backbone: "backbone_inst",
             // The command loop: this panel plays the commander role of each
             // limb's pairing toward the backbone, which governs the streams.
-            left_arm: "backbone_inst",
-            right_arm: "backbone_inst",
-            left_gripper: "backbone_inst",
-            right_gripper: "backbone_inst",
+            left_arm: "backbone_inst/commander_left_arm",
+            right_arm: "backbone_inst/commander_right_arm",
+            left_gripper: "backbone_inst/commander_left_gripper",
+            right_gripper: "backbone_inst/commander_right_gripper",
             // Live readouts: observe each backbone<->follower pairing's state
             // back-channel; the slot itself names the side.
             observed_left_arm: "left_arm_inst",

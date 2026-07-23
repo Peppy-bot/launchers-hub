@@ -1,25 +1,89 @@
 // openarm bimanual Isaac Sim teleop with self-collision avoidance. The backbone
 // is the coordinator: it consumes the commander's per-limb pairing streams +
 // the collision toggle, runs the self-collision governor over both
-// arms, and streams governed setpoints straight to the engine, which plays the
-// follower role of every limb's pairing itself.
+// arms, and streams governed setpoints to the per-limb sim relays, which lead
+// the engine over the same pairings.
 // Launch: peppy stack launch ./openarm_v1_teleop_isaac.json5
 {
   peppy_schema: "launcher/v1",
   deployments: [
     {
       source: {
-        name: "openarm_robot_initializer_isaac",
+        name: "openarm_sim_isaac",
         tag: "v1"
       },
       instances: [
         {
           instance_id: "sim_inst",
           // Rate (Hz) of the engine's measured-state streams on its pairing
-          // slots, which the backbone and any observer consume.
+          // slots, which the per-limb relays consume.
           arguments: {
             hardware_version: "v1",
             state_rate_hz: 100
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_arm_sim",
+        tag: "v1"
+      },
+      instances: [
+        // Engine-agnostic relays, one per arm: follower toward the backbone
+        // exactly like the real arm, leader toward the engine's matching limb
+        // slot over the same joint_link pairing.
+        {
+          instance_id: "left_arm_inst",
+          links: {
+            engine: "sim_inst/left_arm"
+          },
+        },
+        {
+          instance_id: "right_arm_inst",
+          links: {
+            engine: "sim_inst/right_arm"
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_gripper_sim",
+        tag: "v1"
+      },
+      instances: [
+        // Engine-agnostic relays, one per gripper, mirroring the arm relays
+        // over gripper_link.
+        {
+          instance_id: "left_grip_inst",
+          links: {
+            engine: "sim_inst/left_gripper"
+          },
+        },
+        {
+          instance_id: "right_grip_inst",
+          links: {
+            engine: "sim_inst/right_gripper"
+          },
+        }
+      ]
+    },
+    {
+      // The same readiness aggregator real launches use: the robot is ready
+      // once every relay has seen its limb's physics live.
+      source: {
+        name: "openarm_robot_initializer",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "robot_init_inst",
+          links: {
+            left_arm: "left_arm_inst",
+            right_arm: "right_arm_inst",
+            left_gripper: "left_grip_inst",
+            right_gripper: "right_grip_inst"
           },
         }
       ]
@@ -47,7 +111,7 @@
             max_ee_velocity_m_s: 0.5
           },
           links: {
-            robot_init: "sim_inst",
+            robot_init: "robot_init_inst",
             // The operator's governor toggle. A slot receives ONLY from the
             // one producer linked here (no wildcard fallback); removing a line
             // is a launch validation error, since every declared required slot
@@ -59,10 +123,10 @@
             // measured state back on the same pair. Both upstream command
             // streams run through the governor before anything reaches a
             // follower.
-            left_arm_link: "sim_inst/left_arm",
-            right_arm_link: "sim_inst/right_arm",
-            left_gripper_link: "sim_inst/left_gripper",
-            right_gripper_link: "sim_inst/right_gripper"
+            left_arm_link: "left_arm_inst",
+            right_arm_link: "right_arm_inst",
+            left_gripper_link: "left_grip_inst",
+            right_gripper_link: "right_grip_inst"
           },
         }
       ]
@@ -98,12 +162,13 @@
             right_arm: "backbone_inst/leader_right_arm",
             left_gripper: "backbone_inst/leader_left_gripper",
             right_gripper: "backbone_inst/leader_right_gripper",
-            // Live readouts: an observer link names the FOLLOWER side of the
-            // pairing it watches; in sim that is the engine, one slot per limb.
-            observed_left_arm: "sim_inst/left_arm",
-            observed_right_arm: "sim_inst/right_arm",
-            observed_left_gripper: "sim_inst/left_gripper",
-            observed_right_gripper: "sim_inst/right_gripper",
+            // Live readouts: an observer link names the FOLLOWER instance of
+            // the pairing it watches; the sim relays stand exactly where the
+            // real drivers do.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
           },
         }
       ]

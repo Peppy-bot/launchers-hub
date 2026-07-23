@@ -75,7 +75,7 @@
       instances: [
         {
           instance_id: "robot_init_inst",
-          bindings: {
+          links: {
             left_arm: "left_arm_inst",
             right_arm: "right_arm_inst",
             left_gripper: "left_grip_inst",
@@ -108,22 +108,20 @@
             collision_governor_enabled: true,
             max_ee_velocity_m_s: 0.25
           },
-          bindings: {
+          links: {
             robot_init: "robot_init_inst",
             // The commander's setpoint streams and its governor toggle. A slot
             // receives ONLY from the one producer bound here (no wildcard
             // fallback); removing a line is a launch validation error, since
             // every declared slot must be bound.
             commander: "commander_inst",
-            collision_ctrl: "commander_inst"
-          },
+            collision_ctrl: "commander_inst",
           // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
           // measured state back on the same pair. Both commander streams
           // (arm_joint_commands, gripper_commands) run through the governor
           // before anything reaches a follower.
-          pairings: {
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
@@ -150,7 +148,7 @@
             d_safe: 0.02,
             max_ee_velocity_m_s: 0.25
           },
-          bindings: {
+          links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
             // Live readouts: each side has its own one-producer contract slot,

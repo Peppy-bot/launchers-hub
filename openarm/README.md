@@ -27,7 +27,7 @@ Every node the launcher references should show `Stage: Ready`.
 peppy stack launch ./openarm_v1_teleop_mujoco.json5
 ```
 
-The launcher starts all seven instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the bindings between them. Once it prints `Launch complete`:
+The launcher starts all seven instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:
 
 - open **http://localhost:8765** for the control panel, one slider per joint
 - open **http://localhost:8080** for the MuJoCo viewer (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)

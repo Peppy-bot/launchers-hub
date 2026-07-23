@@ -21,7 +21,7 @@
             hardware_version: "v2",
             state_rate_hz: 100
           },
-          bindings: {
+          links: {
             // One contract slot per relabeling follower: the sim consumes each
             // side's passthrough setpoints from exactly that follower.
             left_arm_cmd: "left_arm_inst",
@@ -45,7 +45,7 @@
           arguments: {
             arm_id: 0
           },
-          bindings: {
+          links: {
             // Measured joint state from the sim engine.
             engine_states: "sim_inst"
           },
@@ -55,7 +55,7 @@
           arguments: {
             arm_id: 1
           },
-          bindings: {
+          links: {
             // Measured joint state from the sim engine.
             engine_states: "sim_inst"
           },
@@ -74,7 +74,7 @@
             gripper_id: 0,
             control_rate_hz: 100,
           },
-          bindings: {
+          links: {
             // Measured opening from the sim engine.
             engine_states: "sim_inst"
           },
@@ -85,7 +85,7 @@
             gripper_id: 1,
             control_rate_hz: 100,
           },
-          bindings: {
+          links: {
             // Measured opening from the sim engine.
             engine_states: "sim_inst"
           },
@@ -115,22 +115,20 @@
             collision_governor_enabled: true,
             max_ee_velocity_m_s: 0.5
           },
-          bindings: {
+          links: {
             robot_init: "sim_inst",
             // The commander's setpoint streams and its governor toggle. A slot
             // receives ONLY from the one producer bound here (no wildcard
             // fallback); removing a line is a launch validation error, since
             // every declared slot must be bound.
             commander: "commander_inst",
-            collision_ctrl: "commander_inst"
-          },
+            collision_ctrl: "commander_inst",
           // Pair each arm and each gripper with the backbone: the backbone plays the
           // commander role of arm_link / gripper_link, streams the GOVERNED
           // setpoint down each pair (no id demux), and reads that follower's
           // measured state back on the same pair. Both commander streams
           // (arm_joint_commands, gripper_commands) run through the governor
           // before anything reaches a follower.
-          pairings: {
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
@@ -160,7 +158,7 @@
             d_safe: 0.02,
             max_ee_velocity_m_s: 0.5
           },
-          bindings: {
+          links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
             // Live readouts: each side's state slot binds that side's arm or

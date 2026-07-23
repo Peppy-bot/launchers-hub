@@ -116,7 +116,7 @@
             // must be linked.
             collision_ctrl: "commander_inst",
             // Link each arm and each gripper with the backbone: the backbone plays the
-            // commander role of joint_link / gripper_link, streams the GOVERNED
+            // leader role of joint_link / gripper_link, streams the GOVERNED
             // setpoint down each pair (no id demux), and reads that follower's
             // measured state back on the same pair. Both upstream command
             // streams run through the governor before anything reaches a
@@ -150,14 +150,16 @@
           links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
-            // The command loop: this panel plays the commander role of each
-            // limb's pairing toward the backbone, which governs the streams.
-            left_arm: "backbone_inst/commander_left_arm",
-            right_arm: "backbone_inst/commander_right_arm",
-            left_gripper: "backbone_inst/commander_left_gripper",
-            right_gripper: "backbone_inst/commander_right_gripper",
-            // Live readouts: observe each backbone<->follower pairing's state
-            // back-channel; the slot itself names the side.
+            // The command loop: this panel plays the leader role of each limb's
+            // pairing; each slot plugs into the backbone's matching leader
+            // socket (target/socket form: the backbone holds one per limb).
+            left_arm: "backbone_inst/leader_left_arm",
+            right_arm: "backbone_inst/leader_right_arm",
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+            // Live readouts: an observer link names the FOLLOWER instance of
+            // the pairing it watches, so these point at the arms and grippers
+            // themselves (the backbone<->follower loops), not at the backbone.
             observed_left_arm: "left_arm_inst",
             observed_right_arm: "right_arm_inst",
             observed_left_gripper: "left_grip_inst",

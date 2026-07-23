@@ -1,6 +1,6 @@
 // OpenArm v2.0 bimanual MuJoCo teleop with self-collision avoidance. The backbone
-// is the coordinator: it consumes the commander's joint stream + the sim's
-// arm_states + the collision toggle, runs the self-collision governor over both
+// is the coordinator: it consumes the commander's per-limb pairing streams +
+// the collision toggle, runs the self-collision governor over both
 // arms, and streams governed setpoints the sim arms relabel onto the engine. The
 // sim arms are thin followers (arm_governed_setpoints -> arm_sim_passthrough).
 // Launch: peppy stack launch ./openarm_v2_teleop_mujoco.json5
@@ -15,8 +15,8 @@
       instances: [
         {
           instance_id: "sim_inst",
-          // Rate (Hz) of the sim's measured-state streams (arm_states /
-          // gripper_states). The backbone consumes arm_states for the governor.
+          // Rate (Hz) of the sim's engine-internal measured-state streams,
+          // which the per-side followers relay onto their backbone pairings.
           arguments: {
             hardware_version: "v2",
             state_rate_hz: 100
@@ -116,18 +116,17 @@
           },
           links: {
             robot_init: "sim_inst",
-            // The commander's setpoint streams and its governor toggle. A slot
-            // receives ONLY from the one producer linked here (no wildcard
-            // fallback); removing a line is a launch validation error, since
-            // every declared slot must be linked.
-            commander: "commander_inst",
+            // The operator's governor toggle. A slot receives ONLY from the
+            // one producer linked here (no wildcard fallback); removing a line
+            // is a launch validation error, since every declared required slot
+            // must be linked.
             collision_ctrl: "commander_inst",
             // Link each arm and each gripper with the backbone: the backbone plays the
             // commander role of joint_link / gripper_link, streams the GOVERNED
             // setpoint down each pair (no id demux), and reads that follower's
-            // measured state back on the same pair. Both commander streams
-            // (arm_joint_commands, gripper_commands) run through the governor
-            // before anything reaches a follower.
+            // measured state back on the same pair. Both upstream command
+            // streams run through the governor before anything reaches a
+            // follower.
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
@@ -160,12 +159,18 @@
           links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
-            // Live readouts: each side's state slot links that side's arm or
-            // gripper instance, so the slot itself names the side.
-            left_arm_states: "left_arm_inst",
-            right_arm_states: "right_arm_inst",
-            left_gripper_states: "left_grip_inst",
-            right_gripper_states: "right_grip_inst",
+            // The command loop: this panel plays the commander role of each
+            // limb's pairing toward the backbone, which governs the streams.
+            left_arm: "backbone_inst",
+            right_arm: "backbone_inst",
+            left_gripper: "backbone_inst",
+            right_gripper: "backbone_inst",
+            // Live readouts: observe each backbone<->follower pairing's state
+            // back-channel; the slot itself names the side.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
           },
         }
       ]

@@ -102,18 +102,17 @@
           },
           links: {
             robot_init: "robot_init_inst",
-            // The commander's setpoint streams and its governor toggle. A slot
-            // receives ONLY from the one producer linked here (no wildcard
-            // fallback); removing a line is a launch validation error, since
-            // every declared slot must be linked.
-            commander: "commander_inst",
+            // The operator's governor toggle. A slot receives ONLY from the
+            // one producer linked here (no wildcard fallback); removing a line
+            // is a launch validation error, since every declared required slot
+            // must be linked.
             collision_ctrl: "commander_inst",
             // Link each arm and each gripper with the backbone: the backbone plays the
             // commander role of joint_link / gripper_link, streams the GOVERNED
             // setpoint down each pair (no id demux), and reads that follower's
-            // measured state back on the same pair. Both commander streams
-            // (arm_joint_commands, gripper_commands) run through the governor
-            // before anything reaches a follower.
+            // measured state back on the same pair. Both upstream command
+            // streams run through the governor before anything reaches a
+            // follower.
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
@@ -141,12 +140,18 @@
           links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
-            // Live readouts: each side has its own one-producer contract slot,
-            // plus the backbone's proximity stream.
-            left_arm_states: "left_arm_inst",
-            right_arm_states: "right_arm_inst",
-            left_gripper_states: "left_grip_inst",
-            right_gripper_states: "right_grip_inst",
+            // The command loop: this panel plays the commander role of each
+            // limb's pairing toward the backbone, which governs the streams.
+            left_arm: "backbone_inst",
+            right_arm: "backbone_inst",
+            left_gripper: "backbone_inst",
+            right_gripper: "backbone_inst",
+            // Live readouts: observe each backbone<->follower pairing's state
+            // back-channel; the slot itself names the side.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
           },
         }
       ]

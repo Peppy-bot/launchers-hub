@@ -103,17 +103,17 @@
           links: {
             robot_init: "robot_init_inst",
             // The commander's setpoint streams and its governor toggle. A slot
-            // receives ONLY from the one producer bound here (no wildcard
+            // receives ONLY from the one producer linked here (no wildcard
             // fallback); removing a line is a launch validation error, since
-            // every declared slot must be bound.
+            // every declared slot must be linked.
             commander: "commander_inst",
             collision_ctrl: "commander_inst",
-          // Pair each arm and each gripper with the backbone: the backbone plays the
-          // commander role of arm_link / gripper_link, streams the GOVERNED
-          // setpoint down each pair (no id demux), and reads that follower's
-          // measured state back on the same pair. Both commander streams
-          // (arm_joint_commands, gripper_commands) run through the governor
-          // before anything reaches a follower.
+            // Link each arm and each gripper with the backbone: the backbone plays the
+            // commander role of joint_link / gripper_link, streams the GOVERNED
+            // setpoint down each pair (no id demux), and reads that follower's
+            // measured state back on the same pair. Both commander streams
+            // (arm_joint_commands, gripper_commands) run through the governor
+            // before anything reaches a follower.
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",

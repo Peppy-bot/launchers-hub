@@ -104,9 +104,8 @@
           // and the per-side chain base links all come from the v2 description. The
           // governor's launch band, enable, and startup EE-speed cap are required
           // arguments (no node defaults) until the commander's live governor_control
-          // stream takes over; the sim cap is permissive. The commander streams and the
-          // live governor controls are bound to the panel below; the arms and
-          // grippers are paired below.
+          // stream takes over; the sim cap is permissive. The commander streams, the
+          // live governor controls, the arms, and the grippers are all linked below.
           arguments: {
             hardware_version: "v2",
             control_rate_hz: 100,
@@ -118,17 +117,17 @@
           links: {
             robot_init: "sim_inst",
             // The commander's setpoint streams and its governor toggle. A slot
-            // receives ONLY from the one producer bound here (no wildcard
+            // receives ONLY from the one producer linked here (no wildcard
             // fallback); removing a line is a launch validation error, since
-            // every declared slot must be bound.
+            // every declared slot must be linked.
             commander: "commander_inst",
             collision_ctrl: "commander_inst",
-          // Pair each arm and each gripper with the backbone: the backbone plays the
-          // commander role of arm_link / gripper_link, streams the GOVERNED
-          // setpoint down each pair (no id demux), and reads that follower's
-          // measured state back on the same pair. Both commander streams
-          // (arm_joint_commands, gripper_commands) run through the governor
-          // before anything reaches a follower.
+            // Link each arm and each gripper with the backbone: the backbone plays the
+            // commander role of joint_link / gripper_link, streams the GOVERNED
+            // setpoint down each pair (no id demux), and reads that follower's
+            // measured state back on the same pair. Both commander streams
+            // (arm_joint_commands, gripper_commands) run through the governor
+            // before anything reaches a follower.
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
@@ -161,7 +160,7 @@
           links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
-            // Live readouts: each side's state slot binds that side's arm or
+            // Live readouts: each side's state slot links that side's arm or
             // gripper instance, so the slot itself names the side.
             left_arm_states: "left_arm_inst",
             right_arm_states: "right_arm_inst",

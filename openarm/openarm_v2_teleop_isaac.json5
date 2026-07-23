@@ -1,8 +1,8 @@
 // OpenArm v2.0 bimanual Isaac Sim teleop with self-collision avoidance. The backbone
 // is the coordinator: it consumes the commander's per-limb pairing streams +
 // the collision toggle, runs the self-collision governor over both
-// arms, and streams governed setpoints the sim arms relabel onto the engine. The
-// sim arms are thin followers (arm_governed_setpoints -> arm_sim_passthrough).
+// arms, and streams governed setpoints straight to the engine, which plays the
+// follower role of every limb's pairing itself.
 // Launch: peppy stack launch ./openarm_v2_teleop_isaac.json5
 {
   peppy_schema: "launcher/v1",
@@ -15,79 +15,11 @@
       instances: [
         {
           instance_id: "sim_inst",
-          // Rate (Hz) of the sim's engine-internal measured-state streams,
-          // which the per-side followers relay onto their backbone pairings.
+          // Rate (Hz) of the engine's measured-state streams on its pairing
+          // slots, which the backbone and any observer consume.
           arguments: {
             hardware_version: "v2",
             state_rate_hz: 100
-          },
-          links: {
-            // One contract slot per relabeling follower: the sim consumes each
-            // side's passthrough setpoints from exactly that follower.
-            left_arm_cmd: "left_arm_inst",
-            right_arm_cmd: "right_arm_inst",
-            left_gripper_cmd: "left_grip_inst",
-            right_gripper_cmd: "right_grip_inst"
-          },
-        }
-      ]
-    },
-    {
-      source: {
-        name: "openarm_arm_isaac",
-        tag: "v1"
-      },
-      instances: [
-        // Thin followers: each relabels the backbone's arm_governed_setpoints for its
-        // arm_id onto arm_sim_passthrough. No motion params (the backbone owns those).
-        {
-          instance_id: "left_arm_inst",
-          arguments: {
-            arm_id: 0
-          },
-          links: {
-            // Measured joint state from the sim engine.
-            engine_states: "sim_inst"
-          },
-        },
-        {
-          instance_id: "right_arm_inst",
-          arguments: {
-            arm_id: 1
-          },
-          links: {
-            // Measured joint state from the sim engine.
-            engine_states: "sim_inst"
-          },
-        }
-      ]
-    },
-    {
-      source: {
-        name: "openarm_gripper_isaac",
-        tag: "v1"
-      },
-      instances: [
-        {
-          instance_id: "left_grip_inst",
-          arguments: {
-            gripper_id: 0,
-            control_rate_hz: 100,
-          },
-          links: {
-            // Measured opening from the sim engine.
-            engine_states: "sim_inst"
-          },
-        },
-        {
-          instance_id: "right_grip_inst",
-          arguments: {
-            gripper_id: 1,
-            control_rate_hz: 100,
-          },
-          links: {
-            // Measured opening from the sim engine.
-            engine_states: "sim_inst"
           },
         }
       ]
@@ -127,10 +59,10 @@
             // measured state back on the same pair. Both upstream command
             // streams run through the governor before anything reaches a
             // follower.
-            left_arm_link: "left_arm_inst",
-            right_arm_link: "right_arm_inst",
-            left_gripper_link: "left_grip_inst",
-            right_gripper_link: "right_grip_inst"
+            left_arm_link: "sim_inst/left_arm",
+            right_arm_link: "sim_inst/right_arm",
+            left_gripper_link: "sim_inst/left_gripper",
+            right_gripper_link: "sim_inst/right_gripper"
           },
         }
       ]
@@ -166,13 +98,12 @@
             right_arm: "backbone_inst/leader_right_arm",
             left_gripper: "backbone_inst/leader_left_gripper",
             right_gripper: "backbone_inst/leader_right_gripper",
-            // Live readouts: an observer link names the FOLLOWER instance of
-            // the pairing it watches, so these point at the arms and grippers
-            // themselves (the backbone<->follower loops), not at the backbone.
-            observed_left_arm: "left_arm_inst",
-            observed_right_arm: "right_arm_inst",
-            observed_left_gripper: "left_grip_inst",
-            observed_right_gripper: "right_grip_inst",
+            // Live readouts: an observer link names the FOLLOWER side of the
+            // pairing it watches; in sim that is the engine, one slot per limb.
+            observed_left_arm: "sim_inst/left_arm",
+            observed_right_arm: "sim_inst/right_arm",
+            observed_left_gripper: "sim_inst/left_gripper",
+            observed_right_gripper: "sim_inst/right_gripper",
           },
         }
       ]

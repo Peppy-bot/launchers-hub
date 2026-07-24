@@ -2,7 +2,7 @@
 // node graph as the _isaac / _mujoco launchers, but the robot_initializer and arm
 // slots are the real-hardware nodes (the arms talk to the motors over CAN). The
 // backbone is the coordinator: it consumes the commander's joint stream +
-// both arms' arm_states + the collision toggle, runs the self-collision
+// both arms' relayed pairing state + the collision toggle, runs the self-collision
 // governor, and streams governed setpoints the real arms track with their MIT
 // loop + feedforward. Launch: peppy stack launch ./openarm_v1_teleop.json5
 //
@@ -95,8 +95,8 @@
           // Backbone coordination rate + commander-stream watchdog. The whole stack runs
           // at a unified 100 Hz: the backbone streams governed setpoints at this rate and
           // the real arms run their MIT loop at the same rate holding the latest
-          // setpoint. The commander streams and the collision toggle are
-          // bound to the panel below; the arms and grippers are paired below.
+          // setpoint. The commander streams, the collision toggle, the arms,
+          // and the grippers are all linked below.
           // The governor band, launch enable, and startup
           // EE-speed cap are required arguments (no node defaults); the cap is
           // conservative for the real arm until the commander's live cap takes over.
@@ -110,18 +110,17 @@
           },
           links: {
             robot_init: "robot_init_inst",
-            // The commander's setpoint streams and its governor toggle. A slot
-            // receives ONLY from the one producer bound here (no wildcard
-            // fallback); removing a line is a launch validation error, since
-            // every declared slot must be bound.
-            commander: "commander_inst",
+            // The operator's governor toggle. A slot receives ONLY from the
+            // one producer linked here (no wildcard fallback); removing a line
+            // is a launch validation error, since every declared required slot
+            // must be linked.
             collision_ctrl: "commander_inst",
-          // Pair each arm and each gripper with the backbone: the backbone plays the
-          // commander role of arm_link / gripper_link, streams the GOVERNED
-          // setpoint down each pair (no id demux), and reads that follower's
-          // measured state back on the same pair. Both commander streams
-          // (arm_joint_commands, gripper_commands) run through the governor
-          // before anything reaches a follower.
+            // Link each arm and each gripper with the backbone: the backbone plays the
+            // leader role of joint_link / gripper_link, streams the GOVERNED
+            // setpoint down each pair (no id demux), and reads that follower's
+            // measured state back on the same pair. Both upstream command
+            // streams run through the governor before anything reaches a
+            // follower.
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
@@ -151,12 +150,20 @@
           links: {
             // The backbone: move actions + the collision_status proximity feed.
             backbone: "backbone_inst",
-            // Live readouts: each side has its own one-producer contract slot,
-            // plus the backbone's proximity stream.
-            left_arm_states: "left_arm_inst",
-            right_arm_states: "right_arm_inst",
-            left_gripper_states: "left_grip_inst",
-            right_gripper_states: "right_grip_inst",
+            // The command loop: this panel plays the leader role of each limb's
+            // pairing; each slot plugs into the backbone's matching leader
+            // socket (target/socket form: the backbone holds one per limb).
+            left_arm: "backbone_inst/leader_left_arm",
+            right_arm: "backbone_inst/leader_right_arm",
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+            // Live readouts: an observer link names the FOLLOWER instance of
+            // the pairing it watches, so these point at the arms and grippers
+            // themselves (the backbone<->follower loops), not at the backbone.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
           },
         }
       ]

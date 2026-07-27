@@ -1,6 +1,6 @@
 # openarm launchers
 
-Launchers for the OpenArm bimanual teleop stack, one per hardware generation and backend. All six bring up the same node graph (one robot_initializer, two arms, two grippers, one backbone, one joint_commander) and differ only in which implementation fills each slot and which `hardware_version` the nodes receive:
+Launchers for the OpenArm bimanual teleop stack, one per hardware generation and backend. The teleop launchers bring up the same node graph (one robot_initializer, two arms, two grippers, one backbone, one joint_commander) and differ only in which implementation fills each slot and which `hardware_version` the nodes receive:
 
 | Launcher | Generation | Runs against |
 |---|---|---|
@@ -10,6 +10,14 @@ Launchers for the OpenArm bimanual teleop stack, one per hardware generation and
 | `openarm_v2_teleop.json5` | v2.0 | the real robot |
 | `openarm_v2_teleop_isaac.json5` | v2.0 | Isaac Sim |
 | `openarm_v2_teleop_mujoco.json5` | v2.0 | MuJoCo |
+
+The v2 record launchers are the same teleop graphs plus `lerobot_recorder` (episodes are driven from the commander's Record button; see the recorder's README in nodes-hub for the dataset workflow). The real-robot variant also adds the three cameras; its device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header).
+
+| Launcher | Generation | Runs against |
+|---|---|---|
+| `openarm_v2_teleop_record.json5` | v2.0 | the real robot, with cameras |
+| `openarm_v2_teleop_record_isaac.json5` | v2.0 | Isaac Sim |
+| `openarm_v2_teleop_record_mujoco.json5` | v2.0 | MuJoCo |
 
 ## Before launching
 

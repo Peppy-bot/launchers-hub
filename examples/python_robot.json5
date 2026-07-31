@@ -82,7 +82,7 @@
     },
     {
       source: {
-        name: "uvc_camera_video_reconstruction:v1"
+        name: "uvc_camera_video_reconstruction_python:v1"
       },
       instances: [
         {

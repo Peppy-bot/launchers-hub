@@ -2,21 +2,10 @@
   peppy_schema: "launcher/v1",
   deployments: [
     {
-      // Example if this was a node in a git location
-      // source: {
-      //   repo: "https://github.com/Peppy-bot/nodes_hub.git",
-      //   path: "example_robot/my_robot_brain/my_python_robot_brain",
-      //   ref: "main",
-      // },
-      // Example if this was an url
-      // source: {
-      //   url: "https://example.com/my_robot_brain.tar.zst",
-      //   sha256: "33e83da60a54e3bb487a9a3b67705918602143b30f158143b6909acaf017a36a",
-      // },
-      // Example if this was a local path
-      // source: {
-      //   local: "./local_robot_brain",
-      // },
+      // A source references a node from your configured repositories by
+      // `name:tag`. To use a node from a directory or git repository that is
+      // not indexed yet, register it first: `peppy repo add <path-or-url>`
+      // then `peppy repo refresh`.
       source: {
         name: "my_python_robot_brain:v1",
       },

@@ -1,7 +1,7 @@
 // OpenArm v2.0 bimanual real-hardware teleop with self-collision avoidance. Same node
 // graph as openarm_v1_teleop, but hardware_version is "v2": the arms build the v2 model
 // (reoriented frames, v2 base links) and the gripper slot is openarm_gripper_v2 (revolute
-// pinch gripper, POS_FORCE with force feedback). Launch: peppy stack launch ./openarm_v2_teleop.json5
+// pinch gripper, POS_FORCE with force feedback). Launch: peppy stack launch openarm_v2_teleop
 //
 // CAN topology: left arm + left gripper share the left_arm channel, right arm + right gripper share right_arm.
 {

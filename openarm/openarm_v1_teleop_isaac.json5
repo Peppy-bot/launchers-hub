@@ -3,7 +3,7 @@
 // the collision toggle, runs the self-collision governor over both
 // arms, and streams governed setpoints to the per-limb sim relays, which lead
 // the engine over the same pairings.
-// Launch: peppy stack launch ./openarm_v1_teleop_isaac.json5
+// Launch: peppy stack launch openarm_v1_teleop_isaac
 {
   peppy_schema: "launcher/v1",
   deployments: [

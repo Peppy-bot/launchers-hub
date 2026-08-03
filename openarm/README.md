@@ -47,7 +47,7 @@ The arms load the V1.0 description for their gravity/Coriolis feedforward; it is
 
 ## Troubleshooting
 
-**`failed to resolve source for deployment repo:<node>:v1 ... not found in nodes.json5`**
+**`failed to resolve source for deployment <node>:v1 ... not found in nodes.json5`**
 The repo providing that node isn't registered with the daemon. Run `peppy repo add /path/to/<repo>` and `peppy repo refresh`, then launch again.
 
 **The launch stalls on the robot_initializer build**

@@ -1,9 +1,10 @@
-// openarm bimanual Isaac Sim teleop with self-collision avoidance. The backbone
-// is the coordinator: it consumes the commander's per-limb pairing streams +
-// the collision toggle, runs the self-collision governor over both
-// arms, and streams governed setpoints to the per-limb sim relays, which lead
-// the engine over the same pairings.
-// Launch: peppy stack launch ./openarm_v1_teleop_isaac.json5
+// OpenArm v2.0 bimanual Isaac Sim teleop led by a WebXR headset: xr_commander
+// streams an end-effector pose per hand and the backbone (upstream_mode
+// "pose") solves and governs it. No governor_control producer here: the
+// governor band is fixed at the backbone's launch arguments. No cameras
+// either; to add a view, deploy a camera node and bind it to xr_inst
+// (e.g. rgbd_cameras: ["zed_cam_inst"]).
+// Launch: peppy stack launch ./openarm_v2_teleop_vr_isaac.json5
 {
   peppy_schema: "launcher/v1",
   deployments: [
@@ -18,7 +19,7 @@
           // Rate (Hz) of the engine's measured-state streams on its pairing
           // slots, which the per-limb relays consume.
           arguments: {
-            hardware_version: "v1",
+            hardware_version: "v2",
             state_rate_hz: 100
           },
         }
@@ -96,16 +97,16 @@
       instances: [
         {
           instance_id: "backbone_inst",
-          // URDF, meshes, and the per-side chain base links all come from the v1
-          // description. The governor's launch band, enable, and startup EE-speed
-          // cap are required arguments (no node defaults) until the commander's
-          // live governor_control stream takes over; the sim cap is permissive.
-          // The commander streams, the live governor controls, the arms, and the
-          // grippers are all linked below.
+          // URDF, meshes, and the per-side chain base links all come from the v2
+          // description. The governor's launch band, enable, and EE-speed cap are
+          // required arguments (no node defaults); with no governor_control
+          // producer in this stack they stand for the whole session. The sim cap
+          // is permissive. The headset's pose streams arrive on the
+          // leader_*_pose slots, linked from xr_inst below.
           arguments: {
-            hardware_version: "v1",
-            // Joint-led: joint_link is the followed upstream arm command.
-            upstream_mode: "joints",
+            hardware_version: "v2",
+            // Cartesian-led: pose_link is the followed upstream arm command.
+            upstream_mode: "pose",
             control_rate_hz: 100,
             d_stop_m: 0.005,
             d_safe_m: 0.02,
@@ -116,14 +117,11 @@
           },
           links: {
             robot_init: "robot_init_inst",
-            // The operator's governor toggle. Optional: with no producer
-            // linked, the backbone's launch-time band stands.
-            collision_ctrl: ["commander_inst"],
             // Link each arm and each gripper with the backbone: the backbone plays the
             // leader role of joint_link / gripper_link, streams the GOVERNED
             // setpoint down each pair (no id demux), and reads that follower's
-            // measured state back on the same pair. Both upstream command
-            // streams run through the governor before anything reaches a
+            // measured state back on the same pair. Every upstream command
+            // stream runs through the governor before anything reaches a
             // follower.
             left_arm_link: "left_arm_inst",
             right_arm_link: "right_arm_inst",
@@ -135,42 +133,32 @@
     },
     {
       source: {
-        name: "openarm_commander",
+        name: "xr_commander",
         tag: "v1"
       },
       instances: [
         {
-          instance_id: "commander_inst",
-          // Sim runs faster than the real arm: the commander's EE-speed cap (streamed
-          // to the backbone) is above the conservative real value, but bounded so the
-          // d_safe..d_stop band still spans a couple of control cycles of reaction.
-          // The band cannot widen past the ~24 mm rest-pose clearance, so the cap is
-          // what sets that margin. Band + launch enable kept in step with backbone.
+          // The node self-generates its TLS certificate and serves https on
+          // its default port 4443; open the URL from the startup log and
+          // click through the warning once. Headset-reachable only with a
+          // Linux daemon: macOS runs containers in a Lima VM that does not
+          // expose the port.
+          instance_id: "xr_inst",
           arguments: {
             command_rate_hz: 100,
-            hardware_version: "v1",
-            collision_governor_enabled: true,
-            d_stop: 0.005,
-            d_safe: 0.02,
-            max_ee_velocity_m_s: 0.5
+            // Rest the released trigger at half of full travel: v2 fully open
+            // splays the fingers nearly flat, wider than any grasp needs.
+            gripper_open_fraction: 0.5
           },
           links: {
-            // The backbone: move actions + the collision_status proximity feed.
-            backbone: "backbone_inst",
-            // The command loop: this panel plays the leader role of each limb's
-            // pairing; each slot plugs into the backbone's matching leader
-            // slot (target/slot form: the backbone holds one per limb).
-            left_arm: "backbone_inst/leader_left_arm",
-            right_arm: "backbone_inst/leader_right_arm",
+            // Each hand's pose_link into the backbone's *_pose slots, the arm
+            // command kind upstream_mode "pose" follows; grippers as ever.
+            left_arm: "backbone_inst/leader_left_arm_pose",
+            right_arm: "backbone_inst/leader_right_arm_pose",
             left_gripper: "backbone_inst/leader_left_gripper",
             right_gripper: "backbone_inst/leader_right_gripper",
-            // Live readouts: an observer link names the FOLLOWER instance of
-            // the pairing it watches; the sim relays stand exactly where the
-            // real drivers do.
-            observed_left_arm: "left_arm_inst",
-            observed_right_arm: "right_arm_inst",
-            observed_left_gripper: "left_grip_inst",
-            observed_right_gripper: "right_grip_inst",
+            // The A button's whole-robot ready move.
+            ready_posture: ["backbone_inst"]
           },
         }
       ]

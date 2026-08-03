@@ -1,0 +1,234 @@
+// OpenArm v2.0 bimanual real-robot teleop led by a WebXR headset: xr_commander
+// streams an end-effector pose per hand and the backbone (upstream_mode
+// "pose") solves and governs it onto the CAN buses. No governor_control
+// producer here: the governor band is fixed at the backbone's launch
+// arguments. Both wrist cameras anchor to the controllers in-headset and the
+// ZED chest camera floats; the A button runs the whole-robot ready move.
+// CAN topology: left arm + left gripper share the left_arm channel, right
+// arm + right gripper share right_arm.
+// Bring the buses up first (see README), then:
+// Launch: peppy stack launch ./openarm_v2_teleop_vr.json5
+{
+  peppy_schema: "launcher/v1",
+  deployments: [
+    {
+      source: {
+        name: "openarm_arm",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "left_arm_inst",
+          arguments: {
+            arm_id: 0,
+            hardware_version: "v2",
+            can_interface: "left_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100
+          },
+        },
+        {
+          instance_id: "right_arm_inst",
+          arguments: {
+            arm_id: 1,
+            hardware_version: "v2",
+            can_interface: "right_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_gripper_v2",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "left_grip_inst",
+          arguments: {
+            gripper_id: 0,
+            can_interface: "left_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100,
+          },
+        },
+        {
+          instance_id: "right_grip_inst",
+          arguments: {
+            gripper_id: 1,
+            can_interface: "right_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100,
+          },
+        }
+      ]
+    },
+    {
+      // Declared after the arms/grippers it aggregates: the real initializer polls
+      // each component's is_ready and reports the robot ready only when all are up.
+      source: {
+        name: "openarm_robot_initializer",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "robot_init_inst",
+          links: {
+            left_arm: "left_arm_inst",
+            right_arm: "right_arm_inst",
+            left_gripper: "left_grip_inst",
+            right_gripper: "right_grip_inst"
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_backbone",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "backbone_inst",
+          // URDF, meshes, and the per-side chain base links all come from the v2
+          // description. The governor's launch band, enable, and EE-speed cap
+          // are required arguments (no node defaults); with no governor_control
+          // producer in this stack they stand for the whole session. The cap is
+          // the conservative real-robot value. The headset's pose streams
+          // arrive on the leader_*_pose slots, linked from xr_inst below.
+          arguments: {
+            hardware_version: "v2",
+            // Cartesian-led: pose_link is the followed upstream arm command.
+            upstream_mode: "pose",
+            control_rate_hz: 100,
+            d_stop_m: 0.005,
+            d_safe_m: 0.02,
+            collision_governor_enabled: true,
+            max_ee_velocity_m_s: 0.25,
+            // EE rotation cap (rad/s); MoveIt Servo's default scale.
+            max_ee_angular_velocity_rad_s: 0.8
+          },
+          links: {
+            robot_init: "robot_init_inst",
+            // Link each arm and each gripper with the backbone: the backbone plays the
+            // leader role of joint_link / gripper_link, streams the GOVERNED
+            // setpoint down each pair (no id demux), and reads that follower's
+            // measured state back on the same pair. Every upstream command
+            // stream runs through the governor before anything reaches a
+            // follower.
+            left_arm_link: "left_arm_inst",
+            right_arm_link: "right_arm_inst",
+            left_gripper_link: "left_grip_inst",
+            right_gripper_link: "right_grip_inst"
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "uvc_camera_linux",
+        tag: "v1"
+      },
+      instances: [
+        {
+          // The Arducam wrist cameras: yuyv at their native mode (they offer
+          // no 720p), relayed into the headset as wrist-anchored panels. The
+          // /dev/openarm names come from the host udev rule
+          // 99-openarm-cameras.rules (in /etc/udev/rules.d); the two
+          // cameras share a USB serial, so the hub port is the identity.
+          instance_id: "left_wrist_cam_inst",
+          arguments: {
+            device_path: "/dev/openarm/left_wrist_cam",
+            video: {
+              frame_rate: 30,
+              resolution: {
+                width: 1920,
+                height: 1200
+              },
+              camera_encoding: "yuyv",
+              topic_encoding: "yuyv"
+            }
+          },
+        },
+        {
+          instance_id: "right_wrist_cam_inst",
+          arguments: {
+            device_path: "/dev/openarm/right_wrist_cam",
+            video: {
+              frame_rate: 30,
+              resolution: {
+                width: 1920,
+                height: 1200
+              },
+              camera_encoding: "yuyv",
+              topic_encoding: "yuyv"
+            }
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "zed_camera",
+        tag: "v1"
+      },
+      instances: [
+        {
+          // The ZED-M chest camera, floating in the headset. The depth block
+          // is a required node argument; only the color stream is consumed
+          // here. USB3 required; on USB2 it enumerates as HID only and the
+          // capture node never appears.
+          instance_id: "zed_cam_inst",
+          arguments: {
+            device_path: "/dev/openarm/chest_cam",
+            resolution: "hd720",
+            frame_rate: 30,
+            depth: {
+              min_depth_m: 0.45,
+              downscale: 2,
+              block_size: 5
+            }
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "xr_commander",
+        tag: "v1"
+      },
+      instances: [
+        {
+          // The node self-generates its TLS certificate and serves https on
+          // its default port 4443; open the URL from the startup log and
+          // click through the warning once. Headset-reachable only with a
+          // Linux daemon: macOS runs containers in a Lima VM that does not
+          // expose the port.
+          instance_id: "xr_inst",
+          arguments: {
+            command_rate_hz: 100,
+            // Rest the released trigger at half of full travel: v2 fully open
+            // splays the fingers nearly flat, wider than any grasp needs.
+            gripper_open_fraction: 0.5,
+            // wrist_left/wrist_right anchor those panels to the controllers.
+            camera_names: "left_wrist_cam_inst=wrist_left,right_wrist_cam_inst=wrist_right,zed_cam_inst=chest"
+          },
+          links: {
+            // Each hand's pose_link into the backbone's *_pose slots, the arm
+            // command kind upstream_mode "pose" follows; grippers as ever.
+            left_arm: "backbone_inst/leader_left_arm_pose",
+            right_arm: "backbone_inst/leader_right_arm_pose",
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+            // The A button's whole-robot ready move.
+            ready_posture: ["backbone_inst"],
+            color_cameras: ["left_wrist_cam_inst", "right_wrist_cam_inst"],
+            rgbd_cameras: ["zed_cam_inst"]
+          },
+        }
+      ]
+    }
+  ]
+}

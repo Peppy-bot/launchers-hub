@@ -50,7 +50,7 @@ Every node the launcher references should show `Ready` in the STAGE column.
 peppy stack launch ./openarm_v1_teleop_mujoco.json5
 ```
 
-The launcher starts all seven instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:
+The launcher starts the instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:
 
 - open **http://localhost:8765** for the control panel, one slider per joint (panel-led launchers)
 - open **http://localhost:8080** for the MuJoCo viewer (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)
@@ -84,15 +84,15 @@ The arms load the description matching their `hardware_version` for the gravity/
 **`deployment <id>: Dependencies missing from nodes cache (...): <name>:<tag>`**
 The repo providing that node isn't registered with the daemon. Run `peppy repo add /path/to/<repo>` and `peppy repo refresh`, then launch again.
 
-**The launch stalls on the robot_initializer build**
+**The launch stalls on the sim engine build**
 The first build pulls the sim base image and can outlive the daemon's idle timeout. Build it once beforehand with a longer timeout, then launch:
 
 ```sh
-peppy node add /path/to/ws/openarm_nodes/openarm_robot_initializer_isaac -sb --idle-timeout 18000
+peppy node add /path/to/ws/openarm-nodes/openarm_sim_isaac -sb --idle-timeout 18000
 ```
 
 **Everything launches but the arms don't respond**
-The sim keeps loading after `Launch complete`, and Isaac can take a minute. Check instance health with `peppy stack list` and watch the sim's log with `peppy node info openarm_robot_initializer_<engine>:v1`.
+The sim keeps loading after `Launch complete`, and Isaac can take a minute. Check instance health with `peppy stack list` and watch the sim's log with `peppy node info openarm_sim_<engine>:v1`.
 
 **The Isaac stream is a black screen**
 Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and launch again.

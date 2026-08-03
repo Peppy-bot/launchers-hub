@@ -24,7 +24,7 @@ Every node the launcher references should show `Stage: Ready`.
 ## Launch
 
 ```sh
-peppy stack launch openarm_v1_teleop_mujoco
+peppy stack launch ./openarm_v1_teleop_mujoco.json5
 ```
 
 The launcher starts all seven instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:

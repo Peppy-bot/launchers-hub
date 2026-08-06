@@ -189,21 +189,28 @@
             robot_type: "openarm_v2_mujoco",
             // Dataset grid; every observed source is sampled latest-value onto it.
             fps: 15,
-            storage_uri: "file:///tmp/lerobot_openarm_mujoco"
+            // Host directory the manifest bind-mounts into the container;
+            // peppy creates it before the start.
+            storage_root: "/tmp/lerobot_openarm_mujoco"
           },
           links: {
-            // Read-only observers of each follower's measured pairing stream;
-            // the recorder concatenates them in its manifest's declaration
-            // order. Camera slots are zero_or_more and stay unbound in sim.
-            observed_left_arm: "left_arm_inst",
-            observed_right_arm: "right_arm_inst",
-            observed_left_gripper: "left_grip_inst",
-            observed_right_gripper: "right_grip_inst",
-            // The same pairings' leader streams: the recorded action.
-            commanded_left_arm: "backbone_inst/left_arm_link",
-            commanded_right_arm: "backbone_inst/right_arm_link",
-            commanded_left_gripper: "backbone_inst/left_gripper_link",
-            commanded_right_gripper: "backbone_inst/right_gripper_link"
+            // Read-only observers of each follower's measured pairing stream.
+            // The recorder's slots are zero_or_more, so this list is what
+            // declares the robot's shape: it records exactly these limbs, in
+            // this order. Camera slots stay unbound in sim.
+            observed_joints: ["left_arm_inst", "right_arm_inst"],
+            observed_grippers: ["left_grip_inst", "right_grip_inst"],
+            // The same pairings' leader streams: the recorded action. Order
+            // matches the measured lists above limb for limb, which is what
+            // pairs each follower with the leader driving it.
+            commanded_joints: [
+              "backbone_inst/left_arm_link",
+              "backbone_inst/right_arm_link"
+            ],
+            commanded_grippers: [
+              "backbone_inst/left_gripper_link",
+              "backbone_inst/right_gripper_link"
+            ]
           },
         }
       ]

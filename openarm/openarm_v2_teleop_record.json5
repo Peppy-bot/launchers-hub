@@ -244,30 +244,36 @@
             robot_type: "openarm_v2",
             // Dataset grid; every observed source is sampled latest-value onto it.
             fps: 15,
-            // Sessions land under this root; /tmp lasts until reboot, so
-            // point somewhere durable (or at a bucket) for keepers. An
-            // s3://bucket/prefix URI (R2 included) mirrors each saved episode
-            // to the bucket, keeping the local copy; the recorder's boto3
-            // client reads the endpoint and credentials from the
-            // S3-convention env vars exported in the shell that runs peppy
-            // stack launch (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-            // AWS_ENDPOINT_URL_S3, AWS_DEFAULT_REGION).
-            storage_uri: "file:///tmp/lerobot_openarm_v2"
+            // Host directory the manifest bind-mounts into the container;
+            // peppy creates it before the start. /tmp lasts until reboot, so
+            // point somewhere durable for keepers. Setting s3_uri
+            // (s3://bucket/prefix, R2 included) mirrors each saved episode to
+            // the bucket, keeping the local copy; the recorder's boto3 client
+            // reads the endpoint and credentials from the S3-convention env
+            // vars exported in the shell that runs peppy stack launch
+            // (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3,
+            // AWS_DEFAULT_REGION).
+            storage_root: "/tmp/lerobot_openarm_v2"
           },
           links: {
-            // Read-only observers of each follower's measured pairing stream;
-            // the recorder concatenates them in its manifest's declaration
-            // order.
-            observed_left_arm: "left_arm_inst",
-            observed_right_arm: "right_arm_inst",
-            observed_left_gripper: "left_grip_inst",
-            observed_right_gripper: "right_grip_inst",
+            // Read-only observers of each follower's measured pairing stream.
+            // The recorder's slots are zero_or_more, so this list is what
+            // declares the robot's shape: it records exactly these limbs, in
+            // this order.
+            observed_joints: ["left_arm_inst", "right_arm_inst"],
+            observed_grippers: ["left_grip_inst", "right_grip_inst"],
             // The same pairings' leader streams: the recorded action is the
-            // backbone's governed setpoint, exactly what the follower executed.
-            commanded_left_arm: "backbone_inst/left_arm_link",
-            commanded_right_arm: "backbone_inst/right_arm_link",
-            commanded_left_gripper: "backbone_inst/left_gripper_link",
-            commanded_right_gripper: "backbone_inst/right_gripper_link",
+            // backbone's governed setpoint, exactly what the follower
+            // executed. Order matches the measured lists above limb for limb,
+            // which is what pairs each follower with the leader driving it.
+            commanded_joints: [
+              "backbone_inst/left_arm_link",
+              "backbone_inst/right_arm_link"
+            ],
+            commanded_grippers: [
+              "backbone_inst/left_gripper_link",
+              "backbone_inst/right_gripper_link"
+            ],
             // Multi-cardinality camera slots bind arrays; binding order fixes
             // feature order.
             color_cameras: ["left_wrist_cam", "right_wrist_cam"],

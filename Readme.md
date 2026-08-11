@@ -31,9 +31,9 @@ that is not listed there is invisible to peppy, so after adding, moving, or rena
 peppy repo index .
 ```
 
-Commit the updated `peppy_repository.json5` alongside your change. CI runs `peppy repo index --check`
-on every pull request and fails if the index has drifted from the repository, naming the file and the
-identity involved.
+Commit the updated `peppy_repository.json5` alongside your change, and run
+`peppy repo index --check` before pushing: it fails if the index has drifted
+from the repository, naming the file and the identity involved.
 
 Generation refuses, naming both files, if your change claims a launcher name another one already
 publishes. Rename yours: within one repository, a launcher name (its file stem) is claimed by exactly one file.

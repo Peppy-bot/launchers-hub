@@ -19,6 +19,18 @@
     openarm_v2_teleop_mujoco: {
       path: "openarm/openarm_v2_teleop_mujoco.json5"
     },
+    openarm_v2_teleop_record: {
+      path: "openarm/openarm_v2_teleop_record.json5"
+    },
+    openarm_v2_teleop_record_isaac: {
+      path: "openarm/openarm_v2_teleop_record_isaac.json5"
+    },
+    openarm_v2_teleop_record_mujoco: {
+      path: "openarm/openarm_v2_teleop_record_mujoco.json5"
+    },
+    openarm_v2_teleop_vr_record: {
+      path: "openarm/openarm_v2_teleop_vr_record.json5"
+    },
     python_robot: {
       path: "examples/python_robot.json5"
     },

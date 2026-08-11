@@ -1,0 +1,290 @@
+// OpenArm v2.0 bimanual real-hardware teleop with dataset recording. Same node
+// graph as openarm_v1_teleop, but hardware_version is "v2": the arms build the v2 model
+// (reoriented frames, v2 base links) and the gripper slot is openarm_gripper_v2 (revolute
+// pinch gripper, POS_FORCE with force feedback). The two Arducam wrist cameras, the ZED
+// chest camera (color + stereo depth), and lerobot_recorder record datasets alongside:
+// the recorder observes each limb pairing read-only (measured follower stream + governed
+// leader stream) and episodes are driven through its record_episode action.
+// Launch: peppy stack launch ./openarm_v2_teleop_record.json5
+//
+// CAN topology: left arm + left gripper share the left_arm channel, right arm + right gripper share right_arm.
+//
+// Camera device paths are the pinned names from rules/99-openarm-cameras.rules
+// (install it per its header). The wrist names are bound to physical hub
+// ports because both Arducams report the same USB serial: port 2.2 is the
+// left wrist, port 2.3 the right; swapping ports swaps identities.
+{
+  peppy_schema: "launcher/v1",
+  deployments: [
+    {
+      source: {
+        name: "openarm_arm",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "left_arm_inst",
+          arguments: {
+            arm_id: 0,
+            hardware_version: "v2",
+            can_interface: "left_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100
+          },
+        },
+        {
+          instance_id: "right_arm_inst",
+          arguments: {
+            arm_id: 1,
+            hardware_version: "v2",
+            can_interface: "right_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_gripper_v2",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "left_grip_inst",
+          arguments: {
+            gripper_id: 0,
+            can_interface: "left_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100,
+          },
+        },
+        {
+          instance_id: "right_grip_inst",
+          arguments: {
+            gripper_id: 1,
+            can_interface: "right_arm",
+            control_rate_hz: 100,
+            state_rate_hz: 100,
+          },
+        }
+      ]
+    },
+    {
+      // Declared after the arms/grippers it aggregates: the real initializer polls
+      // each component's is_ready and reports the robot ready only when all are up.
+      source: {
+        name: "openarm_robot_initializer",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "robot_init_inst",
+          links: {
+            left_arm: "left_arm_inst",
+            right_arm: "right_arm_inst",
+            left_gripper: "left_grip_inst",
+            right_gripper: "right_grip_inst"
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_backbone",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "backbone_inst",
+          // Unified 100 Hz stack; hardware_version selects the v2 collision model. The
+          // governor band, launch enable, and startup EE-speed cap are required (no node
+          // defaults); the cap is conservative for the real arm until the commander's live
+          // cap takes over.
+          arguments: {
+            hardware_version: "v2",
+            // Joint-led: joint_link is the followed upstream arm command.
+            upstream_mode: "joints",
+            control_rate_hz: 100,
+            d_stop_m: 0.005,
+            d_safe_m: 0.02,
+            collision_governor_enabled: true,
+            max_ee_velocity_m_s: 0.25,
+            // EE rotation cap (rad/s); MoveIt Servo's default scale.
+            max_ee_angular_velocity_rad_s: 0.8
+          },
+          links: {
+            robot_init: "robot_init_inst",
+            leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            // The operator's governor toggle. Optional: with no producer
+            // linked, the backbone's launch-time band stands.
+            collision_ctrl: "commander_inst",
+            // Link each arm and each gripper with the backbone: the backbone plays the
+            // leader role of joint_link / gripper_link, streams the GOVERNED
+            // setpoint down each pair (no id demux), and reads that follower's
+            // measured state back on the same pair. Both upstream command
+            // streams run through the governor before anything reaches a
+            // follower.
+            left_arm_link: "left_arm_inst",
+            right_arm_link: "right_arm_inst",
+            left_gripper_link: "left_grip_inst",
+            right_gripper_link: "right_grip_inst"
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "openarm_commander",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "commander_inst",
+          arguments: {
+            command_rate_hz: 100,
+            hardware_version: "v2",
+            collision_governor_enabled: true,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            max_ee_velocity_m_s: 0.25
+          },
+          links: {
+            // The backbone: move actions + the collision_status proximity feed.
+            backbone: "backbone_inst",
+            // The command loop: this panel plays the leader role of each limb's
+            // pairing; each slot plugs into the backbone's matching leader
+            // socket (target/socket form: the backbone holds one per limb).
+            left_arm: "backbone_inst/leader_left_arm",
+            right_arm: "backbone_inst/leader_right_arm",
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+            // Live readouts: an observer link names the FOLLOWER instance of
+            // the pairing it watches, so these point at the arms and grippers
+            // themselves (the backbone<->follower loops), not at the backbone.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
+            // The record button's target; the slot is zero_or_more, hence
+            // the array form.
+            recorder: ["recorder_inst"],
+          },
+        }
+      ]
+    },
+    {
+      // Wrist cameras: Arducam B0495 modules capturing their only mode the
+      // host validated (yuyv 960x600 @ 30), republished as rgb8 for the
+      // recorder. Instance ids become the dataset image keys
+      // (observation.images.wrist_left / wrist_right).
+      source: {
+        name: "uvc_camera_linux",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "wrist_left",
+          arguments: {
+            device_path: "/dev/openarm/left_wrist_cam",
+            video: {
+              frame_rate: 15,
+              resolution: { width: 960, height: 600 },
+              camera_encoding: "yuyv",
+              topic_encoding: "rgb8"
+            }
+          },
+        },
+        {
+          instance_id: "wrist_right",
+          arguments: {
+            device_path: "/dev/openarm/right_wrist_cam",
+            video: {
+              frame_rate: 15,
+              resolution: { width: 960, height: 600 },
+              camera_encoding: "yuyv",
+              topic_encoding: "rgb8"
+            }
+          },
+        }
+      ]
+    },
+    {
+      // Chest camera: ZED Mini as an rgbd producer (rectified left eye rgb8 +
+      // z16 depth in the same frame). Depth is published at eye_resolution /
+      // downscale (640x360 here); min_depth_m sets the disparity search range,
+      // so a lower floor costs matcher time. Needs outbound network access at
+      // startup for the per-serial factory calibration fetch.
+      source: {
+        name: "zed_camera",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "chest",
+          arguments: {
+            device_path: "/dev/openarm/chest_cam",
+            resolution: "hd720",
+            frame_rate: 15,
+            depth: {
+              min_depth_m: 0.4,
+              downscale: 2,
+              block_size: 3
+            }
+          },
+        }
+      ]
+    },
+    {
+      source: {
+        name: "lerobot_recorder",
+        tag: "v1"
+      },
+      instances: [
+        {
+          instance_id: "recorder_inst",
+          arguments: {
+            robot_type: "openarm_v2",
+            // Dataset grid; every observed source is sampled latest-value onto it.
+            fps: 15,
+            // Host directory the manifest bind-mounts into the container;
+            // peppy creates it before the start. /tmp lasts until reboot, so
+            // point somewhere durable for keepers. Setting s3_uri
+            // (s3://bucket/prefix, R2 included) mirrors each saved episode to
+            // the bucket, keeping the local copy; the recorder's boto3 client
+            // reads the endpoint and credentials from the S3-convention env
+            // vars exported in the shell that runs peppy stack launch
+            // (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3,
+            // AWS_DEFAULT_REGION).
+            storage_root: "/tmp/lerobot_openarm_v2"
+          },
+          links: {
+            // Read-only observers of each follower's measured pairing stream.
+            // The recorder's slots are zero_or_more, so this list is what
+            // declares the robot's shape: it records exactly these limbs, in
+            // this order.
+            observed_joints: ["left_arm_inst", "right_arm_inst"],
+            observed_grippers: ["left_grip_inst", "right_grip_inst"],
+            // The same pairings' leader streams: the recorded action is the
+            // backbone's governed setpoint, exactly what the follower
+            // executed. Order matches the measured lists above limb for limb,
+            // which is what pairs each follower with the leader driving it.
+            commanded_joints: [
+              "backbone_inst/left_arm_link",
+              "backbone_inst/right_arm_link"
+            ],
+            commanded_grippers: [
+              "backbone_inst/left_gripper_link",
+              "backbone_inst/right_gripper_link"
+            ],
+            // Multi-cardinality camera slots bind arrays; binding order fixes
+            // feature order.
+            color_cameras: ["wrist_left", "wrist_right"],
+            rgbd_cameras: ["chest"]
+          },
+        }
+      ]
+    }
+  ]
+}

@@ -103,14 +103,20 @@
           // cap takes over.
           arguments: {
             hardware_version: "v2",
+            // Joint-led: joint_link is the followed upstream arm command.
+            upstream_mode: "joints",
             control_rate_hz: 100,
-            d_stop: 0.005,
-            d_safe: 0.02,
+            d_stop_m: 0.005,
+            d_safe_m: 0.02,
             collision_governor_enabled: true,
-            max_ee_velocity_m_s: 0.25
+            max_ee_velocity_m_s: 0.25,
+            // EE rotation cap (rad/s); MoveIt Servo's default scale.
+            max_ee_angular_velocity_rad_s: 0.8
           },
           links: {
             robot_init: "robot_init_inst",
+            leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
             // The operator's governor toggle. A slot receives ONLY from the
             // one producer linked here (no wildcard fallback); removing a line
             // is a launch validation error, since every declared required slot

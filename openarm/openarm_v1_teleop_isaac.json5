@@ -118,7 +118,7 @@
             robot_init: "robot_init_inst",
             // The operator's governor toggle. Optional: with no producer
             // linked, the backbone's launch-time band stands.
-            collision_ctrl: ["commander_inst"],
+            collision_ctrl: "commander_inst",
             // Link each arm and each gripper with the backbone: the backbone plays the
             // leader role of joint_link / gripper_link, streams the GOVERNED
             // setpoint down each pair (no id demux), and reads that follower's

@@ -119,10 +119,8 @@
             robot_init: "robot_init_inst",
             leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
             leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
-            // The operator's governor toggle. A slot receives ONLY from the
-            // one producer linked here (no wildcard fallback); removing a line
-            // is a launch validation error, since every declared required slot
-            // must be linked.
+            // The operator's governor toggle. Optional: with no producer
+            // linked, the backbone's launch-time band stands.
             collision_ctrl: "commander_inst",
             // Link each arm and each gripper with the backbone: the backbone plays the
             // leader role of joint_link / gripper_link, streams the GOVERNED

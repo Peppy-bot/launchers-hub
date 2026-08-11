@@ -180,14 +180,14 @@
       // Wrist cameras: Arducam B0495 modules capturing their only mode the
       // host validated (yuyv 960x600 @ 30), republished as rgb8 for the
       // recorder. Instance ids become the dataset image keys
-      // (observation.images.left_wrist_cam / right_wrist_cam).
+      // (observation.images.wrist_left / wrist_right).
       source: {
         name: "uvc_camera_linux",
         tag: "v1"
       },
       instances: [
         {
-          instance_id: "left_wrist_cam",
+          instance_id: "wrist_left",
           arguments: {
             device_path: "/dev/openarm/left_wrist_cam",
             video: {
@@ -199,7 +199,7 @@
           },
         },
         {
-          instance_id: "right_wrist_cam",
+          instance_id: "wrist_right",
           arguments: {
             device_path: "/dev/openarm/right_wrist_cam",
             video: {
@@ -224,7 +224,7 @@
       },
       instances: [
         {
-          instance_id: "chest_cam",
+          instance_id: "chest",
           arguments: {
             device_path: "/dev/openarm/chest_cam",
             resolution: "hd720",
@@ -282,8 +282,8 @@
             ],
             // Multi-cardinality camera slots bind arrays; binding order fixes
             // feature order.
-            color_cameras: ["left_wrist_cam", "right_wrist_cam"],
-            rgbd_cameras: ["chest_cam"]
+            color_cameras: ["wrist_left", "wrist_right"],
+            rgbd_cameras: ["chest"]
           },
         }
       ]

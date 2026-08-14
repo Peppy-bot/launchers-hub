@@ -16,6 +16,9 @@
     openarm_v2_teleop_isaac: {
       path: "openarm/openarm_v2_teleop_isaac.json5"
     },
+    openarm_v2_teleop_isaac_browser: {
+      path: "openarm/openarm_v2_teleop_isaac_browser.json5"
+    },
     openarm_v2_teleop_mujoco: {
       path: "openarm/openarm_v2_teleop_mujoco.json5"
     },

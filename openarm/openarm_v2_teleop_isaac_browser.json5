@@ -1,0 +1,244 @@
+// OpenArm v2.0 bimanual Isaac Sim teleop with self-collision avoidance,
+// LeRobot recording support, runtime scene control, and browser-based
+// NVIDIA WebRTC viewing.
+//
+// Launch:
+//   peppy stack launch ./openarm_v2_teleop_isaac_browser.json5
+{
+  peppy_schema: "launcher/v1",
+
+  deployments: [
+    {
+      source: {
+        name: "openarm_sim_isaac",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "sim_inst",
+
+          arguments: {
+            hardware_version: "v2",
+            state_rate_hz: 100,
+            headless: true
+          }
+        }
+      ]
+    },
+
+    {
+      // Browser-based NVIDIA WebRTC viewer.
+      //
+      // The frontend determines the Isaac Sim host from
+      // window.location.hostname, so this launcher contains no
+      // machine-specific IP address.
+      source: {
+        name: "openarm_isaac_webviewer",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "isaac_webviewer_inst"
+        }
+      ]
+    },
+
+    {
+      source: {
+        name: "openarm_arm_sim",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "left_arm_inst",
+
+          links: {
+            engine: "sim_inst/left_arm"
+          }
+        },
+
+        {
+          instance_id: "right_arm_inst",
+
+          links: {
+            engine: "sim_inst/right_arm"
+          }
+        }
+      ]
+    },
+
+    {
+      source: {
+        name: "openarm_gripper_sim",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "left_grip_inst",
+
+          links: {
+            engine: "sim_inst/left_gripper"
+          }
+        },
+
+        {
+          instance_id: "right_grip_inst",
+
+          links: {
+            engine: "sim_inst/right_gripper"
+          }
+        }
+      ]
+    },
+
+    {
+      source: {
+        name: "openarm_robot_initializer",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "robot_init_inst",
+
+          links: {
+            left_arm: "left_arm_inst",
+            right_arm: "right_arm_inst",
+            left_gripper: "left_grip_inst",
+            right_gripper: "right_grip_inst"
+          }
+        }
+      ]
+    },
+
+    {
+      source: {
+        name: "openarm_backbone",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "backbone_inst",
+
+          arguments: {
+            hardware_version: "v2",
+            control_rate_hz: 100,
+
+            d_stop: 0.005,
+            d_safe: 0.02,
+
+            collision_governor_enabled: true,
+
+            max_ee_velocity_m_s: 0.5,
+          },
+
+          links: {
+            robot_init: "robot_init_inst",
+
+            // Collision-governor control is provided by the commander.
+            collision_ctrl: "commander_inst",
+
+            // Governed commands are forwarded to the simulated actuators.
+            left_arm_link: "left_arm_inst",
+            right_arm_link: "right_arm_inst",
+
+            left_gripper_link: "left_grip_inst",
+            right_gripper_link: "right_grip_inst"
+          }
+        }
+      ]
+    },
+
+    {
+      source: {
+        name: "openarm_commander",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "commander_inst",
+
+          arguments: {
+            command_rate_hz: 100,
+            hardware_version: "v2",
+
+            collision_governor_enabled: true,
+
+            d_stop: 0.005,
+            d_safe: 0.02,
+
+            max_ee_velocity_m_s: 0.5
+          },
+
+          links: {
+            backbone: "backbone_inst",
+
+            // Upstream joint commands enter the backbone through its
+            // declared leader joint slots.
+            left_arm: "backbone_inst/leader_left_arm",
+            right_arm: "backbone_inst/leader_right_arm",
+
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+
+            // Measured simulated state.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst"
+          }
+        }
+      ]
+    },
+
+    {
+      source: {
+        name: "lerobot_recorder",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "recorder_inst",
+
+          arguments: {
+            robot_type: "openarm_v2_isaac",
+            fps: 15,
+            storage_root: "/tmp/lerobot_openarm_isaac"
+          },
+
+          links: {
+            // Measured robot state.
+            observed_joints: [
+              "left_arm_inst",
+              "right_arm_inst"
+            ],
+
+            observed_grippers: [
+              "left_grip_inst",
+              "right_grip_inst"
+            ],
+
+            // Governed command stream after backbone safety handling.
+            commanded_joints: [
+              "backbone_inst/left_arm_link",
+              "backbone_inst/right_arm_link"
+            ],
+
+            commanded_grippers: [
+              "backbone_inst/left_gripper_link",
+              "backbone_inst/right_gripper_link"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

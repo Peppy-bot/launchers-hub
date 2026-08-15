@@ -1,43 +1,60 @@
 # openarm launchers
 
-Launchers for the OpenArm bimanual teleop stack, one per hardware generation, backend, and operator surface. All of them bring up the same core node graph (one robot_initializer, two arms, two grippers, one backbone, one leader); they differ in which implementation fills each slot (a slot is a named attachment point a node declares; the launcher's `links` wire slots together, see [docs.peppy.bot](https://docs.peppy.bot)), which `hardware_version` the nodes receive, who leads, and whether any cameras are bound:
+Launchers for the OpenArm bimanual teleop stack: one base per hardware generation, with the robot backend, the operator surface, the recorder, and the cameras selected at launch time with `--with`. Every launch brings up the same core node graph (one robot_initializer, two arms, two grippers, one backbone, one leader); the options differ in which implementation fills each slot (a slot is a named attachment point a node declares; the launcher's `links` wire slots together, see [docs.peppy.bot](https://docs.peppy.bot)), and the base specializes the shared pieces for its generation.
 
-| Launcher | Generation | Runs against | Led by |
+```sh
+peppy stack launch openarm_v2                                   # real robot, browser panel
+peppy stack launch openarm_v2 --with=mujoco                     # MuJoCo, browser panel
+peppy stack launch openarm_v2 --with=isaac_sim,lerobot_recorder # Isaac Sim, recording
+peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
+peppy stack launch openarm_v1 --with=...                        # same axes on the v1 base
+```
+
+The four axes, one option per axis per launch:
+
+| Axis | Options | Default | Fills |
 |---|---|---|---|
-| `openarm_v1_teleop.json5` | v1.0 | the real robot | browser panel |
-| `openarm_v1_teleop_isaac.json5` | v1.0 | Isaac Sim | browser panel |
-| `openarm_v1_teleop_mujoco.json5` | v1.0 | MuJoCo | browser panel |
-| `openarm_v2_teleop.json5` | v2.0 | the real robot | browser panel |
-| `openarm_v2_teleop_isaac.json5` | v2.0 | Isaac Sim | browser panel |
-| `openarm_v2_teleop_mujoco.json5` | v2.0 | MuJoCo | browser panel |
+| `robot` | `real`, `mujoco`, `isaac_sim` | `real` | the arms and grippers (real CAN drivers, or sim relays plus an engine) |
+| `commander` | `web_commander`, `xr_commander` | `web_commander` | the leader (`commander_inst`) |
+| `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
+| `cameras` | `cameras` | off (`optional`) | both wrist cameras and the chest camera |
+
+Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
+
+The old per-variant launchers (`openarm_v2_teleop_mujoco`, `openarm_v2_teleop_vr_record`, and siblings) map one-to-one onto the invocations above.
 
 ## Who leads, and in which space
 
 The backbone follows exactly one kind of upstream arm command, named by its required `upstream_mode` argument, and subscribes only that kind of arm slot (gripper and posture slots are read under either mode):
 
-- `"joints"` - `openarm_commander` (the browser panel) streams joint setpoints on `joint_link`. Every panel-led launcher above.
-- `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The `_vr_` launcher.
+- `"joints"` - `openarm_commander` (the browser panel) streams joint setpoints on `joint_link`. The base's default.
+- `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The `xr_commander` fragment flips the mode and re-vacates the slots as part of being selected.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 
-The headset launchers run without `openarm_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic, so it never will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch it, or use a panel-led launcher.
+The `xr_commander` selection runs without `openarm_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic, so it never will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
 
-The v2 record launchers are the same teleop graphs plus `lerobot_recorder`; see the recorder's README in nodes-hub for the dataset workflow. The real-robot variants also add the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header).
+Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for the dataset workflow). The `cameras` option adds the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header); the headset retunes them for in-headset panels as part of its own selection.
 
-| Launcher | Generation | Runs against | Led by | Episodes driven from |
-|---|---|---|---|---|
-| `openarm_v2_teleop_record.json5` | v2.0 | the real robot, with cameras | browser panel | the panel's Record button |
-| `openarm_v2_teleop_record_isaac.json5` | v2.0 | Isaac Sim | browser panel | the panel's Record button |
-| `openarm_v2_teleop_record_mujoco.json5` | v2.0 | MuJoCo | browser panel | the panel's Record button |
-| `openarm_v2_teleop_vr_record.json5` | v2.0 | the real robot, with cameras | WebXR headset | the left controller's X and Y |
+## The fragments
 
-The two real-robot record launchers are the same stack under different leaders, so a dataset recorded through the headset and one recorded from the panel carry the same cameras under the same names.
+Each option's body lives in `fragments/`, one concern per file, and the bases reference them:
+
+| Fragment | Carries |
+|---|---|
+| `sim_relays.json5` | the four engine-agnostic relays both sim options share, plus the sim's raised EE-speed cap |
+| `mujoco_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it |
+| `web_commander.json5` / `xr_commander.json5` | the leader, plus (headset) the backbone's pose-mode flip and the camera retunes |
+| `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
+| `cameras.json5` | the three cameras and their binds into whichever recorder was selected |
+
+The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (initializer, backbone), each generation's real-hardware option inline, and the generation's `hardware_version` and dataset labels as base adjustments. A fragment is referenced by the option that wants it and is never a launchable stack of its own; `peppy repo index --check` validates every fragment and every legal selection.
 
 ## Before launching
 
 The node repos must be registered with the daemon and the nodes built. The top-level README in `openarm-nodes` walks through the whole sequence; in short, every repo gets a `peppy repo add` (followed by `peppy repo refresh`), and every node gets a `peppy node add <path> -sb`.
 
-The `_vr_` launcher additionally needs `xr_commander`, which lives in the separate [nodes-hub](https://github.com/Peppy-bot/nodes-hub) repo: register it the same way, then `peppy node add /path/to/ws/nodes-hub/xr_commander -sb`. It also deploys the camera nodes from that repo:
+The `xr_commander` option additionally needs `xr_commander`, which lives in the separate [nodes-hub](https://github.com/Peppy-bot/nodes-hub) repo: register it the same way, then `peppy node add /path/to/ws/nodes-hub/xr_commander -sb`. The `cameras` option deploys the camera nodes from that repo:
 
 ```sh
 peppy node add /path/to/ws/nodes-hub/uvc_camera/linux -sb
@@ -55,39 +72,39 @@ Every node the launcher references should show `Ready` in the STAGE column.
 ## Launch
 
 ```sh
-peppy stack launch ./openarm_v1_teleop_mujoco.json5
+peppy stack launch openarm_v2 --with=mujoco
 ```
 
 The launcher starts the instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:
 
-- open **http://localhost:8765** for the control panel, one slider per joint (panel-led launchers)
+- open **http://localhost:8765** for the control panel, one slider per joint (panel-led selections)
 - open **http://localhost:8080** for the MuJoCo viewer (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)
 
-In the panel-led launchers, move a slider, press **Send**, and watch the arm follow; the VR launchers are driven from the headset instead (next section). To stop everything, Ctrl-C the launch terminal, or stop instances individually with `peppy node stop <instance_id>`.
+In the panel-led selections, move a slider, press **Send**, and watch the arm follow; the headset selections are driven from the headset instead (next section). To stop everything, Ctrl-C the launch terminal, or stop instances individually with `peppy node stop <instance_id>`.
 
 ## VR headset
 
-The `_vr_` launcher is led from a WebXR headset and runs no browser panel; the governor keeps its launch-time settings. After `Launch complete`:
+The `xr_commander` selection is led from a WebXR headset and runs no browser panel; the governor keeps its launch-time settings. After `Launch complete`:
 
 1. Reach the WebXR page from the headset (the node's log prints the exact URLs). Wireless: open the https URL and click through the self-signed warning once. Over USB: put the headset in developer mode, `adb reverse tcp:4443 tcp:4443`, and open `https://localhost:4443`. Both paths are detailed in `xr_commander`'s README.
 2. Press **Enter VR**.
 3. Hold a **grip button** and move that hand: the matching arm follows. Release and it holds. The **trigger** drives that hand's gripper while the grip is held.
 4. The face buttons run the whole-robot posture moves: **A** (lower) goes home, **B** goes ready; squeezing either grip cancels the move.
 
-5. The left controller's face buttons drive the recorder: **X** starts an episode and the next press stops and saves it; holding **Y** for a second finishes the session and opens a fresh dataset.
+5. With the recorder selected, the left controller's face buttons drive it: **X** starts an episode and the next press stops and saves it; holding **Y** for a second finishes the session and opens a fresh dataset.
 
-`openarm_v2_teleop_vr_record.json5` binds both wrist cameras and the ZED chest camera. Each camera streams into the headset under its instance id, so `wrist_left` and `wrist_right` anchor their panels to the controllers while `chest` floats.
+With the cameras selected too, both wrist cameras and the ZED chest camera run. Each camera streams into the headset under its instance id, so `wrist_left` and `wrist_right` anchor their panels to the controllers while `chest` floats.
 
 ## Real robot
 
-`openarm_v1_teleop.json5`, `openarm_v2_teleop.json5` and `openarm_v2_teleop_record.json5` (panel-led, UI at **http://localhost:8765**) and `openarm_v2_teleop_vr_record.json5` (headset-led, no panel) drive the physical arms over CAN instead of a sim. Before launching, bring the buses up. The v1 launcher wires `can0`/`can1`; the v2 launchers use the `left_arm`/`right_arm` channel names a host udev rule (`80-openarm-can.rules`) gives the PEAK adapter:
+The `real` option drives the physical arms over CAN instead of a sim (`openarm_v1` or `openarm_v2`, panel-led or headset-led). Before launching, bring the buses up. The v1 base wires `can0`/`can1`; the v2 base uses the `left_arm`/`right_arm` channel names a host udev rule (`80-openarm-can.rules`) gives the PEAK adapter:
 
 ```sh
 sudo ip link set left_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 sudo ip link set right_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 ```
 
-The arms load the description matching their `hardware_version` for the gravity/Coriolis feedforward; it is baked into the `openarm_arm` container, so unlike the rate and CAN arguments there is no host path to set. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the launcher if your wiring or loop budget differs.
+The arms load the description matching their `hardware_version` for the gravity/Coriolis feedforward; it is baked into the `openarm_arm` container, so unlike the rate and CAN arguments there is no host path to set. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the base (or flatten with `peppy stack resolve` and hand-edit) if your wiring or loop budget differs.
 
 ## Troubleshooting
 

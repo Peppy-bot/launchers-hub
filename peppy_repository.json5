@@ -1,38 +1,11 @@
 {
   peppy_schema: "repository/v1",
   launchers: {
-    openarm_v1_teleop: {
-      path: "openarm/openarm_v1_teleop.json5"
+    openarm_v1: {
+      path: "openarm/openarm_v1.json5"
     },
-    openarm_v1_teleop_isaac: {
-      path: "openarm/openarm_v1_teleop_isaac.json5"
-    },
-    openarm_v1_teleop_mujoco: {
-      path: "openarm/openarm_v1_teleop_mujoco.json5"
-    },
-    openarm_v2_teleop: {
-      path: "openarm/openarm_v2_teleop.json5"
-    },
-    openarm_v2_teleop_isaac: {
-      path: "openarm/openarm_v2_teleop_isaac.json5"
-    },
-    openarm_v2_teleop_isaac_browser: {
-      path: "openarm/openarm_v2_teleop_isaac_browser.json5"
-    },
-    openarm_v2_teleop_mujoco: {
-      path: "openarm/openarm_v2_teleop_mujoco.json5"
-    },
-    openarm_v2_teleop_record: {
-      path: "openarm/openarm_v2_teleop_record.json5"
-    },
-    openarm_v2_teleop_record_isaac: {
-      path: "openarm/openarm_v2_teleop_record_isaac.json5"
-    },
-    openarm_v2_teleop_record_mujoco: {
-      path: "openarm/openarm_v2_teleop_record_mujoco.json5"
-    },
-    openarm_v2_teleop_vr_record: {
-      path: "openarm/openarm_v2_teleop_vr_record.json5"
+    openarm_v2: {
+      path: "openarm/openarm_v2.json5"
     },
     python_robot: {
       path: "examples/python_robot.json5"

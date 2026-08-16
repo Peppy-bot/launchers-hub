@@ -8,19 +8,21 @@ Launchers are grouped by robot or system:
 
 ```text
 <system_name>/
-└── <launcher_name>.json5
+├── <launcher_name>.json5
+└── fragments/            # optional: bodies a launcher's component options share
 ```
 
-Each `.json5` file is a self-contained launcher manifest declaring its `deployments`: the nodes it pulls from the [Nodes Hub](https://github.com/Peppy-bot/nodes_hub) (by `name`, `tag`, and optional `variant`) and the named `instances` to spawn from each.
+Each `.json5` file is a self-contained launcher manifest declaring its `deployments`: the nodes it pulls from the [Nodes Hub](https://github.com/Peppy-bot/nodes_hub) (by `name`, `tag`, and optional `variant`) and the named `instances` to spawn from each. A launcher may also declare `components`, making it a family of stacks whose members are selected at launch time with `--with`; each option's body is written inline or lives in a `launcher_fragment/v1` file under `fragments/`. A fragment is referenced by the option that wants it, is never listed in `peppy_repository.json5`, and is never a launchable stack of its own.
 
 ## Launcher Variants
 
-Different launcher files describe alternative configurations of the same system. Common patterns include:
+One composed launcher can describe every configuration of one system, one `--with` selection each (see the `openarm/` launchers). Common patterns include:
 
-- **Real hardware** (e.g. `openarm_v1_teleop`, `openarm_v2_teleop`): runs against the physical robot
-- **Simulator-specific** (e.g. `openarm_v1_teleop_isaac`, `openarm_v2_teleop_mujoco`): same stack wired to a simulator
+- **Real hardware vs simulator** as options of a `robot` axis (`real`, `mujoco`, `isaac_sim`)
+- **Operator surface** as options of a `commander` axis (browser panel, XR headset)
+- **Add-on features** as optional axes (a recorder, a camera set)
 
-See the [Peppy documentation](https://github.com/Peppy-bot/peppy) for the full launcher schema.
+See the [Peppy documentation](https://docs.peppy.bot/guides/launch-files/) for the full launcher schema.
 
 ## Adding an item to this repository
 

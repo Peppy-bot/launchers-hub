@@ -1,0 +1,72 @@
+// The WebXR command headset: pose-led teleop from a headset. The headset
+// has no governor_control producer, so the backbone's launch-time band
+// stands for the whole session; the adjustments below flip the backbone
+// into pose mode and retune the cameras for in-headset panels.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: {
+        name: "xr_commander",
+        tag: "v1",
+      },
+      instances: [
+        {
+          // The node self-generates its TLS certificate and serves https on
+          // its default port 4443; open the URL from the startup log and
+          // click through the warning once. Headset-reachable only with a
+          // Linux daemon: macOS runs containers in a Lima VM that does not
+          // expose the port.
+          instance_id: "commander_inst",
+          arguments: {
+            command_rate_hz: 100,
+            // Rest the released trigger at half of full travel: fully open
+            // splays the fingers nearly flat, wider than any grasp needs.
+            gripper_open_fraction: 0.5,
+          },
+          links: {
+            // Each hand's pose_link into the backbone's *_pose slots, the
+            // arm command kind upstream_mode "pose" follows; grippers as
+            // ever.
+            left_arm: "backbone_inst/leader_left_arm_pose",
+            right_arm: "backbone_inst/leader_right_arm_pose",
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+            // The whole-robot posture moves (A = home, B = ready).
+            postures: ["backbone_inst"],
+          },
+        },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Pose-led teleop: the backbone solves and governs end-effector poses
+    // instead of joint targets. The joint-mode vacancy annotations do not
+    // apply under pose mode, so they are unset; the joint leader slots go
+    // vacant instead (nothing pairs into them from a headset).
+    { target: "backbone_inst",
+      set_arguments: { upstream_mode: "pose" },
+      set_links: {
+        collision_ctrl: { vacant: "xr_commander never produces governor_control" },
+        leader_left_arm: { vacant: "upstream_mode pose: arm commands arrive on the pose slots" },
+        leader_right_arm: { vacant: "upstream_mode pose: arm commands arrive on the pose slots" },
+      },
+      unset_links: ["leader_left_arm_pose", "leader_right_arm_pose"] },
+
+    // In-headset panels want the Arducams at their native mode instead of
+    // the recorder's downscaled rgb8, and the chest camera at 30 with a
+    // deeper disparity floor. The cameras axis owns the instances; the
+    // consequence of choosing this commander is owned here. No guard: the
+    // retunes skip on their own when the cameras axis is unfilled.
+    { target: "wrist_left",
+      set_arguments: { video: { frame_rate: 30, resolution: { width: 1920, height: 1200 },
+                                camera_encoding: "yuyv", topic_encoding: "yuyv" } } },
+    { target: "wrist_right",
+      set_arguments: { video: { frame_rate: 30, resolution: { width: 1920, height: 1200 },
+                                camera_encoding: "yuyv", topic_encoding: "yuyv" } } },
+    { target: "chest",
+      set_arguments: { frame_rate: 30, depth: { min_depth_m: 0.45, downscale: 2, block_size: 5 } } },
+  ],
+}

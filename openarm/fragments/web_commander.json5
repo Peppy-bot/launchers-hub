@@ -1,0 +1,48 @@
+// The browser command panel: joint-led teleop from any device with a
+// browser. Generation-agnostic on purpose (each base sets hardware_version
+// for itself); the governor band and launch cap mirror the backbone's.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "openarm_commander", tag: "v1" },
+      instances: [
+        {
+          instance_id: "commander_inst",
+          // Governor launch defaults the panel then streams live, kept in
+          // step with the backbone; conservative EE-speed cap for the real
+          // arm (the sim options raise it).
+          arguments: {
+            command_rate_hz: 100,
+            collision_governor_enabled: true,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            max_ee_velocity_m_s: 0.25
+          },
+          links: {
+            // The backbone: move actions + the collision_status proximity
+            // feed.
+            backbone: "backbone_inst",
+            // The command loop: this panel plays the leader role of each
+            // limb's pairing; each slot plugs into the backbone's matching
+            // leader socket (target/socket form: the backbone holds one per
+            // limb).
+            left_arm: "backbone_inst/leader_left_arm",
+            right_arm: "backbone_inst/leader_right_arm",
+            left_gripper: "backbone_inst/leader_left_gripper",
+            right_gripper: "backbone_inst/leader_right_gripper",
+            // Live readouts: an observer link names the FOLLOWER instance of
+            // the pairing it watches, so these point at the arms and
+            // grippers themselves (the backbone<->follower loops), not at
+            // the backbone.
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
+          },
+        },
+      ],
+    },
+  ],
+}

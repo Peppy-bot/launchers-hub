@@ -126,11 +126,11 @@
       set_arguments: { robot_type: "openarm_v1_mujoco" } },
     { target: "recorder_inst", when: { robot: "isaac_sim" },
       set_arguments: { robot_type: "openarm_v1_isaac" } },
-    // A headset session on the real robot keeps its episodes on persistent
-    // storage instead of /tmp (the operator's home dataset directory). A
-    // headset session on a sim engine keeps the engine's label and path.
-    { target: "recorder_inst", when: { commander: "xr_commander", robot: "real" },
-      set_arguments: { storage_root: "/home/jarednm/lerobot_data/openarm_vr_real" } },
+    // The commander does not change what is recorded, so a headset session
+    // records under the same label and root as a panel session on the same
+    // backend. Where the episodes land past a reboot is a per-machine
+    // choice: keepers want a durable storage_root, set on the recorder
+    // fragment, not one operator's directory pinned here.
   ],
 
   deployments: [

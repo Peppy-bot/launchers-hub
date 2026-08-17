@@ -129,6 +129,11 @@
     // backend. Where the episodes land past a reboot is a per-machine
     // choice: keepers want a durable storage_root, set on the recorder
     // fragment, not one operator's directory pinned here.
+    // Operator alerts come from the real CAN drivers; the sim relays
+    // implement no alert contract, so the binding exists only under the
+    // real robot. Whichever commander was selected lists them.
+    { target: "commander_inst", when: { robot: "real" },
+      add_links: { alerts: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"] } },
   ],
 
   deployments: [

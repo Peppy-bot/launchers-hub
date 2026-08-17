@@ -10,15 +10,15 @@
     {
       source: { name: "openarm_arm_sim", tag: "v1" },
       instances: [
-        { instance_id: "left_arm",  links: { engine: "sim_inst/left_arm" } },
-        { instance_id: "right_arm", links: { engine: "sim_inst/right_arm" } },
+        { instance_id: "left_arm_inst",  links: { engine: "sim_inst/left_arm" } },
+        { instance_id: "right_arm_inst", links: { engine: "sim_inst/right_arm" } },
       ],
     },
     {
       source: { name: "openarm_gripper_sim", tag: "v1" },
       instances: [
-        { instance_id: "left_gripper",  links: { engine: "sim_inst/left_gripper" } },
-        { instance_id: "right_gripper", links: { engine: "sim_inst/right_gripper" } },
+        { instance_id: "left_grip_inst",  links: { engine: "sim_inst/left_gripper" } },
+        { instance_id: "right_grip_inst", links: { engine: "sim_inst/right_gripper" } },
       ],
     },
   ],

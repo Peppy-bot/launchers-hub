@@ -43,7 +43,7 @@
             // to its producing instance. Operator alerts come only from
             // real drivers, so each base adds that binding under its real
             // robot.
-            motor_health: ["left_arm", "right_arm", "left_gripper", "right_gripper"],
+            motor_health: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"],
           },
         },
       ],

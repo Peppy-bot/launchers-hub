@@ -20,7 +20,7 @@
   components: [
     {
       name: "robot",
-      provides: ["left_arm", "right_arm", "left_gripper", "right_gripper"],
+      provides: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"],
       default: "real",
       options: {
         // This generation's real hardware: v1 arms (v1 frames and base
@@ -33,7 +33,7 @@
               source: { name: "openarm_arm", tag: "v1" },
               instances: [
                 {
-                  instance_id: "left_arm",
+                  instance_id: "left_arm_inst",
                   arguments: {
                     arm_id: 0,
                     hardware_version: "v1",
@@ -43,7 +43,7 @@
                   },
                 },
                 {
-                  instance_id: "right_arm",
+                  instance_id: "right_arm_inst",
                   arguments: {
                     arm_id: 1,
                     hardware_version: "v1",
@@ -58,7 +58,7 @@
               source: { name: "openarm_gripper", tag: "v1" },
               instances: [
                 {
-                  instance_id: "left_gripper",
+                  instance_id: "left_grip_inst",
                   arguments: {
                     gripper_id: 0,
                     can_interface: "can0",
@@ -67,7 +67,7 @@
                   },
                 },
                 {
-                  instance_id: "right_gripper",
+                  instance_id: "right_grip_inst",
                   arguments: {
                     gripper_id: 1,
                     can_interface: "can1",
@@ -101,15 +101,8 @@
     {
       name: "cameras",
       optional: true,
-      // Only the chest camera is common to every option; the wrist pair is
-      // the full set's own addition.
-      provides: ["chest"],
-      options: {
-        cameras: "fragments/cameras.json5",
-        // The chest viewpoint alone, for sessions where a wrist camera or
-        // its cabling is out of service.
-        chest_only: "fragments/chest_camera.json5",
-      },
+      provides: ["wrist_left", "wrist_right", "chest"],
+      options: { cameras: "fragments/cameras.json5" },
     },
   ],
 
@@ -142,7 +135,7 @@
     // implement no alert contract, so the binding exists only under the
     // real robot. Whichever commander was selected lists them.
     { target: "commander_inst", when: { robot: "real" },
-      add_links: { alerts: ["left_arm", "right_arm", "left_gripper", "right_gripper"] } },
+      add_links: { alerts: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"] } },
   ],
 
   deployments: [
@@ -156,10 +149,10 @@
         {
           instance_id: "robot_init_inst",
           links: {
-            left_arm: "left_arm",
-            right_arm: "right_arm",
-            left_gripper: "left_gripper",
-            right_gripper: "right_gripper",
+            left_arm: "left_arm_inst",
+            right_arm: "right_arm_inst",
+            left_gripper: "left_grip_inst",
+            right_gripper: "right_grip_inst",
           },
         },
       ],
@@ -200,10 +193,10 @@
             // and reads that follower's measured state back on the same
             // pair. Both upstream command streams run through the governor
             // before anything reaches a follower.
-            left_arm_link: "left_arm",
-            right_arm_link: "right_arm",
-            left_gripper_link: "left_gripper",
-            right_gripper_link: "right_gripper",
+            left_arm_link: "left_arm_inst",
+            right_arm_link: "right_arm_inst",
+            left_gripper_link: "left_grip_inst",
+            right_gripper_link: "right_grip_inst",
             // The pose leader slots stay vacant under joint-led teleop
             // (the headset fragment unsets these and pairs into them
             // instead).

@@ -36,15 +36,15 @@
             // the pairing it watches, so these point at the arms and
             // grippers themselves (the backbone<->follower loops), not at
             // the backbone.
-            observed_left_arm: "left_arm",
-            observed_right_arm: "right_arm",
-            observed_left_gripper: "left_gripper",
-            observed_right_gripper: "right_gripper",
+            observed_left_arm: "left_arm_inst",
+            observed_right_arm: "right_arm_inst",
+            observed_left_gripper: "left_grip_inst",
+            observed_right_gripper: "right_grip_inst",
             // Per-motor health telemetry from every limb, real and sim
             // alike; the panel attributes each report to its producing
             // instance. Operator alerts come only from real drivers, so
             // each base adds that binding under its real robot.
-            motor_health: ["left_arm", "right_arm", "left_gripper", "right_gripper"],
+            motor_health: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"],
           },
         },
       ],

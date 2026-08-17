@@ -24,9 +24,6 @@
             // Rest the released trigger at half of full travel: fully open
             // splays the fingers nearly flat, wider than any grasp needs.
             gripper_open_fraction: 0.5,
-            // The status panel lists warnings; only critical and above
-            // interrupts the camera views.
-            banner_from_severity: 2,
           },
           links: {
             // Each hand's pose_link into the backbone's *_pose slots, the

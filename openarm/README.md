@@ -23,6 +23,17 @@ Every axis left unselected takes its default, so the bare launch is the plain re
 
 The old per-variant launchers (`openarm_v2_teleop_mujoco`, `openarm_v2_teleop_vr_record`, and siblings) map one-to-one onto the invocations above.
 
+## Selections the family refuses
+
+Not every combination of the axes is a member of the family. Each base declares two `constraints`, and a selection violating one is refused before anything is pinned or started — the refusal names the requirement and quotes the reason:
+
+- **`cameras` requires `robot=real`.** The cameras film the physical rig. Beside a simulated robot they would record datasets whose video is a static desk while the joint and action streams move — silent training-data poison (the old family's `record_mujoco` / `record_isaac` variants shipped without cameras deliberately).
+- **`cameras` requires `lerobot_recorder` or `xr_commander`.** Only the recorder and the XR leader have camera slots; the web panel has none. Without a consumer the three cameras would open their devices and publish to zero subscribers.
+
+Unselected axes count as what they resolve to: `--with=cameras` alone is refused because the commander *defaults* to the web panel and the recorder stays off, and the refusal's echo marks both with `(default)` / `(off)` so the fix is visible. A constraint never picks an option to satisfy itself — it refuses, and you say what you meant.
+
+Per base that leaves 15 members: all 12 camera-less combinations, plus `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
+
 ## Who leads, and in which space
 
 The backbone follows exactly one kind of upstream arm command, named by its required `upstream_mode` argument, and subscribes only that kind of arm slot (gripper and posture slots are read under either mode):

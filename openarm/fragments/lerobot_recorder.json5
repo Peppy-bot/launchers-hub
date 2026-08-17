@@ -36,8 +36,8 @@
             // stream. The recorder's slots are zero_or_more, so this list is
             // what declares the robot's shape: it records exactly these
             // limbs, in this order.
-            observed_joints: ["left_arm_inst", "right_arm_inst"],
-            observed_grippers: ["left_grip_inst", "right_grip_inst"],
+            observed_joints: ["left_arm", "right_arm"],
+            observed_grippers: ["left_gripper", "right_gripper"],
             // The same pairings' leader streams: the recorded action is the
             // backbone's governed setpoint, exactly what the follower
             // executed. Order matches the measured lists above limb for

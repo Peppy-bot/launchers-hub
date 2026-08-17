@@ -1,0 +1,38 @@
+// The chest viewpoint alone: the ZED Mini rgbd camera without the wrist
+// pair, for sessions where a wrist camera or its cabling is out of service.
+// Same tuning and attachments as the full set's chest entry.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      // Chest camera: ZED Mini as an rgbd producer (rectified left eye rgb8
+      // + z16 depth in the same frame). Depth is published at
+      // eye_resolution / downscale (640x360 here); min_depth_m sets the
+      // disparity search range, so a lower floor costs matcher time. Needs
+      // outbound network access at startup for the per-serial factory
+      // calibration fetch.
+      source: { name: "zed_camera", tag: "v1" },
+      instances: [
+        {
+          instance_id: "chest",
+          arguments: {
+            device_path: "/dev/openarm/chest_cam",
+            resolution: "hd720",
+            frame_rate: 15,
+            depth: { min_depth_m: 0.4, downscale: 2, block_size: 3 },
+          },
+        },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Bind into whichever recorder was selected; skipped on its own when
+    // no recorder is launched.
+    { target: "recorder_inst", add_links: { rgbd_cameras: ["chest"] } },
+    // Shape guard: only the XR leader has camera slots.
+    { target: "commander_inst", when: { commander: "xr_commander" },
+      add_links: { rgbd_cameras: ["chest"] } },
+  ],
+}

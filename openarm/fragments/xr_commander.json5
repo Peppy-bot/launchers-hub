@@ -24,6 +24,9 @@
             // Rest the released trigger at half of full travel: fully open
             // splays the fingers nearly flat, wider than any grasp needs.
             gripper_open_fraction: 0.5,
+            // The status panel lists warnings; only critical and above
+            // interrupts the camera views.
+            banner_from_severity: 2,
           },
           links: {
             // Each hand's pose_link into the backbone's *_pose slots, the
@@ -35,6 +38,12 @@
             right_gripper: "backbone_inst/leader_right_gripper",
             // The whole-robot posture moves (A = home, B = ready).
             postures: ["backbone_inst"],
+            // Per-motor health telemetry from every limb, real and sim
+            // alike, listed on the status panel; each report is attributed
+            // to its producing instance. Operator alerts come only from
+            // real drivers, so each base adds that binding under its real
+            // robot.
+            motor_health: ["left_arm", "right_arm", "left_gripper", "right_gripper"],
           },
         },
       ],

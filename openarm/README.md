@@ -104,6 +104,8 @@ The `xr_commander` selection is led from a WebXR headset and runs no browser pan
 
 5. With the recorder selected, the left controller's face buttons drive it: **X** starts an episode and the next press stops and saves it; holding **Y** for a second finishes the session and opens a fresh dataset.
 
+Before recording anything, name the task: open `https://<host>:4443/task` from the headset's browser (or a laptop) and set what you are demonstrating. Every frame carries that string and a policy reads it back as its instruction. Nothing sets it for you, so episodes recorded before you do go down as `unnamed teleop task`, and the status panel's task line reads `NOT SET (unnamed)` until then. Retitle the same way mid-session, from a laptop if the operator is in the headset; the change applies to the next episode.
+
 With the cameras selected too, both wrist cameras and the ZED chest camera run. Each camera streams into the headset under its instance id, so `wrist_left` and `wrist_right` anchor their panels to the controllers while `chest` floats.
 
 ## Real robot

@@ -107,6 +107,30 @@
     },
   ],
 
+  // The selections this family refuses to be. Both rules exist for members
+  // that FLATTEN cleanly into a stack nobody should run; the checker cannot
+  // catch them (they are structurally fine) and the fragments cannot either
+  // (a `when` guard only decides whether one adjustment applies).
+  constraints: [
+    // The cameras film the physical rig, so pairing them with a simulated
+    // robot records datasets whose video is a static desk while the joint
+    // and action streams move: silent training-data poison. The old
+    // per-variant record_mujoco / record_isaac launchers shipped without
+    // cameras deliberately. If a sim-plus-cameras session is ever wanted
+    // (in-headset panels of the real desk, say), scope this to the recorder
+    // instead: when { recorder, cameras } requires robot=real.
+    { when: { cameras: "cameras" },
+      requires: [{ robot: "real" }],
+      reason: "the cameras film the physical rig; recording or relaying them beside a simulated robot pairs real video with simulated joint and action streams" },
+    // A camera needs a consumer. Only the recorder and the XR leader have
+    // camera slots (the web panel has none; cameras.json5 guards that
+    // attach on the shape), so without either the three cameras deploy,
+    // open their devices, and publish to zero subscribers.
+    { when: { cameras: "cameras" },
+      requires: [{ recorder: "lerobot_recorder" }, { commander: "xr_commander" }],
+      reason: "nothing in this selection consumes a camera stream: only the recorder and the XR leader have camera slots" },
+  ],
+
   // The invariant graph, specialized for this generation.
   adjustments: [
     // The shared sim fragments are generation-agnostic; the base says which

@@ -55,11 +55,6 @@
               ],
             },
             {
-              // speed_rad_s and max_effort_nm are named on both instances
-              // rather than left to the node defaults: the grip force a real
-              // gripper applies to real objects is a property of the
-              // deployment. Only this generation reads them, so the v1 family
-              // leaves them alone.
               source: { name: "openarm_gripper", tag: "v1" },
               instances: [
                 {
@@ -70,8 +65,6 @@
                     can_interface: "left_arm",
                     control_rate_hz: 100,
                     state_rate_hz: 100,
-                    speed_rad_s: 25.0,
-                    max_effort_nm: 3.0,
                   },
                 },
                 {
@@ -82,8 +75,6 @@
                     can_interface: "right_arm",
                     control_rate_hz: 100,
                     state_rate_hz: 100,
-                    speed_rad_s: 25.0,
-                    max_effort_nm: 3.0,
                   },
                 },
               ],

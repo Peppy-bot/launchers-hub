@@ -23,10 +23,10 @@
       provides: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"],
       default: "real",
       options: {
-        // This generation's real hardware: v1 arms (v1 frames and base
-        // links) and the openarm_gripper pinch gripper. Stays inline
-        // because it is what differs between the generations, while the
-        // sim fragments are generation-agnostic.
+        // This generation's real hardware: v1 arms (v1 frames and base links)
+        // and the prismatic parallel jaws. Stays inline because it is what
+        // differs between the generations, while the sim fragments are
+        // generation-agnostic.
         real: {
           deployments: [
             {
@@ -61,6 +61,7 @@
                   instance_id: "left_grip_inst",
                   arguments: {
                     gripper_id: 0,
+                    hardware_version: "v1",
                     can_interface: "can0",
                     control_rate_hz: 100,
                     state_rate_hz: 100,
@@ -70,6 +71,7 @@
                   instance_id: "right_grip_inst",
                   arguments: {
                     gripper_id: 1,
+                    hardware_version: "v1",
                     can_interface: "can1",
                     control_rate_hz: 100,
                     state_rate_hz: 100,

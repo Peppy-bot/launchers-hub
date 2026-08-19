@@ -117,7 +117,16 @@ sudo ip link set left_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 sudo ip link set right_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 ```
 
-The arms load the description matching their `hardware_version` for the gravity/Coriolis feedforward; it is baked into the `openarm_arm` container, so unlike the rate and CAN arguments there is no host path to set. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the base (or flatten with `peppy stack resolve` and hand-edit) if your wiring or loop budget differs.
+Both limbs take a `hardware_version`. The arms load the description matching theirs for the gravity/Coriolis feedforward; it is baked into the `openarm_arm` container, so unlike the rate and CAN arguments there is no host path to set. The grippers take the same argument, where it selects the motor's CAN control mode and both the direction and the distance the fingers travel. Leaving one on the other generation's value never just degrades it:
+
+| rig | set to | what the gripper does |
+|---|---|---|
+| v1 left | `v2` | drives backwards into the closed stop |
+| v1 right | `v2` | drives 50% past the open stop |
+| v2 left | `v1` | drives backwards into the closed stop |
+| v2 right | `v1` | opens two thirds of the way and reports that as fully open |
+
+The control mode follows the same argument, so a gripper wrongly set to `v1` also runs an ungoverned MIT hold with no POS_FORCE grip-force ceiling, and one wrongly set to `v2` drives v1.0's prismatic jaws in POS_FORCE. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the base (or flatten with `peppy stack resolve` and hand-edit) if your wiring or loop budget differs.
 
 ## Troubleshooting
 

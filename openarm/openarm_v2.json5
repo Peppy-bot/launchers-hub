@@ -55,7 +55,7 @@
               ],
             },
             {
-              // speed_rad_s and force_limit_pu are named on both instances
+              // speed_rad_s and max_effort_nm are named on both instances
               // rather than left to the node defaults: the grip force a real
               // gripper applies to real objects is a property of the
               // deployment. Only this generation reads them, so the v1 family
@@ -71,7 +71,7 @@
                     control_rate_hz: 100,
                     state_rate_hz: 100,
                     speed_rad_s: 25.0,
-                    force_limit_pu: 0.15,
+                    max_effort_nm: 3.0,
                   },
                 },
                 {
@@ -83,7 +83,7 @@
                     control_rate_hz: 100,
                     state_rate_hz: 100,
                     speed_rad_s: 25.0,
-                    force_limit_pu: 0.15,
+                    max_effort_nm: 3.0,
                   },
                 },
               ],

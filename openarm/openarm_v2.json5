@@ -104,7 +104,13 @@
       name: "cameras",
       optional: true,
       provides: ["wrist_left", "wrist_right", "chest"],
-      options: { cameras: "fragments/cameras.json5" },
+      // Same three viewpoints from either source: filmed by the USB rig, or
+      // rendered by the engine. Both fill the same instance ids, so what a
+      // consumer binds does not depend on which was selected.
+      options: {
+        cameras: "fragments/cameras.json5",
+        sim_cameras: "fragments/sim_cameras.json5",
+      },
     },
   ],
 
@@ -115,19 +121,26 @@
   constraints: [
     // The cameras film the physical rig, so pairing them with a simulated
     // robot records datasets whose video is a static desk while the joint
-    // and action streams move: silent training-data poison. The old
-    // per-variant record_mujoco / record_isaac launchers shipped without
-    // cameras deliberately. If a sim-plus-cameras session is ever wanted
-    // (in-headset panels of the real desk, say), scope this to the recorder
-    // instead: when { recorder, cameras } requires robot=real.
+    // and action streams move: silent training-data poison. A simulated
+    // session takes sim_cameras instead, which renders the same three
+    // viewpoints from the engine's own scene.
     { when: { cameras: "cameras" },
       requires: [{ robot: "real" }],
-      reason: "the cameras film the physical rig; recording or relaying them beside a simulated robot pairs real video with simulated joint and action streams" },
+      reason: "the cameras film the physical rig; recording or relaying them beside a simulated robot pairs real video with simulated joint and action streams (a simulated session takes sim_cameras)" },
+    // The mirror of the above: rendered cameras need a scene to render, so
+    // this selection needs a simulated robot. Either engine renders them,
+    // from the same camera config, onto the same slots.
+    { when: { cameras: "sim_cameras" },
+      requires: [{ robot: "mujoco" }, { robot: "isaac_sim" }],
+      reason: "rendered cameras come from a simulated scene, so this selection needs a sim engine (the real robot takes cameras)" },
     // A camera needs a consumer. Only the recorder and the XR leader have
     // camera slots (the web panel has none; cameras.json5 guards that
     // attach on the shape), so without either the three cameras deploy,
     // open their devices, and publish to zero subscribers.
     { when: { cameras: "cameras" },
+      requires: [{ recorder: "lerobot_recorder" }, { commander: "xr_commander" }],
+      reason: "nothing in this selection consumes a camera stream: only the recorder and the XR leader have camera slots" },
+    { when: { cameras: "sim_cameras" },
       requires: [{ recorder: "lerobot_recorder" }, { commander: "xr_commander" }],
       reason: "nothing in this selection consumes a camera stream: only the recorder and the XR leader have camera slots" },
   ],

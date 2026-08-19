@@ -8,7 +8,10 @@
     {
       source: { name: "openarm_sim_isaac", tag: "v1" },
       instances: [
-        { instance_id: "sim_inst", arguments: { state_rate_hz: 100 } },
+        // cameras_enabled is off here and turned on by the sim_cameras
+        // option, so a stack's camera state reads off its own selection.
+        { instance_id: "sim_inst",
+          arguments: { state_rate_hz: 100, cameras_enabled: false } },
       ],
     },
   ],

@@ -23,11 +23,10 @@
       provides: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"],
       default: "real",
       options: {
-        // This generation's real hardware: v2 arms (reoriented frames, v2
-        // base links) and the openarm_gripper_v2 revolute pinch gripper
-        // (POS_FORCE with force feedback). Stays inline because it is what
-        // differs between the generations, while the sim fragments are
-        // generation-agnostic.
+        // This generation's real hardware: v2 arms (reoriented frames, v2 base
+        // links) and the revolute pinch gripper (POS_FORCE with force
+        // feedback). Stays inline because it is what differs between the
+        // generations, while the sim fragments are generation-agnostic.
         real: {
           deployments: [
             {
@@ -56,12 +55,13 @@
               ],
             },
             {
-              source: { name: "openarm_gripper_v2", tag: "v1" },
+              source: { name: "openarm_gripper", tag: "v1" },
               instances: [
                 {
                   instance_id: "left_grip_inst",
                   arguments: {
                     gripper_id: 0,
+                    hardware_version: "v2",
                     can_interface: "left_arm",
                     control_rate_hz: 100,
                     state_rate_hz: 100,
@@ -71,6 +71,7 @@
                   instance_id: "right_grip_inst",
                   arguments: {
                     gripper_id: 1,
+                    hardware_version: "v2",
                     can_interface: "right_arm",
                     control_rate_hz: 100,
                     state_rate_hz: 100,

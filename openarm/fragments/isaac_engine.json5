@@ -1,23 +1,73 @@
-// The Isaac Sim half of a simulated robot: the engine instance the relays
-// connect to. Generation-agnostic on purpose (each base sets
-// hardware_version on sim_inst for itself).
+// The Isaac Sim backend plus browser-based Isaac viewing and runtime scene
+// control. Generation-agnostic: each OpenArm base sets hardware_version on
+// sim_inst through its own adjustments.
 {
   peppy_schema: "launcher_fragment/v1",
 
   deployments: [
     {
-      source: { name: "openarm_sim_isaac", tag: "v1" },
+      source: {
+        name: "openarm_sim_isaac",
+        tag: "v1"
+      },
+
       instances: [
-        { instance_id: "sim_inst", arguments: { state_rate_hz: 100 } },
-      ],
+        {
+          instance_id: "sim_inst",
+
+          arguments: {
+            state_rate_hz: 50,
+            headless: true
+          }
+        }
+      ]
     },
+
+    {
+      // NVIDIA WebRTC browser frontend.
+      //
+      // No machine-specific IP is stored here. The viewer frontend uses the
+      // browser hostname while the WebRTC public/signalling/media settings
+      // come from the Peppy service environment.
+      source: {
+        name: "openarm_isaac_webviewer",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "isaac_webviewer_inst"
+        }
+      ]
+    },
+
+    {
+      // Peppy-native runtime scene/object commander.
+      source: {
+        name: "openarm_scene_commander",
+        tag: "v1"
+      },
+
+      instances: [
+        {
+          instance_id: "scene_commander_inst",
+
+          arguments: {
+            http_host: "0.0.0.0",
+            http_port: 8766
+          },
+
+          links: {
+            simulation: "sim_inst"
+          }
+        }
+      ]
+    }
   ],
 
   adjustments: [
-    // A consequence of running this engine, so it lives here with no guard:
-    // datasets recorded under Isaac Sim are stored for it. Runs exactly when
-    // this fragment is selected and skips when no recorder was.
+    // Dataset recording follows the selected simulation backend.
     { target: "recorder_inst",
-      set_arguments: { storage_root: "/tmp/lerobot_openarm_isaac" } },
-  ],
+      set_arguments: { storage_root: "/tmp/lerobot_openarm_isaac" } }
+  ]
 }

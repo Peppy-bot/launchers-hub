@@ -194,14 +194,12 @@
             hardware_version: "v2",
             // Joint-led by default: the leader_*_arm pairings are the
             // followed upstream command (the headset fragment flips this).
-            upstream_mode: "joints",
             control_rate_hz: 100,
-            d_stop_m: 0.005,
-            d_safe_m: 0.02,
-            collision_governor_enabled: true,
+            d_stop: 0.005,
+            d_safe: 0.02,
+            collision_governor_enabled: false,
             max_ee_velocity_m_s: 0.25,
             // EE rotation cap (rad/s); MoveIt Servo's default scale.
-            max_ee_angular_velocity_rad_s: 0.8,
           },
           links: {
             robot_init: "robot_init_inst",
@@ -220,11 +218,6 @@
             right_arm_link: "right_arm_inst",
             left_gripper_link: "left_grip_inst",
             right_gripper_link: "right_grip_inst",
-            // The pose leader slots stay vacant under joint-led teleop
-            // (the headset fragment unsets these and pairs into them
-            // instead).
-            leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
-            leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
           },
         },
       ],

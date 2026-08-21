@@ -361,8 +361,17 @@ jobs:
           set -euo pipefail
           failed=()
           # The list is read on fd 3, so a launch that reads stdin cannot
-          # eat the combinations queued behind it.
-          while IFS=$'\t' read -r launcher words placement <&3; do
+          # eat the combinations queued behind it. Each line is split by
+          # parameter expansion rather than `read`'s field splitting: a tab
+          # is IFS whitespace to `read`, which collapses the empty `--with`
+          # field a component-less launcher's line carries and shifted the
+          # first run's example launches into `--with -`.
+          while IFS= read -r line <&3; do
+            [ -n "$line" ] || continue
+            launcher=${line%%$'\t'*}
+            rest=${line#*$'\t'}
+            words=${rest%%$'\t'*}
+            placement=${rest#*$'\t'}
             args=("$launcher")
             [ -n "$words" ] && args+=("--with" "$words")
             [ "$placement" = "local" ] && args+=("--local")

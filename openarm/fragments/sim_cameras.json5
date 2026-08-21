@@ -39,7 +39,10 @@
   adjustments: [
     // Rendering costs a frame budget every frame, so the engine ships with
     // its camera slots idle and this selection is what turns them on.
-    { target: "sim_inst", set_arguments: { cameras_enabled: true } },
+    { target: "sim_inst",
+      set_arguments: { cameras_enabled: true },
+      // The relays below pair into these, so the engine's vacancy goes.
+      unset_links: ["wrist_left", "wrist_right", "chest"] },
     // Bind into whichever recorder was selected, in the same order as the
     // real fragment so both produce the same feature order.
     { target: "recorder_inst",

@@ -430,14 +430,57 @@ def command_plan(root, combos_path, skips_path, matrix_path):
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
+        # The summary says, before anything launches, exactly which jobs the
+        # run is about to fan out to. A `diff` block is the one construct a
+        # step summary renders in color, so the launch list is green `+`
+        # lines; the refused and skipped tables follow with their reasons.
+        # The launch list names the launch jobs by their own labels, so what
+        # the summary promises is what the checks list shows, verbatim.
+        refused = [
+            (name, words, detail)
+            for name, words, _, verdict, detail in planned
+            if verdict == "refused"
+        ]
+        skipped = [
+            (name, words, detail)
+            for name, words, _, verdict, detail in planned
+            if verdict == "skipped"
+        ]
         with open(summary, "a", encoding="utf-8") as handle:
-            handle.write("\n### Launcher combinations\n\n")
-            handle.write("| launcher | selection | verdict | detail |\n")
-            handle.write("| --- | --- | --- | --- |\n")
-            for name, words, _, verdict, detail in planned:
+            if matrix:
                 handle.write(
-                    f"| {name} | {words or 'defaults'} | {verdict} | {detail} |\n"
+                    f"\n### 🚀 Launching start to end, one job each "
+                    f"({len(matrix)} of {len(planned)} combinations)\n\n"
                 )
+                handle.write("```diff\n")
+                for entry in matrix:
+                    handle.write(f"+ {entry['label']}\n")
+                handle.write("```\n")
+            else:
+                handle.write(
+                    "\n### 🚀 Launching nothing: every combination this change "
+                    "reaches is refused or hardware-skipped\n\n"
+                )
+            if refused:
+                handle.write(
+                    f"\n### ❌ Refused by the launcher's own constraints "
+                    f"({len(refused)}) — refused by design, not failures\n\n"
+                )
+                handle.write("| combination | refusal |\n")
+                handle.write("| --- | --- |\n")
+                for name, words, detail in refused:
+                    label = combination_label(name, words, "-")
+                    handle.write(f"| {label} | {detail} |\n")
+            if skipped:
+                handle.write(
+                    f"\n### ⏭️ Skipped: the runner has none of the hardware "
+                    f"these deploy ({len(skipped)})\n\n"
+                )
+                handle.write("| combination | deploys |\n")
+                handle.write("| --- | --- |\n")
+                for name, words, detail in skipped:
+                    label = combination_label(name, words, "-")
+                    handle.write(f"| {label} | {sanitize(detail)} |\n")
 
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:

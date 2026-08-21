@@ -430,7 +430,7 @@ jobs:
           set -euo pipefail
           PEPPY_HOME="$RUNNER_TEMP/peppy-home"
           mkdir -p "$PEPPY_HOME"
-          PEPPY_MESSAGING_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])}')
+          PEPPY_MESSAGING_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
           {
             echo "PEPPY_HOME=$PEPPY_HOME"
             echo "PEPPY_MESSAGING_PORT=$PEPPY_MESSAGING_PORT"

@@ -8,7 +8,18 @@
     {
       source: { name: "openarm_sim_mujoco", tag: "v1" },
       instances: [
-        { instance_id: "sim_inst", arguments: { state_rate_hz: 100 } },
+        // cameras_enabled is off here and turned on by the sim_cameras
+        // option, so a stack's camera state reads off its own selection.
+        { instance_id: "sim_inst",
+          arguments: { state_rate_hz: 100, cameras_enabled: false },
+          // The cameras axis owns these slots and may go unselected, so say
+          // they are empty on purpose; sim_cameras unsets them when it pairs
+          // its relays in.
+          links: {
+            wrist_left: { vacant: "the cameras axis selected no rendered cameras" },
+            wrist_right: { vacant: "the cameras axis selected no rendered cameras" },
+            chest: { vacant: "the cameras axis selected no rendered cameras" },
+          } },
       ],
     },
   ],

@@ -39,3 +39,22 @@ from the repository, naming the file and the identity involved.
 
 Generation refuses, naming both files, if your change claims a launcher name another one already
 publishes. Rename yours: within one repository, a launcher name (its file stem) is claimed by exactly one file.
+
+## Continuous Integration
+
+The [test workflow](.github/workflows/tests.yml) launches the launchers this repository publishes,
+from start to end, with the latest peppy release (whose version the run prints). It discovers the
+launchers from `peppy_repository.json5` and every selection of each launcher's `components` on its
+own — nothing is listed by hand — and a pull request runs only the launchers its diff touches: a
+launcher's own file, or a fragment one of its options references.
+
+Every selection is validated (`peppy repo index --check` holds the whole selection space to the
+structural checks; `peppy stack resolve` flattens each one), and every selection a runner can
+actually run is launched as its own job — one job per combination, so the run's check list is the
+combination list: `peppy stack launch` returns only once every node of the stack has signalled
+ready, after which the stack is listed and torn down. Two kinds of selection are validated but not
+launched, each named with its reason in the run summary: those the launcher's own `constraints`
+refuse (the constraint system working), and those deploying a node listed in
+[`.github/unlaunchable-nodes.json5`](.github/unlaunchable-nodes.json5) — hardware the runner VM has
+none of, a CAN bus, a USB camera, a headset, a GPU. When a new node needs such hardware, add one
+entry there naming the node and what is missing.

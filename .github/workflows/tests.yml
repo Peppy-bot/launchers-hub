@@ -1,0 +1,495 @@
+name: Tests
+
+# Launches the launchers this repository publishes, from start to end, with
+# the latest peppy release — one job per launchable combination. The
+# inventory is discovered from the repository on each run rather than
+# maintained by hand — `peppy_repository.json5` names the launchers, each
+# launcher's own `components` name its selections — so a launcher added
+# tomorrow, and every combination of its axes, runs in CI on the pull
+# request that adds it, and a pull request runs only the launchers its diff
+# touches (its own file, or a fragment any of its options references). A
+# change outside every launcher (this workflow, the skips file, the
+# repository index, ...) and every push to main still run every
+# combination, so anything a scoped run could miss is caught on the
+# integration branch; a Markdown file outside every launcher is the one
+# exception, testing nothing.
+#
+# Two jobs. `discover` enumerates the launchers and every combination of
+# their axes (printed to its log and the run summary), scopes them to the
+# diff, and plans: `peppy repo index --check` holds every launcher's whole
+# selection space to the structural checks a launch would run, and
+# `peppy stack resolve` splits the selected combinations into the
+# launchable, the refused (the launcher's own constraints, quoted), and the
+# skipped (a deployed node needs hardware the runner has none of, per
+# .github/unlaunchable-nodes.json5). The launchable ones become the second
+# job's matrix, one job per combination: each installs a peppy release of
+# its own, boots an isolated daemon, registers this checkout as the
+# launcher repository in its place (the bundled entry points at GitHub
+# main, which would resolve a pull request's launcher to the stale merged
+# copy), and launches its combination start to end — `peppy stack launch`
+# resolves the launcher, adds each deployment's node, builds its container
+# image, and runs it, returning only once every node has signalled ready;
+# `peppy stack list` then records what came up and `peppy stack reset`
+# tears it down. Refused and skipped combinations are validated by
+# `discover` alone and named, with reasons, in the run summary.
+#
+# A launch builds every deployed node's image through the daemon's bundled
+# apptainer, so the launch jobs follow the nodes-hub and openarm-nodes test
+# workflows: install a peppy release, ready its apptainer for unprivileged
+# use, boot an isolated daemon. Node and contract sources keep resolving
+# through the bundled hub repositories at their latest main, which is the
+# point: a launcher must keep launching against the nodes and contracts
+# actually published. The runners are ephemeral Blacksmith VMs, so the
+# rebuildable caches (apptainer's pulled layers, uv's wheels and
+# interpreters) live on sticky disks — keyed per combination, because the
+# matrix jobs of a push to main commit their caches in parallel and must
+# not race on one disk, and keyed on the combination rather than its
+# position so a launcher added tomorrow warms nobody's cache away. Built
+# node images deliberately stay off the disks: they are name:tag
+# addressed, so a cached image could be yesterday's node.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    name: Discover and plan the launcher combinations
+    # x86 rather than the -arm label: the launch jobs' base images are
+    # published for both, and the sticky disk keys below carry the
+    # architecture, so switching is a label change that starts from an
+    # empty disk rather than a wrong-arch one.
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Full history: the scoping step diffs the pull request against
+          # its base to decide which launchers to run.
+          fetch-depth: 0
+          # Nothing here pushes, so the job has no use for a writable
+          # credential sitting in .git/config for every later step to inherit.
+          persist-credentials: false
+
+      # The inventory, printed for the person reading the run: every
+      # launcher this repository publishes and every combination of its
+      # component axes, discovered, not maintained. Runs on every event —
+      # even a documentation-only pull request shows what exists, and the
+      # run summary keeps the listing beside the verdicts of the plan.
+      - name: Show every launcher and combination found
+        env:
+          LC_ALL: C
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/launcher_combinations.py enumerate \
+            > "$RUNNER_TEMP/inventory.tsv"
+          awk -F'\t' '$1 == "launcher"' "$RUNNER_TEMP/inventory.tsv" \
+            > "$RUNNER_TEMP/launchers.tsv"
+          awk -F'\t' '$1 == "combo"' "$RUNNER_TEMP/inventory.tsv" \
+            > "$RUNNER_TEMP/combos-all.tsv"
+
+          listing=$(awk -F'\t' '
+            $1 == "launcher" { printf "**%s** — %s\n", $2, $3; next }
+            $1 == "combo" {
+              selection = ($3 == "" ? "defaults" : $3)
+              if ($4 == "local") selection = selection " (--local)"
+              print "- " selection
+            }
+          ' "$RUNNER_TEMP/inventory.tsv")
+          printf '%s\n' "$listing"
+          {
+            echo
+            echo "### Every launcher and combination found"
+            echo
+            printf '%s\n' "$listing"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # A launcher is selected by its own file or by a fragment one of its
+      # options references (the inventory line carries both, fragments as
+      # repository-relative paths), so editing a shared sim fragment selects
+      # every launcher composing it. A changed file outside every launcher
+      # falls back to every launcher, because nothing narrower can be proven
+      # safe for it — except a Markdown file, which nothing launches, so it
+      # selects nothing. Every skipped launcher is named in the run summary,
+      # so a scoped run never silently reads as full coverage.
+      - name: Discover the launchers this change reaches
+        id: discover
+        env:
+          LC_ALL: C
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          run_all=true
+          scope="every launcher"
+          : > "$RUNNER_TEMP/selected-launchers.txt"
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ -n "${BASE_SHA:-}" ]; then
+            if changed=$(git diff --name-only "$BASE_SHA...HEAD") && [ -n "$changed" ]; then
+              run_all=false
+              scope="the launchers this pull request touches"
+              while IFS= read -r file; do
+                hit=$(awk -F'\t' -v f="$file" \
+                  '$1 == "launcher" && ($3 == f || index("," $4 ",", "," f ",")) { print $2 }' \
+                  "$RUNNER_TEMP/launchers.tsv")
+                if [ -n "$hit" ]; then
+                  printf '%s\n' "$hit" >> "$RUNNER_TEMP/selected-launchers.txt"
+                elif [[ "${file,,}" == *.md ]]; then
+                  continue
+                else
+                  run_all=true
+                  scope="every launcher ($file is outside every launcher)"
+                  break
+                fi
+              done <<< "$changed"
+              if [ "$run_all" = false ] && [ ! -s "$RUNNER_TEMP/selected-launchers.txt" ]; then
+                scope="nothing: this pull request changes only documentation outside every launcher"
+              fi
+            else
+              echo "could not diff against the pull request base; running every launcher" >&2
+            fi
+          fi
+
+          if [ "$run_all" = true ]; then
+            cut -f2 "$RUNNER_TEMP/launchers.tsv" > "$RUNNER_TEMP/selected-launchers.txt"
+          fi
+          sort -u -o "$RUNNER_TEMP/selected-launchers.txt" "$RUNNER_TEMP/selected-launchers.txt"
+          awk -F'\t' 'NR == FNR { sel[$1] = 1; next } $2 in sel' \
+            "$RUNNER_TEMP/selected-launchers.txt" "$RUNNER_TEMP/combos-all.tsv" \
+            > "$RUNNER_TEMP/combos.tsv"
+
+          any=false
+          [ -s "$RUNNER_TEMP/combos.tsv" ] && any=true
+          echo "any=$any" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "Running ${scope}."
+            echo
+            echo "### Launchers selected"
+            sed 's/^/- /' "$RUNNER_TEMP/selected-launchers.txt"
+            skipped=$(comm -23 <(cut -f2 "$RUNNER_TEMP/launchers.tsv" | sort) \
+              "$RUNNER_TEMP/selected-launchers.txt")
+            if [ -n "$skipped" ]; then
+              echo
+              echo "### Launchers skipped (untouched by this change)"
+              echo "$skipped" | sed 's/^/- /'
+            fi
+            echo
+            echo "$(wc -l < "$RUNNER_TEMP/combos.tsv") combination(s) to plan"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Installed by extracting the release under RUNNER_TEMP rather than
+      # through scripts/install.sh: nothing here wants a ~/.peppy, and the
+      # job lives in the checkout and its own temp dir. The whole archive is
+      # extracted, not just bin/peppy, because the launch jobs need the
+      # bundled layout around the binary — and this one needs the `peppy`
+      # the plan step resolves launchers with. Set the PEPPY_VERSION
+      # repository variable to pin a release; it defaults to the latest,
+      # which is the point of this workflow: a launcher must keep launching
+      # against the peppy actually shipped.
+      #
+      # PEPPY_VERSION reaches the script through the environment rather than
+      # a `${{ }}` expansion, so its value is data the shell reads instead of
+      # source the shell parses, and the shape check turns a typo into a
+      # named failure rather than a 404 from a URL built out of it.
+      #
+      # The binary answers `--version` before building any app context, so
+      # no PEPPY_HOME is needed here. `latest` resolves to a different
+      # release over time, so the log and the run summary both record which
+      # release this run actually executed.
+      - name: Install peppy
+        if: steps.discover.outputs.any == 'true'
+        env:
+          PEPPY_VERSION: ${{ vars.PEPPY_VERSION }}
+        run: |
+          set -euo pipefail
+          version="${PEPPY_VERSION:-latest}"
+          if [[ "$version" == "latest" ]]; then
+            channel="latest"
+          elif [[ "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            channel="v${version#v}"
+          else
+            echo "PEPPY_VERSION must be 'latest' or a release such as 0.25.0, got: $version" >&2
+            exit 1
+          fi
+
+          case "$(uname -m)" in
+            x86_64 | amd64) arch="x86_64" ;;
+            aarch64 | arm64) arch="aarch64" ;;
+            *) echo "unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+
+          dest="$RUNNER_TEMP/peppy-dist"
+          mkdir -p "$dest"
+          curl -fsSL --connect-timeout 10 --max-time 300 \
+            "https://peppy.bot/$channel/peppy-$arch-unknown-linux-gnu.tgz" \
+            | tar -xzf - -C "$dest"
+          chmod +x "$dest/bin/peppy"
+          echo "$dest/bin" >> "$GITHUB_PATH"
+
+          # $GITHUB_PATH serves the steps after this one; this step names the
+          # binary it just extracted by its full path.
+          "$dest/bin/peppy" --version
+          installed="Installed $("$dest/bin/peppy" --version) (channel: $channel)"
+          printf '\n%s\n' "$installed" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The committed index against the repository, and with it every
+      # launcher's whole selection space: an unlisted launcher, a moved
+      # fragment, an option whose shape contradicts an adjustment, a dead
+      # constraint — each is this check's refusal, on the pull request that
+      # causes it, with no daemon and no containers. The launch jobs cover
+      # only what a runner can actually run; this covers the rest.
+      - name: Check the repository index and every selection it admits
+        if: steps.discover.outputs.any == 'true'
+        run: peppy repo index --check .
+
+      # Resolve every selected combination against the launcher file it
+      # comes from and split it into the launchable, the refused (the
+      # launcher's own constraints, quoted), and the skipped (a deployed
+      # node needs hardware the runner has none of, per
+      # .github/unlaunchable-nodes.json5). The launchable ones leave as the
+      # matrix the launch jobs fan out over. Needs no daemon; needs peppy.
+      - name: Plan the combinations this run launches
+        id: plan
+        if: steps.discover.outputs.any == 'true'
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/launcher_combinations.py plan \
+            --combos "$RUNNER_TEMP/combos.tsv" \
+            --skips .github/unlaunchable-nodes.json5 \
+            --matrix "$RUNNER_TEMP/matrix.json"
+          echo "matrix=$(cat "$RUNNER_TEMP/matrix.json")" >> "$GITHUB_OUTPUT"
+
+  launch:
+    name: ${{ matrix.combo.label }}
+    needs: discover
+    # A documentation-only change plans nothing: no matrix entries, no
+    # launch jobs, and the run is green without booting a single daemon.
+    if: needs.discover.outputs.matrix != '' && needs.discover.outputs.matrix != '[]'
+    strategy:
+      # One combination's failure must not cancel its siblings: a red run
+      # names every failing combination, exactly as the sequential loop
+      # that preceded the matrix did.
+      fail-fast: false
+      matrix:
+        combo: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    # A cold launch of the heaviest combination pulls the mujoco engine
+    # image, compiles the openarm Rust nodes, and resolves the lerobot
+    # recorder's tree (torch included) inside its image build; the sticky
+    # disk below keeps warm runs far under this.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Nothing here diffs history; the launcher is resolved by name
+          # through the repository registered below.
+          # Nothing here pushes, so the job has no use for a writable
+          # credential sitting in .git/config for every later step to inherit.
+          persist-credentials: false
+
+      # The rebuildable caches (apptainer's pulled docker layers for every
+      # node base image, uv's wheels and interpreters) outlive the run on a
+      # Blacksmith sticky disk: they are what makes a warm run cheap, and
+      # the runner's own disk is discarded with the job. Every run mounts a
+      # clone of the disk's last committed snapshot, so nothing stored here
+      # may be state one run depends on another having written — only
+      # caches apptainer and uv can rebuild from scratch. The key carries
+      # the combination and the architecture: the matrix jobs of a push to
+      # main commit in parallel and must not race on one disk, and the
+      # layers are built for the host that pulled them.
+      - name: Mount the caches
+        uses: useblacksmith/stickydisk@35ba2e331a80056a42af053ee54968511de2b7c7 # v1.5.0
+        with:
+          key: ${{ github.repository }}-launch-${{ runner.arch }}-${{ matrix.combo.key }}
+          path: ~/.cache/launchers-hub-ci
+          commit: ${{ github.event_name == 'push' }}
+
+      # The path the disk is mounted at, and the apptainer cache on it: the
+      # daemon this job boots inherits the environment, so every node image
+      # it builds pulls its base layers through (and into) the cache.
+      - name: Name the caches this run reuses
+        run: |
+          echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci" >> "$GITHUB_ENV"
+          echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci/apptainer-cache" >> "$GITHUB_ENV"
+
+      # Installed by extracting the release under RUNNER_TEMP rather than
+      # through scripts/install.sh: nothing here wants a ~/.peppy, and the
+      # whole job lives in the checkout and its own temp dir. The whole
+      # archive is extracted, not just bin/peppy, because the daemon needs
+      # the bundled layout around the binary (zenohd, and the apptainer
+      # install under bin/apptainer that a later step readies). PEPPY_VERSION
+      # pins a release; the default is latest.
+      #
+      # The binary answers `--version` before building any app context, so
+      # no PEPPY_HOME is needed here. `latest` resolves to a different
+      # release over time, so the log and the run summary both record which
+      # release this run actually executed.
+      - name: Install peppy
+        env:
+          PEPPY_VERSION: ${{ vars.PEPPY_VERSION }}
+        run: |
+          set -euo pipefail
+          version="${PEPPY_VERSION:-latest}"
+          if [[ "$version" == "latest" ]]; then
+            channel="latest"
+          elif [[ "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            channel="v${version#v}"
+          else
+            echo "PEPPY_VERSION must be 'latest' or a release such as 0.25.0, got: $version" >&2
+            exit 1
+          fi
+
+          case "$(uname -m)" in
+            x86_64 | amd64) arch="x86_64" ;;
+            aarch64 | arm64) arch="aarch64" ;;
+            *) echo "unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+
+          dest="$RUNNER_TEMP/peppy-dist"
+          mkdir -p "$dest"
+          curl -fsSL --connect-timeout 10 --max-time 300 \
+            "https://peppy.bot/$channel/peppy-$arch-unknown-linux-gnu.tgz" \
+            | tar -xzf - -C "$dest"
+          chmod +x "$dest/bin/peppy"
+          echo "$dest/bin" >> "$GITHUB_PATH"
+
+          # $GITHUB_PATH serves the steps after this one; this step names the
+          # binary it just extracted by its full path.
+          "$dest/bin/peppy" --version
+          installed="Installed $("$dest/bin/peppy" --version) (channel: $channel)"
+          printf '\n%s\n' "$installed" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The daemon refuses to boot unless the apptainer install it resolves
+      # is ready for unprivileged use: `newuidmap` on PATH, and on a kernel
+      # that restricts unprivileged user namespaces through AppArmor (Ubuntu
+      # 24.04's default) a root-installed profile keyed to the canonical path
+      # of that install's `starter` binary. The VM is fresh, so every run
+      # readies the install it just extracted: `peppy container setup` applies
+      # whatever its fix script needs through sudo when stdin is not a
+      # terminal, and rechecks before exiting 0. Today's Blacksmith image
+      # mounts no AppArmor securityfs, so it needs nothing; the step is what
+      # keeps that an observation rather than an assumption.
+      #
+      # `apptainer build` runs a def's %post as fakeroot, which needs a
+      # subordinate id range for the runner user besides newuidmap. The
+      # runner image ships one; should it ever not, this allocates one past
+      # the highest range in use rather than failing in a def's apt-get a
+      # cold build later.
+      - name: Ready the bundled apptainer for unprivileged use
+        run: |
+          set -euo pipefail
+          peppy container setup < /dev/null
+
+          user=$(id -un)
+          for kind in subuid subgid; do
+            if ! grep -qs "^$user:" "/etc/$kind"; then
+              start=$(awk -F: 'BEGIN { m = 100000 } { e = $2 + $3; if (e > m) m = e } END { print m }' \
+                "/etc/$kind" 2>/dev/null || echo 100000)
+              sudo usermod "--add-${kind}s" "$start-$((start + 65535))" "$user"
+            fi
+          done
+
+      # A node without an apptainer.def builds with the `build_cmd` its
+      # manifest declares — `uv sync --no-editable` for the scaffolded
+      # Python node — which the daemon executes on ITS OWN PATH, not inside
+      # a container; on a developer machine uv is simply installed. The
+      # runner image ships none, so it lands here, on the PATH the daemon
+      # is about to inherit, before the daemon boots. The standalone
+      # installer needs no root and touches only ~/.local/bin; uv's cache
+      # and its downloaded interpreters go to the sticky disk so a warm run
+      # resolves a wheel or a Python it already has instead of fetching it.
+      - name: Install uv for the daemon's host-side build commands
+        run: |
+          set -euo pipefail
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          mkdir -p "$CI_CACHE_DIR/uv/cache" "$CI_CACHE_DIR/uv/python"
+          {
+            echo "UV_CACHE_DIR=$CI_CACHE_DIR/uv/cache"
+            echo "UV_PYTHON_INSTALL_DIR=$CI_CACHE_DIR/uv/python"
+          } >> "$GITHUB_ENV"
+
+      # The daemon gets its own data root and port under RUNNER_TEMP: the CLI
+      # finds it through PEPPY_HOME/daemon_state.json5, so pointing PEPPY_HOME
+      # at the run's directory is discovery and isolation from any other
+      # daemon in one. The name carries the run id because core-node names
+      # must be unique among daemons that can reach each other.
+      - name: Start an isolated peppy daemon
+        run: |
+          set -euo pipefail
+          PEPPY_HOME="$RUNNER_TEMP/peppy-home"
+          mkdir -p "$PEPPY_HOME"
+          PEPPY_MESSAGING_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+          {
+            echo "PEPPY_HOME=$PEPPY_HOME"
+            echo "PEPPY_MESSAGING_PORT=$PEPPY_MESSAGING_PORT"
+          } >> "$GITHUB_ENV"
+          export PEPPY_HOME PEPPY_MESSAGING_PORT
+
+          nohup peppy service serve --core-node-name "ci-launchers-$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/peppy-serve.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            if [ -f "$PEPPY_HOME/daemon_state.json5" ]; then exit 0; fi
+            sleep 1
+          done
+          echo "daemon did not come up; serve log:" >&2
+          cat "$RUNNER_TEMP/peppy-serve.log" >&2
+          exit 1
+
+      # The bundled defaults register the GitHub copy of this repository.
+      # With it present, a launch by name would resolve the pull request's
+      # launcher to the stale main-branch copy instead of the checkout, so it
+      # is removed and the checkout registered in its place. The other hub
+      # repositories stay: the nodes, contracts and pairings these launchers
+      # deploy genuinely live there, at their latest main.
+      - name: Register this checkout as the launcher repository
+        run: |
+          set -euo pipefail
+          repo_id=$(grep -B 3 'Peppy-bot/launchers-hub' "$PEPPY_HOME/conf/repositories.json5" \
+            | sed -n 's/.*id: *\([0-9]*\),.*/\1/p' | head -1)
+          if [ -n "$repo_id" ]; then
+            peppy repo remove "$repo_id"
+          fi
+          peppy repo add "$GITHUB_WORKSPACE"
+          peppy repo refresh
+
+      # This job's one combination, start to end: the launch resolves the
+      # launcher, waits for every node to signal ready, and only then
+      # returns; `stack list` records what came up, and `stack reset` tears
+      # it down, proving the stack comes back down as cleanly as it went up.
+      #
+      # The build idle budget is raised from the 180s default: a release
+      # compile of a heavy dependency can sit between cargo's progress lines
+      # for longer than that on a loaded VM, and the fix for a genuinely
+      # stuck build is the job's own timeout, not a mid-build abort that
+      # names no culprit.
+      #
+      # The combination's fields reach the shell through the environment
+      # rather than `${{ }}` expansions: their values are data the shell
+      # reads instead of source the shell parses.
+      - name: Launch the combination start to end
+        env:
+          LABEL: ${{ matrix.combo.label }}
+          LAUNCHER: ${{ matrix.combo.launcher }}
+          WORDS: ${{ matrix.combo.words }}
+          LOCAL: ${{ matrix.combo.local }}
+        run: |
+          set -euo pipefail
+          args=("$LAUNCHER")
+          [ -n "$WORDS" ] && args+=("--with" "$WORDS")
+          [ "$LOCAL" = "true" ] && args+=("--local")
+          echo "Launching $LABEL: peppy stack launch ${args[*]}"
+          peppy stack launch "${args[@]}" --node-build-idle-timeout-secs 900
+          peppy stack list
+          peppy stack reset

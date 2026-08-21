@@ -1,0 +1,46 @@
+// Nodes this repository's CI cannot launch, read by
+// .github/scripts/launcher_combinations.py when it plans a run.
+//
+// The CI discovers every launcher and every selection of its component axes
+// on its own, so a launcher added tomorrow runs without a change here. What
+// it cannot discover is physical: the runner VM carries none of the hardware
+// some nodes open at runtime, and a combination deploying one of them fails
+// its launch phase no matter how correct the launcher is. Such a combination
+// is still validated — `peppy repo index --check` holds every selection to
+// the structural checks, and `peppy stack resolve` flattens it — but it is
+// not launched, and the reason below is quoted in the run summary.
+//
+// When a new node needs hardware the runner lacks, add one entry naming the
+// node and what is missing. Entries are matched on the node names a
+// flattened launcher deploys, so they hold for every launcher, present or
+// future, that selects the node.
+[
+  {
+    node: "openarm_arm",
+    reason: "drives the real arms over SocketCAN (can0/can1); the runner has no CAN interfaces",
+  },
+  {
+    node: "openarm_gripper",
+    reason: "drives the real grippers over SocketCAN; the runner has no CAN interfaces",
+  },
+  {
+    node: "uvc_camera_linux",
+    reason: "opens real UVC devices (/dev/openarm/*); the runner has none",
+  },
+  {
+    node: "zed_camera",
+    reason: "opens a real ZED stereo camera over USB; the runner has none",
+  },
+  {
+    node: "realsense_d4xx",
+    reason: "opens a real RealSense depth camera over USB; the runner has none",
+  },
+  {
+    node: "xr_commander",
+    reason: "pairs with an XR headset at runtime; the runner has none",
+  },
+  {
+    node: "openarm_sim_isaac",
+    reason: "runs Isaac Sim on a GPU; the runner has none",
+  },
+]

@@ -26,7 +26,12 @@ Two modes:
                constraints refuse is planned as refused — the constraint
                system working as designed, not a failure. Anything else is a
                launcher this repository cannot even flatten, and fails this
-               script after printing the resolution error verbatim.
+               script after printing the resolution error verbatim. Every
+               launchable combination is written to the matrix file as one
+               JSON object — the label the launch job is named by, the
+               launcher and `--with` words to launch it with, whether it
+               needs `--local`, and a disk-key slug — which the workflow
+               feeds to its launch job's matrix, one job per combination.
 
 The launcher files are JSON5 (comments, unquoted keys, trailing commas), read
 by the small parser below rather than a dependency: the runner's Python ships
@@ -36,6 +41,7 @@ a line, never a silently mis-read launcher.
 """
 
 import argparse
+import json
 import os
 import posixpath
 import re
@@ -344,7 +350,25 @@ def deployed_nodes(resolved):
     return nodes
 
 
-def command_plan(root, combos_path, skips_path, launches_path):
+def combination_label(name, words, placement):
+    """The launch job's display name: the launcher, its selection, its placement."""
+    label = f"{name} ({words})" if words else name
+    if placement == "local":
+        label += " [--local]"
+    return label
+
+
+def disk_key(name, words, placement):
+    """A slug naming this combination: the per-combination sticky-disk key.
+
+    Keyed on the combination itself rather than its position in the list, so
+    adding a launcher shifts nobody's disk and a warm run stays warm.
+    """
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", f"{name} {words} {placement}").strip("-")
+    return slug
+
+
+def command_plan(root, combos_path, skips_path, matrix_path):
     skips = {}
     for entry in load_json5(skips_path, skips_path) or []:
         if not isinstance(entry, dict) or "node" not in entry:
@@ -359,6 +383,7 @@ def command_plan(root, combos_path, skips_path, launches_path):
     }
 
     planned = []
+    matrix = []
     with open(combos_path, encoding="utf-8") as handle:
         for line in handle:
             line = line.rstrip("\n")
@@ -380,6 +405,15 @@ def command_plan(root, combos_path, skips_path, launches_path):
                     planned.append((name, words, placement, "skipped", detail))
                 else:
                     planned.append((name, words, placement, "launch", "-"))
+                    matrix.append(
+                        {
+                            "label": combination_label(name, words, placement),
+                            "launcher": name,
+                            "words": words,
+                            "local": placement == "local",
+                            "key": disk_key(name, words, placement),
+                        }
+                    )
             else:
                 output = (resolve.stderr + resolve.stdout).strip()
                 if CONSTRAINT_REFUSAL_MARK in output:
@@ -391,10 +425,8 @@ def command_plan(root, combos_path, skips_path, launches_path):
                         "and the launcher's constraints do not refuse it either"
                     )
 
-    with open(launches_path, "w", encoding="utf-8") as handle:
-        for name, words, placement, verdict, _ in planned:
-            if verdict == "launch":
-                handle.write(f"{name}\t{words}\t{placement}\n")
+    with open(matrix_path, "w", encoding="utf-8") as handle:
+        json.dump(matrix, handle, separators=(",", ":"))
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
@@ -428,14 +460,14 @@ def main():
     plan_parser.add_argument("--root", default=".")
     plan_parser.add_argument("--combos", required=True)
     plan_parser.add_argument("--skips", required=True)
-    plan_parser.add_argument("--launches", required=True)
+    plan_parser.add_argument("--matrix", required=True)
 
     args = parser.parse_args()
     try:
         if args.command == "enumerate":
             command_enumerate(args.root)
         else:
-            command_plan(args.root, args.combos, args.skips, args.launches)
+            command_plan(args.root, args.combos, args.skips, args.matrix)
     except Json5Error as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1)

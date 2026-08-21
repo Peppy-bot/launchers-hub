@@ -50,10 +50,11 @@ launcher's own file, or a fragment one of its options references.
 
 Every selection is validated (`peppy repo index --check` holds the whole selection space to the
 structural checks; `peppy stack resolve` flattens each one), and every selection a runner can
-actually run is launched: `peppy stack launch` returns only once every node of the stack has
-signalled ready, after which the stack is torn down and the next combination runs. Two kinds of
-selection are validated but not launched, each named with its reason in the run summary: those the
-launcher's own `constraints` refuse (the constraint system working), and those deploying a node
-listed in [`.github/unlaunchable-nodes.json5`](.github/unlaunchable-nodes.json5) — hardware the
-runner VM has none of, a CAN bus, a USB camera, a headset, a GPU. When a new node needs such
-hardware, add one entry there naming the node and what is missing.
+actually run is launched as its own job — one job per combination, so the run's check list is the
+combination list: `peppy stack launch` returns only once every node of the stack has signalled
+ready, after which the stack is listed and torn down. Two kinds of selection are validated but not
+launched, each named with its reason in the run summary: those the launcher's own `constraints`
+refuse (the constraint system working), and those deploying a node listed in
+[`.github/unlaunchable-nodes.json5`](.github/unlaunchable-nodes.json5) — hardware the runner VM has
+none of, a CAN bus, a USB camera, a headset, a GPU. When a new node needs such hardware, add one
+entry there naming the node and what is missing.

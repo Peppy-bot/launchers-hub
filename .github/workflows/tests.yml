@@ -233,8 +233,10 @@ jobs:
           chmod +x "$dest/bin/peppy"
           echo "$dest/bin" >> "$GITHUB_PATH"
 
-          peppy --version
-          installed="Installed $(peppy --version) (channel: $channel)"
+          # $GITHUB_PATH serves the steps after this one; this step names the
+          # binary it just extracted by its full path.
+          "$dest/bin/peppy" --version
+          installed="Installed $("$dest/bin/peppy" --version) (channel: $channel)"
           printf '\n%s\n' "$installed" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The committed index against the repository, and with it every

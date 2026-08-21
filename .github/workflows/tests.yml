@@ -295,6 +295,27 @@ jobs:
             fi
           done
 
+      # A node without an apptainer.def builds with the `build_cmd` its
+      # manifest declares — `uv sync --no-editable` for the scaffolded
+      # Python node — which the daemon executes on ITS OWN PATH, not inside
+      # a container; on a developer machine uv is simply installed. The
+      # runner image ships none, so it lands here, on the PATH the daemon
+      # is about to inherit, before the daemon boots. The standalone
+      # installer needs no root and touches only ~/.local/bin; uv's cache
+      # and its downloaded interpreters go to the sticky disk so a warm run
+      # resolves a wheel or a Python it already has instead of fetching it.
+      - name: Install uv for the daemon's host-side build commands
+        if: steps.plan.outputs.launchable == 'true'
+        run: |
+          set -euo pipefail
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          mkdir -p "$CI_CACHE_DIR/uv/cache" "$CI_CACHE_DIR/uv/python"
+          {
+            echo "UV_CACHE_DIR=$CI_CACHE_DIR/uv/cache"
+            echo "UV_PYTHON_INSTALL_DIR=$CI_CACHE_DIR/uv/python"
+          } >> "$GITHUB_ENV"
+
       # The daemon gets its own data root and port under RUNNER_TEMP: the CLI
       # finds it through PEPPY_HOME/daemon_state.json5, so pointing PEPPY_HOME
       # at the run's directory is discovery and isolation from any other

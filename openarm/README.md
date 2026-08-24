@@ -6,6 +6,7 @@ Launchers for the OpenArm bimanual teleop stack: one base per hardware generatio
 peppy stack launch openarm_v2                                   # real robot, browser panel
 peppy stack launch openarm_v2 --with=mujoco                     # MuJoCo, browser panel
 peppy stack launch openarm_v2 --with=isaac_sim,lerobot_recorder # Isaac Sim, recording
+peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # ... with rendered cameras
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
 peppy stack launch openarm_v1 --with=...                        # same axes on the v1 base
 ```
@@ -17,11 +18,23 @@ The four axes, one option per axis per launch:
 | `robot` | `real`, `mujoco`, `isaac_sim` | `real` | the arms and grippers (real CAN drivers, or sim relays plus an engine) |
 | `commander` | `web_commander`, `xr_commander` | `web_commander` | the leader (`commander_inst`) |
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
-| `cameras` | `cameras` | off (`optional`) | both wrist cameras and the chest camera |
+| `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
 
 Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
 
 The old per-variant launchers (`openarm_v2_teleop_mujoco`, `openarm_v2_teleop_vr_record`, and siblings) map one-to-one onto the invocations above.
+
+## Selections the family refuses
+
+Not every combination of the axes is a member of the family. Each base declares its `constraints`, and a selection violating one is refused before anything is pinned or started: the refusal names the requirement and quotes the reason.
+
+- **`cameras` requires `robot=real`.** The cameras film the physical rig. Beside a simulated robot they would record datasets whose video is a static desk while the joint and action streams move: silent training-data poison. A simulated session takes `sim_cameras` instead.
+- **`sim_cameras` requires `robot=mujoco` or `robot=isaac_sim`.** Rendered cameras need a scene to render, so the option is refused beside the real robot (which takes `cameras`). Either engine renders the three viewpoints, from the same `config/cameras.json5` onto the same slots, so a dataset gets the same feature keys and shapes either way; the pixels differ, because the two engines light and rasterize the scene differently.
+- **`cameras` and `sim_cameras` each require `lerobot_recorder` or `xr_commander`.** Only the recorder and the XR leader have camera slots; the web panel has none. Without a consumer the three cameras would publish to zero subscribers.
+
+Unselected axes count as what they resolve to: `--with=cameras` alone is refused because the commander *defaults* to the web panel and the recorder stays off, and the refusal's echo marks both with `(default)` / `(off)` so the fix is visible. A constraint never picks an option to satisfy itself — it refuses, and you say what you meant.
+
+That leaves 15 members on the v1 base: all 12 camera-less combinations, plus `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both. The v2 base adds `sim_cameras` on either engine over the same three consumers, for 21. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
 
 ## Who leads, and in which space
 
@@ -47,6 +60,7 @@ Each option's body lives in `fragments/`, one concern per file, and the bases re
 | `web_commander.json5` / `xr_commander.json5` | the leader, plus (headset) the backbone's pose-mode flip and the camera retunes |
 | `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
 | `cameras.json5` | the three cameras and their binds into whichever recorder was selected |
+| `sim_cameras.json5` | the same three viewpoints rendered by whichever engine was selected, and the same binds |
 
 The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (initializer, backbone), each generation's real-hardware option inline, and the generation's `hardware_version` and dataset labels as base adjustments. A fragment is referenced by the option that wants it and is never a launchable stack of its own; `peppy repo index --check` validates every fragment and every legal selection.
 
@@ -59,6 +73,13 @@ The `xr_commander` option additionally needs `xr_commander`, which lives in the 
 ```sh
 peppy node add /path/to/ws/nodes-hub/uvc_camera/linux -sb
 peppy node add /path/to/ws/nodes-hub/zed_camera -sb
+```
+
+The `sim_cameras` option deploys the relay nodes from that same repo instead:
+
+```sh
+peppy node add /path/to/ws/nodes-hub/sim_rgb_camera -sb
+peppy node add /path/to/ws/nodes-hub/sim_rgbd_camera -sb
 ```
 
 Then verify:
@@ -93,6 +114,8 @@ The `xr_commander` selection is led from a WebXR headset and runs no browser pan
 
 5. With the recorder selected, the left controller's face buttons drive it: **X** starts an episode and the next press stops and saves it; holding **Y** for a second finishes the session and opens a fresh dataset.
 
+Before recording anything, name the task: open `https://<host>:4443/task` from the headset's browser (or a laptop) and set what you are demonstrating. Every frame carries that string and a policy reads it back as its instruction. Nothing sets it for you, so episodes recorded before you do go down as `unnamed teleop task`, and the status panel's task line reads `NOT SET (unnamed)` until then. Retitle the same way mid-session, from a laptop if the operator is in the headset; the change applies to the next episode.
+
 With the cameras selected too, both wrist cameras and the ZED chest camera run. Each camera streams into the headset under its instance id, so `wrist_left` and `wrist_right` anchor their panels to the controllers while `chest` floats.
 
 ## Real robot
@@ -104,7 +127,16 @@ sudo ip link set left_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 sudo ip link set right_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 ```
 
-The arms load the description matching their `hardware_version` for the gravity/Coriolis feedforward; it is baked into the `openarm_arm` container, so unlike the rate and CAN arguments there is no host path to set. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the base (or flatten with `peppy stack resolve` and hand-edit) if your wiring or loop budget differs.
+Both limbs take a `hardware_version`. The arms load the description matching theirs for the gravity/Coriolis feedforward; it is baked into the `openarm_arm` container, so unlike the rate and CAN arguments there is no host path to set. The grippers take the same argument, where it selects the motor's CAN control mode and both the direction and the distance the fingers travel. Leaving one on the other generation's value never just degrades it:
+
+| rig | set to | what the gripper does |
+|---|---|---|
+| v1 left | `v2` | drives backwards into the closed stop |
+| v1 right | `v2` | drives 50% past the open stop |
+| v2 left | `v1` | drives backwards into the closed stop |
+| v2 right | `v1` | opens two thirds of the way and reports that as fully open |
+
+The control mode follows the same argument, so a gripper wrongly set to `v1` also runs an ungoverned MIT hold with no POS_FORCE grip-force ceiling, and one wrongly set to `v2` drives v1.0's prismatic jaws in POS_FORCE. Adjust `can_interface`, `control_rate_hz`, or `state_rate_hz` in the base (or flatten with `peppy stack resolve` and hand-edit) if your wiring or loop budget differs.
 
 ## Troubleshooting
 

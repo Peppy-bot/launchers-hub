@@ -23,11 +23,10 @@
       provides: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"],
       default: "real",
       options: {
-        // This generation's real hardware: v2 arms (reoriented frames, v2
-        // base links) and the openarm_gripper_v2 revolute pinch gripper
-        // (POS_FORCE with force feedback). Stays inline because it is what
-        // differs between the generations, while the sim fragments are
-        // generation-agnostic.
+        // This generation's real hardware: v2 arms (reoriented frames, v2 base
+        // links) and the revolute pinch gripper (POS_FORCE with force
+        // feedback). Stays inline because it is what differs between the
+        // generations, while the sim fragments are generation-agnostic.
         real: {
           deployments: [
             {
@@ -56,12 +55,13 @@
               ],
             },
             {
-              source: { name: "openarm_gripper_v2", tag: "v1" },
+              source: { name: "openarm_gripper", tag: "v1" },
               instances: [
                 {
                   instance_id: "left_grip_inst",
                   arguments: {
                     gripper_id: 0,
+                    hardware_version: "v2",
                     can_interface: "left_arm",
                     control_rate_hz: 100,
                     state_rate_hz: 100,
@@ -71,6 +71,7 @@
                   instance_id: "right_grip_inst",
                   arguments: {
                     gripper_id: 1,
+                    hardware_version: "v2",
                     can_interface: "right_arm",
                     control_rate_hz: 100,
                     state_rate_hz: 100,
@@ -103,8 +104,45 @@
       name: "cameras",
       optional: true,
       provides: ["wrist_left", "wrist_right", "chest"],
-      options: { cameras: "fragments/cameras.json5" },
+      // Same three viewpoints from either source: filmed by the USB rig, or
+      // rendered by the engine. Both fill the same instance ids, so what a
+      // consumer binds does not depend on which was selected.
+      options: {
+        cameras: "fragments/cameras.json5",
+        sim_cameras: "fragments/sim_cameras.json5",
+      },
     },
+  ],
+
+  // The selections this family refuses to be. Both rules exist for members
+  // that FLATTEN cleanly into a stack nobody should run; the checker cannot
+  // catch them (they are structurally fine) and the fragments cannot either
+  // (a `when` guard only decides whether one adjustment applies).
+  constraints: [
+    // The cameras film the physical rig, so pairing them with a simulated
+    // robot records datasets whose video is a static desk while the joint
+    // and action streams move: silent training-data poison. A simulated
+    // session takes sim_cameras instead, which renders the same three
+    // viewpoints from the engine's own scene.
+    { when: { cameras: "cameras" },
+      requires: [{ robot: "real" }],
+      reason: "the cameras film the physical rig; recording or relaying them beside a simulated robot pairs real video with simulated joint and action streams (a simulated session takes sim_cameras)" },
+    // The mirror of the above: rendered cameras need a scene to render, so
+    // this selection needs a simulated robot. Either engine renders them,
+    // from the same camera config, onto the same slots.
+    { when: { cameras: "sim_cameras" },
+      requires: [{ robot: "mujoco" }, { robot: "isaac_sim" }],
+      reason: "rendered cameras come from a simulated scene, so this selection needs a sim engine (the real robot takes cameras)" },
+    // A camera needs a consumer. Only the recorder and the XR leader have
+    // camera slots (the web panel has none; cameras.json5 guards that
+    // attach on the shape), so without either the three cameras deploy,
+    // open their devices, and publish to zero subscribers.
+    { when: { cameras: "cameras" },
+      requires: [{ recorder: "lerobot_recorder" }, { commander: "xr_commander" }],
+      reason: "nothing in this selection consumes a camera stream: only the recorder and the XR leader have camera slots" },
+    { when: { cameras: "sim_cameras" },
+      requires: [{ recorder: "lerobot_recorder" }, { commander: "xr_commander" }],
+      reason: "nothing in this selection consumes a camera stream: only the recorder and the XR leader have camera slots" },
   ],
 
   // The invariant graph, specialized for this generation.
@@ -129,6 +167,11 @@
     // backend. Where the episodes land past a reboot is a per-machine
     // choice: keepers want a durable storage_root, set on the recorder
     // fragment, not one operator's directory pinned here.
+    // Operator alerts come from the real CAN drivers; the sim relays
+    // implement no alert contract, so the binding exists only under the
+    // real robot. Whichever commander was selected lists them.
+    { target: "commander_inst", when: { robot: "real" },
+      add_links: { alerts: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"] } },
   ],
 
   deployments: [

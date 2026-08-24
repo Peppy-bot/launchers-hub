@@ -1,0 +1,30 @@
+// The browser test panel as the command surface: joint-space stream sliders
+// plus every backbone action, no hardware on the commanding side. A
+// bring-up and testing tool; open http://<host>:8092.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "so101_commander", tag: "v1" },
+      instances: [
+        {
+          instance_id: "commander_inst",
+          // 20 Hz slider republish: a browser input stream, not a teleop
+          // measurement stream.
+          arguments: { command_rate_hz: 20 },
+          env_vars: { PEPPY_SC_PORT: "8092" },
+          links: {
+            arm: "backbone_inst/leader_arm",
+            gripper: "backbone_inst/leader_gripper",
+            limb_motion: "backbone_inst",
+            postures: "backbone_inst",
+            limb_state: "backbone_inst",
+            motor_health: ["follower_inst"],
+            alerts: ["follower_inst"],
+          },
+        },
+      ],
+    },
+  ],
+}

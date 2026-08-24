@@ -25,7 +25,7 @@
   },
   {
     node: "uvc_camera_linux",
-    reason: "opens real UVC devices (/dev/openarm/*); the runner has none",
+    reason: "opens real UVC devices; the runner has none",
   },
   {
     node: "zed_camera",
@@ -42,5 +42,13 @@
   {
     node: "openarm_sim_isaac",
     reason: "runs Isaac Sim on a GPU; the runner has none",
+  },
+  {
+    node: "so101_follower",
+    reason: "drives the real SO-101 arm over a USB serial bus (/dev/so101_follower); the runner has none",
+  },
+  {
+    node: "so101_leader",
+    reason: "reads the real SO-101 leader arm over a USB serial bus (/dev/so101_leader); the runner has none",
   },
 ]

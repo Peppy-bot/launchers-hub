@@ -1,0 +1,32 @@
+# Stable device names for the SO-101 devices (two serial adapters, plus the
+# scene camera when the cameras option is used), used by the so101 launcher
+# as device_path values.
+#
+# The follower and leader ship identical USB serial bridges. If the two
+# boards expose distinct serial numbers (check with
+#   udevadm info -a -n /dev/ttyACM0 | grep '{serial}'
+# ), prefer the serial matchers below and fill in the values. If they report
+# the same or no serial, fall back to the physical hub port (ID_PATH): each
+# arm keeps its name across reboots and replugs into the SAME port, and
+# swapping ports swaps identities. Find the path values with
+#   udevadm info -q property -n /dev/ttyACM0 | grep ID_PATH=
+#
+# Install: fill the values in, uncomment ONE matcher per device (keep the 60- prefix: the uaccess tag must sort before systemd's 73-seat-late.rules to grant the seat user its ACL), then
+#   sudo cp 60-so101.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# Verify:
+#   ls -l /dev/so101_*
+
+# Preferred: unique board serials.
+SUBSYSTEM=="tty", ATTRS{serial}=="5B8E114745", SYMLINK+="so101_follower", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{serial}=="5B79016883", SYMLINK+="so101_leader", TAG+="uaccess"
+
+# Fallback: physical hub port identity.
+#SUBSYSTEM=="tty", ENV{ID_PATH}=="FILL_ME_FOLLOWER_PORT", SYMLINK+="so101_follower"
+#SUBSYSTEM=="tty", ENV{ID_PATH}=="FILL_ME_LEADER_PORT", SYMLINK+="so101_leader"
+
+# Front scene camera, required by the cameras launch option (its device_path
+# is /dev/so101_front_cam). Match by product identity, or by ID_PATH like
+# the arms if the model is generic; either way keep ATTR{index}=="0", which
+# selects the capture node (index 1 is the UVC metadata node).
+#SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="FILL_ME", ATTRS{idProduct}=="FILL_ME", SYMLINK+="so101_front_cam"

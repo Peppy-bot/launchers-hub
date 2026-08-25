@@ -1,0 +1,15 @@
+// The runtime scene/object commander: an HTTP panel driving the Isaac
+// engine's scene services.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "openarm_scene_commander", tag: "v1" },
+      instances: [
+        { instance_id: "scene_commander_inst",
+          links: { simulation: "sim_inst" } },
+      ],
+    },
+  ],
+}

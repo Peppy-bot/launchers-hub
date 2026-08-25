@@ -25,9 +25,7 @@
   ],
 
   adjustments: [
-    // A consequence of running this engine, so it lives here with no guard:
-    // datasets recorded under MuJoCo are stored for it. Runs exactly when
-    // this fragment is selected and skips when no recorder was.
+    // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
       set_arguments: { storage_root: "/tmp/lerobot_openarm_mujoco" } },
   ],

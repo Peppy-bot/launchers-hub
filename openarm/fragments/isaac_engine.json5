@@ -1,85 +1,39 @@
-// The Isaac Sim backend plus browser-based Isaac viewing and runtime scene
-// control. Generation-agnostic: each OpenArm base sets hardware_version on
-// sim_inst through its own adjustments.
+// The Isaac Sim half of a simulated robot: the engine instance the relays
+// connect to. Generation-agnostic on purpose (each base sets
+// hardware_version on sim_inst for itself).
 {
   peppy_schema: "launcher_fragment/v1",
 
   deployments: [
     {
-      source: {
-        name: "openarm_sim_isaac",
-        tag: "v1"
-      },
-
+      source: { name: "openarm_sim_isaac", tag: "v1" },
       instances: [
         // cameras_enabled is off here and turned on by the sim_cameras
         // option, so a stack's camera state reads off its own selection.
-        {
-          instance_id: "sim_inst",
-
-          arguments: {
-            state_rate_hz: 50,
-            headless: true,
-            cameras_enabled: false
-          },
-
+        { instance_id: "sim_inst",
+          arguments: { state_rate_hz: 100, cameras_enabled: false },
           // The cameras axis owns these slots and may go unselected, so say
           // they are empty on purpose; sim_cameras unsets them when it pairs
           // its relays in.
           links: {
             wrist_left: { vacant: "the cameras axis selected no rendered cameras" },
             wrist_right: { vacant: "the cameras axis selected no rendered cameras" },
-            chest: { vacant: "the cameras axis selected no rendered cameras" }
-          }
-        }
-      ]
+            chest: { vacant: "the cameras axis selected no rendered cameras" },
+          } },
+      ],
     },
-
     {
-      // NVIDIA WebRTC browser frontend.
-      //
-      // No machine-specific IP is stored here. The viewer frontend uses the
-      // browser hostname while the WebRTC public/signalling/media settings
-      // come from the Peppy service environment.
-      source: {
-        name: "openarm_isaac_webviewer",
-        tag: "v1"
-      },
-
+      // The browser frontend for the headless engine's WebRTC livestream.
+      source: { name: "openarm_isaac_webviewer", tag: "v1" },
       instances: [
-        {
-          instance_id: "isaac_webviewer_inst"
-        }
-      ]
+        { instance_id: "isaac_webviewer_inst" },
+      ],
     },
-
-    {
-      // Peppy-native runtime scene/object commander.
-      source: {
-        name: "openarm_scene_commander",
-        tag: "v1"
-      },
-
-      instances: [
-        {
-          instance_id: "scene_commander_inst",
-
-          arguments: {
-            http_host: "0.0.0.0",
-            http_port: 8766
-          },
-
-          links: {
-            simulation: "sim_inst"
-          }
-        }
-      ]
-    }
   ],
 
   adjustments: [
-    // Dataset recording follows the selected simulation backend.
+    // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
-      set_arguments: { storage_root: "/tmp/lerobot_openarm_isaac" } }
-  ]
+      set_arguments: { storage_root: "/tmp/lerobot_openarm_isaac" } },
+  ],
 }

@@ -112,6 +112,12 @@
         sim_cameras: "fragments/sim_cameras.json5",
       },
     },
+    {
+      name: "scene",
+      optional: true,
+      provides: ["scene_commander_inst"],
+      options: { scene_commander: "fragments/scene_commander.json5" },
+    },
   ],
 
   // The selections this family refuses to be. Both rules exist for members
@@ -143,6 +149,9 @@
     { when: { cameras: "sim_cameras" },
       requires: [{ recorder: "lerobot_recorder" }, { commander: "xr_commander" }],
       reason: "nothing in this selection consumes a camera stream: only the recorder and the XR leader have camera slots" },
+    { when: { scene: "scene_commander" },
+      requires: [{ robot: "isaac_sim" }],
+      reason: "the scene commander drives scene services only the Isaac engine exposes" },
   ],
 
   // The invariant graph, specialized for this generation.

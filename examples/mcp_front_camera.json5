@@ -1,0 +1,39 @@
+// Serving an MCP exposure: a camera by instance, and the server built into
+// peppy serving `front_camera:v1` from the MCP hub, its logical target filled
+// through `links`. The camera is the Python mock, so this launches on any
+// machine:
+//
+//   peppy stack launch mcp_front_camera
+//
+// The endpoint then answers at http://127.0.0.1:8900/front_camera/v1/mcp,
+// and `peppy stack list` shows it under "Instance endpoints".
+{
+  peppy_schema: "launcher/v1",
+  deployments: [
+    {
+      // Any `rgb_camera:v1` implementer fills the exposure's target. Swap
+      // this source for `uvc_camera_linux:v1` and a `device_path` argument
+      // to serve a real camera through the same exposure.
+      source: { name: "uvc_camera_python_mock:v1" },
+      instances: [{ instance_id: "front_cam_inst" }],
+    },
+    {
+      // The exposures to serve, each as `<name>:<tag>`. The daemon derives
+      // the server from these documents and the contracts they reference,
+      // and runs one `peppy mcp serve` process for the list: nothing is
+      // generated or built.
+      source: { exposures: ["front_camera:v1"] },
+      instances: [
+        {
+          instance_id: "mcp_server",
+          // The only argument the server takes. It binds `127.0.0.1:<port>`
+          // and serves each exposure at `/<name>/<tag>/mcp`.
+          arguments: { port: 8900 },
+          // One entry per target in the exposure document: the logical
+          // `front_camera` becomes this running instance.
+          links: { front_camera: "front_cam_inst" },
+        },
+      ],
+    },
+  ],
+}

@@ -12,7 +12,7 @@ Launchers are grouped by robot or system:
 └── fragments/            # optional: bodies a launcher's component options share
 ```
 
-Each `.json5` file is a self-contained launcher manifest declaring its `deployments`: the nodes it pulls from the [Nodes Hub](https://github.com/Peppy-bot/nodes_hub) (by `name`, `tag`, and optional `variant`) and the named `instances` to spawn from each. A launcher may also declare `components`, making it a family of stacks whose members are selected at launch time with `--with`; each option's body is written inline or lives in a `launcher_fragment/v1` file under `fragments/`. A fragment is referenced by the option that wants it, is never listed in `peppy_repository.json5`, and is never a launchable stack of its own.
+Each `.json5` file is a self-contained launcher manifest declaring its `deployments`: the nodes it pulls from the [Nodes Hub](https://github.com/Peppy-bot/nodes_hub) (by `name`, `tag`, and optional `variant`) and the named `instances` to spawn from each. A launcher may also declare `components`, making it a family of stacks whose members are selected at launch time with `--with`; each option's body is written inline or lives in a `launcher_fragment/v1` file under `fragments/`. A fragment is referenced by the option that wants it, is never listed in `peppy_repository.json5`, and is never a launchable stack of its own. A deployment may instead list MCP exposures from the [MCP Hub](https://github.com/Peppy-bot/mcp-hub) under `source: { exposures: [...] }`: the server built into peppy serves them, with each exposure target bound to a deployed instance through `links` (see `examples/mcp_front_camera.json5`).
 
 ## Launcher Variants
 

@@ -1,6 +1,9 @@
 {
   peppy_schema: "repository/v1",
   launchers: {
+    mcp_front_camera: {
+      path: "examples/mcp_front_camera.json5"
+    },
     openarm_v1: {
       path: "openarm/openarm_v1.json5"
     },

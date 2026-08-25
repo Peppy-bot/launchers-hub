@@ -207,12 +207,14 @@
             hardware_version: "v2",
             // Joint-led by default: the leader_*_arm pairings are the
             // followed upstream command (the headset fragment flips this).
+            upstream_mode: "joints",
             control_rate_hz: 100,
-            d_stop: 0.005,
-            d_safe: 0.02,
+            d_stop_m: 0.005,
+            d_safe_m: 0.02,
             collision_governor_enabled: false,
             max_ee_velocity_m_s: 0.25,
             // EE rotation cap (rad/s); MoveIt Servo's default scale.
+            max_ee_angular_velocity_rad_s: 0.8,
           },
           links: {
             robot_init: "robot_init_inst",

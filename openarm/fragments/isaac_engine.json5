@@ -10,8 +10,10 @@
       instances: [
         // cameras_enabled is off here and turned on by the sim_cameras
         // option, so a stack's camera state reads off its own selection.
+        // The engine publishes state from its 60 Hz app loop: requests
+        // above 60 deliver 60, and lower ones quantize to whole ticks.
         { instance_id: "sim_inst",
-          arguments: { state_rate_hz: 100, cameras_enabled: false },
+          arguments: { state_rate_hz: 60, cameras_enabled: false },
           // The cameras axis owns these slots and may go unselected, so say
           // they are empty on purpose; sim_cameras unsets them when it pairs
           // its relays in.

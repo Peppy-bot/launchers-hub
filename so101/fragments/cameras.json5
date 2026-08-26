@@ -1,0 +1,40 @@
+// One scene camera for episode video. The adjustments below bind it into
+// whichever recorder was selected, and relay it into the headset when the
+// XR commander was.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      // A generic UVC webcam over the front of the workspace. The instance
+      // id becomes the dataset image key (observation.images.front). The
+      // device path is the udev symlink rules/60-so101.rules pins;
+      // resolution and rate are the common 720p UVC mode, retune per rig.
+      source: { name: "uvc_camera_linux", tag: "v1" },
+      instances: [
+        {
+          instance_id: "front",
+          arguments: {
+            device_path: "/dev/so101_front_cam",
+            video: {
+              frame_rate: 30,
+              resolution: { width: 1280, height: 720 },
+              camera_encoding: "mjpeg",
+              topic_encoding: "rgb8",
+            },
+          },
+        },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Bind the camera into the recorder when one was selected; with no
+    // recorder the instance is absent and the adjustment simply skips.
+    { target: "recorder_inst", add_links: { color_cameras: ["front"] } },
+    // And relay it into the headset. commander_inst always exists, so this
+    // one needs its own guard: the leader arm has no camera slot to bind.
+    { target: "commander_inst", when: { commander: "xr_commander" },
+      add_links: { color_cameras: ["front"] } },
+  ],
+}

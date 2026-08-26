@@ -13,6 +13,9 @@
     rust_robot: {
       path: "examples/rust_robot.json5"
     },
+    so101: {
+      path: "so101/so101.json5"
+    },
     split_compute_manipulation: {
       path: "examples/split_compute_manipulation.json5"
     }

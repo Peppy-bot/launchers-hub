@@ -6,7 +6,7 @@
 
   deployments: [
     {
-      source: { name: "openarm_commander", tag: "v1" },
+      source: { name: "openarm_web_commander", tag: "v1" },
       instances: [
         {
           instance_id: "commander_inst",

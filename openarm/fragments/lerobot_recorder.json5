@@ -1,8 +1,11 @@
 // Dataset recording: the lerobot recorder plus the attachment that puts the
-// record button on whichever commander was selected. Both commander options
-// provide commander_inst and the recorder slot is zero_or_more, so the
-// attach needs no guard: it runs when this fragment is selected and skips
-// when no commander target exists.
+// record button on whichever commander was selected. Every commander option
+// provides commander_inst, and the recorder slot of the panel and the
+// headset is zero_or_more, so the attach needs no guard: it runs when this
+// fragment is selected and skips when no commander target exists. The v2
+// base's mcp_commander option declares no recorder slot at all; its
+// constraint refuses this fragment beside that commander before anything
+// is flattened, so the attach never runs against it.
 {
   peppy_schema: "launcher_fragment/v1",
 

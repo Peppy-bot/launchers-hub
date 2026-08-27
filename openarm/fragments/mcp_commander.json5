@@ -1,0 +1,44 @@
+// The MCP command surface: no leader node at all. The server built into
+// peppy serves the openarm_v2:v1 exposure from the MCP hub, both of its
+// targets filled by the backbone, and its instance fills the commander_inst
+// role so everything keyed on the commander axis keeps resolving. Nothing
+// streams: every move is a discrete action the backbone runs itself, so the
+// backbone's leader sockets and its governor-control slot go vacant below.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { exposures: ["openarm_v2:v1"] },
+      instances: [
+        {
+          instance_id: "commander_inst",
+          // The derived node's only parameter: it binds 127.0.0.1:<port>
+          // and serves the exposure at /openarm_v2/v1/mcp.
+          arguments: { port: 8900 },
+          // One entry per target of the exposure. Both roles are the
+          // backbone's, the same instance under real, MuJoCo, or Isaac.
+          links: { postures: "backbone_inst", limb_motion: "backbone_inst" },
+        },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // The MCP server never pairs into the backbone: arm and gripper moves
+    // arrive as limb_motion actions and posture moves as postures actions,
+    // so the four sockets a leader would fill under joint-led teleop are
+    // vacated (upstream_mode stays "joints"; the base already vacates the
+    // two pose sockets). It never produces governor_control either, so the
+    // backbone's launch-time band, enable, and EE-speed caps stand for the
+    // whole session, exactly as under the headset.
+    { target: "backbone_inst",
+      set_links: {
+        collision_ctrl: { vacant: "the MCP commander never produces governor_control" },
+        leader_left_arm: { vacant: "the MCP commander streams nothing: arm moves arrive as limb_motion actions" },
+        leader_right_arm: { vacant: "the MCP commander streams nothing: arm moves arrive as limb_motion actions" },
+        leader_left_gripper: { vacant: "the MCP commander streams nothing: gripper moves arrive as limb_motion actions" },
+        leader_right_gripper: { vacant: "the MCP commander streams nothing: gripper moves arrive as limb_motion actions" },
+      } },
+  ],
+}

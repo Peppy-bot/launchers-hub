@@ -1,7 +1,7 @@
 // OpenArm v2.0 bimanual teleop, composed: one base per robot generation,
 // with the robot (real / MuJoCo / Isaac Sim), the command surface (browser
-// panel / XR headset), the recorder, and the cameras selected at launch
-// time. The defaults give today's plain real-robot teleop:
+// panel / XR headset / MCP server), the recorder, and the cameras selected
+// at launch time. The defaults give today's plain real-robot teleop:
 //
 //   peppy stack launch openarm_v2
 //
@@ -92,6 +92,7 @@
       options: {
         web_commander: "fragments/web_commander.json5",
         xr_commander: "fragments/xr_commander.json5",
+        mcp_commander: "fragments/mcp_commander.json5",
       },
     },
     {
@@ -152,6 +153,15 @@
     { when: { scene: "scene_commander" },
       requires: [{ robot: "isaac_sim" }],
       reason: "the scene commander drives scene services only the Isaac engine exposes" },
+    // The recorder's fragment attaches the record button to the commander's
+    // recorder slot, which only the panel and the headset declare. The MCP
+    // server has no such slot and no way to start an episode, so a session
+    // led by it cannot record. Written as a requirement rather than a
+    // prohibition of mcp_commander, so a commander option added tomorrow
+    // is refused here until it is vetted for recording.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ commander: "web_commander" }, { commander: "xr_commander" }],
+      reason: "the recorder's record button attaches to the commander's recorder slot, which only the panel and the headset provide; an MCP-commander session has no surface to start an episode from" },
   ],
 
   // The invariant graph, specialized for this generation.
@@ -178,8 +188,14 @@
     // fragment, not one operator's directory pinned here.
     // Operator alerts come from the real CAN drivers; the sim relays
     // implement no alert contract, so the binding exists only under the
-    // real robot. Whichever commander was selected lists them.
-    { target: "commander_inst", when: { robot: "real" },
+    // real robot. The panel and the headset declare an alerts slot and
+    // list them; the MCP server declares none (its node has exactly the
+    // exposure's two contract slots), and peppy refuses a link into a slot
+    // the node does not declare, so the attach is guarded on each commander
+    // that has the slot. A `when` names one option per axis, hence two.
+    { target: "commander_inst", when: { robot: "real", commander: "web_commander" },
+      add_links: { alerts: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"] } },
+    { target: "commander_inst", when: { robot: "real", commander: "xr_commander" },
       add_links: { alerts: ["left_arm_inst", "right_arm_inst", "left_grip_inst", "right_grip_inst"] } },
   ],
 

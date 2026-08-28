@@ -1,6 +1,6 @@
 # openarm launchers
 
-Launchers for the OpenArm bimanual teleop stack: one base per hardware generation, with the robot backend, the operator surface, the recorder, and the cameras selected at launch time with `--with`. Every launch brings up the same core node graph (one robot_initializer, two arms, two grippers, one backbone, one leader); the options differ in which implementation fills each slot (a slot is a named attachment point a node declares; the launcher's `links` wire slots together, see [docs.peppy.bot](https://docs.peppy.bot)), and the base specializes the shared pieces for its generation.
+Launchers for the OpenArm bimanual teleop stack: one base per hardware generation, with the robot backend, the command surface, the recorder, and the cameras selected at launch time with `--with`. Every launch brings up the same core node graph (one robot_initializer, two arms, two grippers, one backbone, and one command surface: a leader that streams setpoints, or the MCP server built into peppy); the options differ in which implementation fills each slot (a slot is a named attachment point a node declares; the launcher's `links` wire slots together, see [docs.peppy.bot](https://docs.peppy.bot)), and the base specializes the shared pieces for its generation.
 
 ```sh
 peppy stack launch openarm_v2                                   # real robot, browser panel
@@ -9,6 +9,8 @@ peppy stack launch openarm_v2 --with=isaac_sim,lerobot_recorder # Isaac Sim, rec
 peppy stack launch openarm_v2 --with=isaac_sim,scene_commander  # Isaac Sim, runtime scene panel
 peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # ... with rendered cameras
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
+peppy stack launch openarm_v2 --with=mujoco,mcp_commander       # MuJoCo, driven through MCP
+peppy stack launch openarm_v2 --with=isaac_sim,mcp_commander    # Isaac Sim, driven through MCP
 peppy stack launch openarm_v1 --with=...                        # same axes on the v1 base
 ```
 
@@ -17,7 +19,7 @@ The five axes, one option per axis per launch:
 | Axis | Options | Default | Fills |
 |---|---|---|---|
 | `robot` | `real`, `mujoco`, `isaac_sim` | `real` | the arms and grippers (real CAN drivers, or sim relays plus an engine) |
-| `commander` | `web_commander`, `xr_commander` | `web_commander` | the leader (`commander_inst`) |
+| `commander` | `web_commander`, `xr_commander`, `mcp_commander` (v2) | `web_commander` | the command surface (`commander_inst`): the browser panel, the XR headset, or the MCP server built into peppy serving the `openarm_v2:v1` exposure |
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
 | `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
 | `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac engine |
@@ -34,10 +36,11 @@ Not every combination of the axes is a member of the family. Each base declares 
 - **`sim_cameras` requires `robot=mujoco` or `robot=isaac_sim`.** Rendered cameras need a scene to render, so the option is refused beside the real robot (which takes `cameras`). Either engine renders the three viewpoints, from the same `config/cameras.json5` onto the same slots, so a dataset gets the same feature keys and shapes either way; the pixels differ, because the two engines light and rasterize the scene differently.
 - **`cameras` and `sim_cameras` each require `lerobot_recorder` or `xr_commander`.** Only the recorder and the XR leader have camera slots; the web panel has none. Without a consumer the three cameras would publish to zero subscribers.
 - **`scene_commander` requires `robot=isaac_sim`.** It drives the scene services only the Isaac engine node exposes.
+- **`lerobot_recorder` requires `web_commander` or `xr_commander` (v2).** The recorder's record button attaches to the commander's recorder slot, which only the panel and the headset declare; the MCP server has no such slot and no way to start an episode, so a session it leads cannot record.
 
 Unselected axes count as what they resolve to: `--with=cameras` alone is refused because the commander *defaults* to the web panel and the recorder stays off, and the refusal's echo marks both with `(default)` / `(off)` so the fix is visible. A constraint never picks an option to satisfy itself — it refuses, and you say what you meant.
 
-That leaves 19 members on the v1 base: all 12 camera-less combinations, `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both, and `scene_commander` over the 4 camera-less `isaac_sim` selections. The v2 base adds `sim_cameras` on either engine over the same three consumers, and `scene_commander` over those 3 rendered-camera `isaac_sim` selections too, for 28. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
+That leaves 19 members on the v1 base: all 12 camera-less combinations, `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both, and `scene_commander` over the 4 camera-less `isaac_sim` selections. The v2 base adds `sim_cameras` on either engine over the same three consumers, `scene_commander` over those 3 rendered-camera `isaac_sim` selections too, and `mcp_commander` over `real`, `mujoco`, `isaac_sim`, and `isaac_sim` with `scene_commander` (every other pairing of it is refused by the recorder rule or the camera rules), for 32. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
 
 ## Who leads, and in which space
 
@@ -45,6 +48,7 @@ The backbone follows exactly one kind of upstream arm command, named by its requ
 
 - `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The base's default.
 - `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The `xr_commander` fragment flips the mode and re-vacates the slots as part of being selected.
+- Nobody streams - `mcp_commander` (v2) drives the backbone through discrete actions only: the whole-robot posture moves and the per-limb arm and gripper moves it exposes as tools. `upstream_mode` stays `"joints"`, all six leader sockets are vacant with their reasons, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 
@@ -61,6 +65,7 @@ Each option's body lives in `fragments/`, one concern per file, and the bases re
 | `sim_relays.json5` | the four engine-agnostic relays both sim options share, plus the sim's raised EE-speed cap |
 | `mujoco_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it; the isaac fragment also carries the browser frontend for the engine's WebRTC stream |
 | `web_commander.json5` / `xr_commander.json5` | the leader, plus (headset) the backbone's pose-mode flip and the camera retunes |
+| `mcp_commander.json5` | the built-in MCP server serving `openarm_v2:v1` with both targets bound to the backbone, plus the backbone's leader-socket and governor-control vacancies |
 | `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
 | `cameras.json5` | the three cameras and their binds into whichever recorder was selected |
 | `sim_cameras.json5` | the same three viewpoints rendered by whichever engine was selected, and the same binds |
@@ -70,7 +75,7 @@ The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (ini
 
 ## Before launching
 
-The node repos must be registered with the daemon and the nodes built. The top-level README in `openarm-nodes` walks through the whole sequence; in short, every repo gets a `peppy repo add` (followed by `peppy repo refresh`), and every node gets a `peppy node add <path> -sb`.
+The node repos must be registered with the daemon and the nodes built. The `openarm/README.md` in [nodes-hub](https://github.com/Peppy-bot/nodes-hub) walks through the whole sequence; in short, every repo gets a `peppy repo add` (followed by `peppy repo refresh`), and every node gets a `peppy node add <path> -sb`. The `mcp_commander` option deploys no node of its own: the server is built into peppy and its exposure comes from the [mcp-hub](https://github.com/Peppy-bot/mcp-hub), which peppy registers by default.
 
 The `xr_commander` option additionally needs `xr_commander`, which lives in the separate [nodes-hub](https://github.com/Peppy-bot/nodes-hub) repo: register it the same way, then `peppy node add /path/to/ws/nodes-hub/xr_commander -sb`. The `cameras` option deploys the camera nodes from that repo:
 
@@ -122,6 +127,15 @@ Before recording anything, name the task: open `https://<host>:4443/task` from t
 
 With the cameras selected too, both wrist cameras and the ZED chest camera run. Each camera streams into the headset under its instance id, so `wrist_left` and `wrist_right` anchor their panels to the controllers while `chest` floats.
 
+## MCP commander
+
+The `mcp_commander` selection (v2 base) runs no leader node: the server built into peppy serves the `openarm_v2:v1` exposure from the mcp-hub, both of its targets (`postures`, `limb_motion`) bound to the backbone, and publishes four tools backed by MCP tasks: `openarm.move_to_ready`, `openarm.move_to_home`, `openarm.move_arm`, and `openarm.move_gripper`. The same fragment serves the real robot and either engine, since the backbone is the same instance under all three. After `Launch complete`:
+
+1. `peppy stack list` shows the endpoint in its `Instance endpoints` table: `http://127.0.0.1:8900/openarm_v2/v1/mcp` (the port is the fragment's `port` argument).
+2. Point an MCP client at it, or run the standard-library script that ships beside the exposure in mcp-hub: `python3 openarm/openarm_v2_demo.py tools` prints what the endpoint advertises, `... demo` brings the arms to ready, closes and opens both grippers, and returns home, and each tool has a subcommand (`move-to-ready`, `move-to-home`, `move-arm`, `move-gripper`). Ctrl-C cancels the move in flight and waits for the robot to settle.
+
+Every move runs through the backbone's own admission and planner: a goal naming an unknown limb, an opening outside 0..1, or a limb still executing a motion is refused with the reason, and the client sees it as a failed task quoting it. Recording is refused beside this commander (the constraint above), and the governor keeps its launch-time settings for the session.
+
 ## Real robot
 
 The `real` option drives the physical arms over CAN instead of a sim (`openarm_v1` or `openarm_v2`, panel-led or headset-led). Before launching, bring the buses up. The v1 base wires `can0`/`can1`; the v2 base uses the `left_arm`/`right_arm` channel names a host udev rule (`80-openarm-can.rules`) gives the PEAK adapter:
@@ -151,7 +165,7 @@ The repo providing that node isn't registered with the daemon. Run `peppy repo a
 The first build pulls the sim base image and can outlive the daemon's idle timeout. Build it once beforehand with a longer timeout, then launch:
 
 ```sh
-peppy node add /path/to/ws/openarm-nodes/openarm_sim_isaac -sb --idle-timeout 18000
+peppy node add /path/to/ws/nodes-hub/openarm/sim_isaac -sb --idle-timeout 18000
 ```
 
 **Everything launches but the arms don't respond**

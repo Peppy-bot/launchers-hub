@@ -6,12 +6,13 @@ Launchers for the OpenArm bimanual teleop stack: one base per hardware generatio
 peppy stack launch openarm_v2                                   # real robot, browser panel
 peppy stack launch openarm_v2 --with=mujoco                     # MuJoCo, browser panel
 peppy stack launch openarm_v2 --with=isaac_sim,lerobot_recorder # Isaac Sim, recording
+peppy stack launch openarm_v2 --with=isaac_sim,scene_commander  # Isaac Sim, runtime scene panel
 peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # ... with rendered cameras
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
 peppy stack launch openarm_v1 --with=...                        # same axes on the v1 base
 ```
 
-The four axes, one option per axis per launch:
+The five axes, one option per axis per launch:
 
 | Axis | Options | Default | Fills |
 |---|---|---|---|
@@ -19,6 +20,7 @@ The four axes, one option per axis per launch:
 | `commander` | `web_commander`, `xr_commander` | `web_commander` | the leader (`commander_inst`) |
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
 | `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
+| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac engine |
 
 Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
 
@@ -31,21 +33,22 @@ Not every combination of the axes is a member of the family. Each base declares 
 - **`cameras` requires `robot=real`.** The cameras film the physical rig. Beside a simulated robot they would record datasets whose video is a static desk while the joint and action streams move: silent training-data poison. A simulated session takes `sim_cameras` instead.
 - **`sim_cameras` requires `robot=mujoco` or `robot=isaac_sim`.** Rendered cameras need a scene to render, so the option is refused beside the real robot (which takes `cameras`). Either engine renders the three viewpoints, from the same `config/cameras.json5` onto the same slots, so a dataset gets the same feature keys and shapes either way; the pixels differ, because the two engines light and rasterize the scene differently.
 - **`cameras` and `sim_cameras` each require `lerobot_recorder` or `xr_commander`.** Only the recorder and the XR leader have camera slots; the web panel has none. Without a consumer the three cameras would publish to zero subscribers.
+- **`scene_commander` requires `robot=isaac_sim`.** It drives the scene services only the Isaac engine node exposes.
 
 Unselected axes count as what they resolve to: `--with=cameras` alone is refused because the commander *defaults* to the web panel and the recorder stays off, and the refusal's echo marks both with `(default)` / `(off)` so the fix is visible. A constraint never picks an option to satisfy itself — it refuses, and you say what you meant.
 
-That leaves 15 members on the v1 base: all 12 camera-less combinations, plus `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both. The v2 base adds `sim_cameras` on either engine over the same three consumers, for 21. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
+That leaves 19 members on the v1 base: all 12 camera-less combinations, `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both, and `scene_commander` over the 4 camera-less `isaac_sim` selections. The v2 base adds `sim_cameras` on either engine over the same three consumers, and `scene_commander` over those 3 rendered-camera `isaac_sim` selections too, for 28. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
 
 ## Who leads, and in which space
 
 The backbone follows exactly one kind of upstream arm command, named by its required `upstream_mode` argument, and subscribes only that kind of arm slot (gripper and posture slots are read under either mode):
 
-- `"joints"` - `openarm_commander` (the browser panel) streams joint setpoints on `joint_link`. The base's default.
+- `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The base's default.
 - `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The `xr_commander` fragment flips the mode and re-vacates the slots as part of being selected.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 
-The `xr_commander` selection runs without `openarm_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic, so it never will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
+The `xr_commander` selection runs without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic, so it never will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
 
 Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for the dataset workflow). The `cameras` option adds the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header); the headset retunes them for in-headset panels as part of its own selection.
 
@@ -56,11 +59,12 @@ Each option's body lives in `fragments/`, one concern per file, and the bases re
 | Fragment | Carries |
 |---|---|
 | `sim_relays.json5` | the four engine-agnostic relays both sim options share, plus the sim's raised EE-speed cap |
-| `mujoco_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it |
+| `mujoco_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it; the isaac fragment also carries the browser frontend for the engine's WebRTC stream |
 | `web_commander.json5` / `xr_commander.json5` | the leader, plus (headset) the backbone's pose-mode flip and the camera retunes |
 | `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
 | `cameras.json5` | the three cameras and their binds into whichever recorder was selected |
 | `sim_cameras.json5` | the same three viewpoints rendered by whichever engine was selected, and the same binds |
+| `scene_commander.json5` | the runtime scene panel driving the Isaac engine's scene services |
 
 The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (initializer, backbone), each generation's real-hardware option inline, and the generation's `hardware_version` and dataset labels as base adjustments. A fragment is referenced by the option that wants it and is never a launchable stack of its own; `peppy repo index --check` validates every fragment and every legal selection.
 

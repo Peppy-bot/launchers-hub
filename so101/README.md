@@ -20,6 +20,7 @@ among several (see nodes-hub/so101/README.md, Terminology). Components:
 peppy stack launch so101 --with=so101_leader                    # leader-arm teleop
 peppy stack launch so101 --with=xr_commander,lerobot_recorder   # headset + recording
 peppy stack launch so101 --with=xr_commander,lerobot_recorder,cameras
+peppy stack launch so101 --with=none                            # actions only, no teleop surface
 peppy stack resolve so101 --with=...                            # inspect the flattened stack
 ```
 

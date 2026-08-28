@@ -5,6 +5,7 @@
 //
 //   peppy stack launch so101 --with=so101_leader
 //   peppy stack launch so101 --with=xr_commander,lerobot_recorder,cameras
+//   peppy stack launch so101 --with=none                  (actions only)
 //
 // Before first launch: install rules/60-so101.rules (stable serial symlinks)
 // and calibrate both arms with lerobot-calibrate; the host paths below are
@@ -15,10 +16,13 @@
   components: [
     {
       name: "commander",
-      provides: ["commander_inst"],
+      // No `provides`: the ids a component provides must be defined by every
+      // one of its options, and the action-only option deploys nothing.
       options: {
         so101_leader: "fragments/so101_leader.json5",
         xr_commander: "fragments/xr_commander.json5",
+        // An action-only session: no teleop surface, actions still drive it.
+        none: "fragments/no_commander.json5",
       },
     },
     {

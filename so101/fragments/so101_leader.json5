@@ -1,0 +1,28 @@
+// The SO-101 leader arm as the command surface: joint-space teleop on the
+// backbone's leader slots. Open loop, staleness-deadman only (the hardware
+// has no engage button), so unplugging the leader halts the stream and the
+// follower holds.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "so101_leader", tag: "v1" },
+      instances: [
+        {
+          instance_id: "commander_inst",
+          arguments: {
+            device_path: "/dev/so101_leader",
+            calibration_dir: "/var/lib/so101/calibration",
+            teleop_id: "leader",
+            command_rate_hz: 60,
+          },
+          links: {
+            arm: "backbone_inst/leader_arm",
+            gripper: "backbone_inst/leader_gripper",
+          },
+        },
+      ],
+    },
+  ],
+}

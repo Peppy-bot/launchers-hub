@@ -1,0 +1,54 @@
+# Stable device names for the SO-101 devices (two serial adapters, plus the
+# scene camera when the cameras option is used), used by the so101 launcher
+# as device_path values.
+#
+# The follower and leader ship identical USB serial bridges. If the two
+# boards expose distinct serial numbers (check with
+#   udevadm info -a -n /dev/ttyACM0 | grep '{serial}'
+# ), prefer the serial matchers below and fill in the values. If they report
+# the same or no serial, fall back to the physical hub port (ID_PATH): each
+# arm keeps its name across reboots and replugs into the SAME port, and
+# swapping ports swaps identities. Find the path values with
+#   udevadm info -q property -n /dev/ttyACM0 | grep ID_PATH=
+#
+# Install: fill the values in, uncomment ONE matcher per device, then
+#   sudo cp 60-so101.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# Verify:
+#   ls -l /dev/so101_*
+#
+# Keep the 60- prefix and the TAG+="uaccess" on every matcher: the tag must
+# sort before systemd's 73-seat-late.rules to grant the seat user the ACL,
+# and without it the nodes cannot open the device they just found.
+
+# Preferred: unique board serials. These are the reference rig's; read your
+# own with the udevadm command above and replace them.
+SUBSYSTEM=="tty", ATTRS{serial}=="5B8E114745", SYMLINK+="so101_follower", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{serial}=="5B79016883", SYMLINK+="so101_leader", TAG+="uaccess"
+
+# Fallback: physical hub port identity.
+#SUBSYSTEM=="tty", ENV{ID_PATH}=="FILL_ME_FOLLOWER_PORT", SYMLINK+="so101_follower", TAG+="uaccess"
+#SUBSYSTEM=="tty", ENV{ID_PATH}=="FILL_ME_LEADER_PORT", SYMLINK+="so101_leader", TAG+="uaccess"
+
+# Front scene camera, required by the cameras launch option (its device_path
+# is /dev/so101_front_cam). Match by product identity, or by ID_PATH like the
+# arms if the model is generic; either way keep ATTR{index}=="0", which
+# selects the capture node (index 1 is the UVC metadata node on the same
+# device).
+#
+# The camera must offer the mode fragments/cameras.json5 asks for, MJPEG at
+# 1280x720. Not every USB camera does: the Arducam B0495 on the reference rig
+# is YUYV-only and fails format negotiation, so check before swapping models:
+#   gst-device-monitor-1.0 Video/Source | grep -A2 'image/jpeg'
+#
+# Vendor and product identify a MODEL, not a unit. Unlike the two adapters
+# above, this camera reports no unique serial (ATTRS{serial} is the product
+# string "USB2.0_CAM1", the same on every one), so a rig with two of them has
+# two devices matching this line, and udev leaves it undefined which keeps the
+# symlink. If that is your rig, comment this matcher out and uncomment the
+# port-path one below, whose value you read with
+#   udevadm info -q property -n /dev/video0 | grep ID_PATH=
+# Port paths are specific to the machine and the socket, so they are not
+# shipped filled in.
+SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="05a3", ATTRS{idProduct}=="9230", SYMLINK+="so101_front_cam", TAG+="uaccess"
+#SUBSYSTEM=="video4linux", ATTR{index}=="0", ENV{ID_PATH}=="FILL_ME_CAMERA_PORT", SYMLINK+="so101_front_cam", TAG+="uaccess"

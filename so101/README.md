@@ -12,7 +12,7 @@ among several (see nodes-hub/so101/README.md, Terminology). Components:
 
 | Axis | Options | Provides |
 |---|---|---|
-| `commander` (required, no default) | `so101_leader`, `xr_commander` | `commander_inst` |
+| `commander` (required, no default) | `so101_leader`, `xr_commander`, `none` | `commander_inst`, except under `none` |
 | `recorder` (optional) | `lerobot_recorder` | `recorder_inst` |
 | `cameras` (optional) | `cameras` | `front` |
 
@@ -34,9 +34,25 @@ Recording requires the XR commander: episodes start via the recorder's
    stay stable across replugs; two identical adapters are otherwise
    indistinguishable. The `cameras` option additionally needs the
    `/dev/so101_front_cam` rule filled in.
-2. **Calibration**: run `lerobot-calibrate` for both arms with ids
-   `follower` and `leader`, then place (or symlink) the JSONs under
-   `/var/lib/so101/calibration/`. The nodes refuse to start uncalibrated.
+2. **Calibration**: the nodes refuse to start uncalibrated. The follower is
+   in every selection, so it always needs this:
+
+   ```sh
+   lerobot-calibrate --robot.type=so101_follower \
+     --robot.port=/dev/so101_follower --robot.id=follower
+   ```
+
+   The leader is deployed only by the `so101_leader` option, so calibrate it
+   when that is the commander:
+
+   ```sh
+   lerobot-calibrate --teleop.type=so101_leader \
+     --teleop.port=/dev/so101_leader --teleop.id=leader
+   ```
+
+   Each writes `<id>.json` under lerobot's own calibration directory. Place
+   or symlink both under `/var/lib/so101/calibration/`, which is the host
+   path this launcher bind-mounts and where the nodes look for `<id>.json`.
 3. **Postures**: `move_to_home` targets the collapsed park pose the arm
    rests in, and `move_to_ready` the calibration midpoint where work starts;
    both are `so101_description` constants, validated at startup against the

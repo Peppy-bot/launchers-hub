@@ -21,17 +21,23 @@
 # sort before systemd's 73-seat-late.rules to grant the seat user the ACL,
 # and without it the nodes cannot open the device they just found.
 
-# Preferred: unique board serials. The values below are the reference rig's,
-# shown as an example; read your own with the udevadm command above.
-#SUBSYSTEM=="tty", ATTRS{serial}=="5B8E114745", SYMLINK+="so101_follower", TAG+="uaccess"
-#SUBSYSTEM=="tty", ATTRS{serial}=="5B79016883", SYMLINK+="so101_leader", TAG+="uaccess"
+# Preferred: unique board serials. These are the reference rig's; read your
+# own with the udevadm command above and replace them.
+SUBSYSTEM=="tty", ATTRS{serial}=="5B8E114745", SYMLINK+="so101_follower", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{serial}=="5B79016883", SYMLINK+="so101_leader", TAG+="uaccess"
 
 # Fallback: physical hub port identity.
 #SUBSYSTEM=="tty", ENV{ID_PATH}=="FILL_ME_FOLLOWER_PORT", SYMLINK+="so101_follower", TAG+="uaccess"
 #SUBSYSTEM=="tty", ENV{ID_PATH}=="FILL_ME_LEADER_PORT", SYMLINK+="so101_leader", TAG+="uaccess"
 
 # Front scene camera, required by the cameras launch option (its device_path
-# is /dev/so101_front_cam). Match by product identity, or by ID_PATH like
-# the arms if the model is generic; either way keep ATTR{index}=="0", which
-# selects the capture node (index 1 is the UVC metadata node).
-#SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="FILL_ME", ATTRS{idProduct}=="FILL_ME", SYMLINK+="so101_front_cam", TAG+="uaccess"
+# is /dev/so101_front_cam). Match by product identity, or by ID_PATH like the
+# arms if the model is generic; either way keep ATTR{index}=="0", which
+# selects the capture node (index 1 is the UVC metadata node on the same
+# device).
+#
+# The camera must offer the mode fragments/cameras.json5 asks for, MJPEG at
+# 1280x720. Not every USB camera does: the Arducam B0495 on the reference rig
+# is YUYV-only and fails format negotiation, so check before swapping models:
+#   gst-device-monitor-1.0 Video/Source | grep -A2 'image/jpeg'
+SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="05a3", ATTRS{idProduct}=="9230", SYMLINK+="so101_front_cam", TAG+="uaccess"

@@ -10,8 +10,7 @@
       instances: [
         // cameras_enabled is off here and turned on by the sim_cameras
         // option, so a stack's camera state reads off its own selection.
-        // The engine publishes state from its 60 Hz app loop: requests
-        // above 60 deliver 60, and lower ones quantize to whole ticks.
+        // State publishes once per rendered frame; 60 is the app loop's cap.
         { instance_id: "sim_inst",
           arguments: { state_rate_hz: 60, cameras_enabled: false },
           // The cameras axis owns these slots and may go unselected, so say
@@ -34,6 +33,9 @@
   ],
 
   adjustments: [
+    // Must equal the engine's state_rate_hz above.
+    { target: "backbone_inst",
+      set_arguments: { follower_state_rate_hz: 60 } },
     // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
       set_arguments: { storage_root: "/tmp/lerobot_openarm_isaac" } },

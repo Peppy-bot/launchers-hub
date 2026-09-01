@@ -210,6 +210,8 @@
             // followed upstream command (the headset fragment flips this).
             upstream_mode: "joints",
             control_rate_hz: 100,
+            // The arms' and grippers' state_rate_hz; sim fragments override.
+            follower_state_rate_hz: 100,
             d_stop_m: 0.005,
             d_safe_m: 0.02,
             collision_governor_enabled: true,

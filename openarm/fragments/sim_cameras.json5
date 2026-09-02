@@ -7,7 +7,7 @@
 // rgb_camera / rgbd_camera contract, exactly as the uvc and zed nodes do.
 //
 // Camera placement, intrinsics and rates live with the engine (the MuJoCo
-// and Isaac engines read config/cameras.json5, and the MuJoCo Bevy engine
+// and Isaac engines read config/cameras.json5, and the Waldo engine
 // keeps the same placement in its world manifest), taken from Enactic's
 // published v2 geometry, which is why only the v2 base offers this option
 // at all; its constraints enforce the rest, that the robot is simulated

@@ -1,4 +1,4 @@
-// The MuJoCo Bevy half of a simulated robot: the engine instance the relays
+// The Waldo half of a simulated robot: the engine instance the relays
 // connect to. Generation-agnostic on purpose (each base names the world on
 // sim_inst for itself). The engine serves its Bevy browser viewer over https
 // on viewer_port (8080 by default) with a self-signed certificate.
@@ -7,7 +7,7 @@
 
   deployments: [
     {
-      source: { name: "mujoco_bevy_sim", tag: "v1" },
+      source: { name: "waldo", tag: "v1" },
       instances: [
         // cameras_enabled is off here and turned on by the sim_cameras
         // option, so a stack's camera state reads off its own selection.
@@ -28,6 +28,6 @@
   adjustments: [
     // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
-      set_arguments: { storage_root: "/tmp/lerobot_openarm_mujoco_bevy" } },
+      set_arguments: { storage_root: "/tmp/lerobot_openarm_waldo" } },
   ],
 }

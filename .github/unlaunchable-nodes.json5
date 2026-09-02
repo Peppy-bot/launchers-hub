@@ -46,7 +46,7 @@
     reason: "runs Isaac Sim on a GPU; the runner has none",
   },
   {
-    node: "mujoco_bevy_sim",
+    node: "waldo",
     reason: "published by a repository the workflow does not register, and renders its cameras through EGL; the runner has neither",
   },
   {

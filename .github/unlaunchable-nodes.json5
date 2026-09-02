@@ -46,10 +46,6 @@
     reason: "runs Isaac Sim on a GPU; the runner has none",
   },
   {
-    node: "waldo",
-    reason: "published by a repository the workflow does not register, and renders its cameras through EGL; the runner has neither",
-  },
-  {
     node: "so101_follower",
     reason: "drives the real SO-101 arm over a USB serial bus (/dev/so101_follower); the runner has none",
   },

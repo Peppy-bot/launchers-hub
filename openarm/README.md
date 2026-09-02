@@ -7,6 +7,8 @@ peppy stack launch openarm_v2                                   # real robot, br
 peppy stack launch openarm_v2 --with=mujoco                     # MuJoCo, browser panel
 peppy stack launch openarm_v2 --with=isaac_sim,lerobot_recorder # Isaac Sim, recording
 peppy stack launch openarm_v2 --with=isaac_sim,scene_commander  # Isaac Sim, runtime scene panel
+peppy stack launch openarm_v2 --with=mujoco_bevy                # MuJoCo Bevy, browser panel
+peppy stack launch openarm_v2 --with=mujoco_bevy,scene_commander # MuJoCo Bevy, runtime scene panel
 peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # ... with rendered cameras
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
 peppy stack launch openarm_v2 --with=mujoco,mcp_commander       # MuJoCo, driven through MCP
@@ -18,11 +20,11 @@ The five axes, one option per axis per launch:
 
 | Axis | Options | Default | Fills |
 |---|---|---|---|
-| `robot` | `real`, `mujoco`, `isaac_sim` | `real` | the arms and grippers (real CAN drivers, or sim relays plus an engine) |
+| `robot` | `real`, `mujoco`, `isaac_sim`, `mujoco_bevy` (v2) | `real` | the arms and grippers (real CAN drivers, or sim relays plus an engine) |
 | `commander` | `web_commander`, `xr_commander`, `mcp_commander` (v2) | `web_commander` | the command surface (`commander_inst`): the browser panel, the XR headset, or the MCP server built into peppy serving the `openarm_v2:v1` exposure |
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
 | `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
-| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac engine |
+| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac Sim or MuJoCo Bevy engine |
 
 Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
 
@@ -33,14 +35,14 @@ The old per-variant launchers (`openarm_v2_teleop_mujoco`, `openarm_v2_teleop_vr
 Not every combination of the axes is a member of the family. Each base declares its `constraints`, and a selection violating one is refused before anything is pinned or started: the refusal names the requirement and quotes the reason.
 
 - **`cameras` requires `robot=real`.** The cameras film the physical rig. Beside a simulated robot they would record datasets whose video is a static desk while the joint and action streams move: silent training-data poison. A simulated session takes `sim_cameras` instead.
-- **`sim_cameras` requires `robot=mujoco` or `robot=isaac_sim`.** Rendered cameras need a scene to render, so the option is refused beside the real robot (which takes `cameras`). Either engine renders the three viewpoints, from the same `config/cameras.json5` onto the same slots, so a dataset gets the same feature keys and shapes either way; the pixels differ, because the two engines light and rasterize the scene differently.
+- **`sim_cameras` requires `robot=mujoco`, `robot=isaac_sim`, or `robot=mujoco_bevy`.** Rendered cameras need a scene to render, so the option is refused beside the real robot (which takes `cameras`). Any engine renders the three viewpoints onto the same slots (the MuJoCo and Isaac engines from the same `config/cameras.json5`, the MuJoCo Bevy engine from the same placement in its world manifest), so a dataset gets the same feature keys and shapes either way; the pixels differ, because the engines light and rasterize the scene differently.
 - **`cameras` and `sim_cameras` each require `lerobot_recorder` or `xr_commander`.** Only the recorder and the XR leader have camera slots; the web panel has none. Without a consumer the three cameras would publish to zero subscribers.
-- **`scene_commander` requires `robot=isaac_sim`.** It drives the scene services only the Isaac engine node exposes.
+- **`scene_commander` requires `robot=isaac_sim` or `robot=mujoco_bevy`.** It drives the `scene_control` contract, which only the Isaac Sim and MuJoCo Bevy engines implement.
 - **`lerobot_recorder` requires `web_commander` or `xr_commander` (v2).** The recorder's record button attaches to the commander's recorder slot, which only the panel and the headset declare; the MCP server has no such slot and no way to start an episode, so a session it leads cannot record.
 
-Unselected axes count as what they resolve to: `--with=cameras` alone is refused because the commander *defaults* to the web panel and the recorder stays off, and the refusal's echo marks both with `(default)` / `(off)` so the fix is visible. A constraint never picks an option to satisfy itself — it refuses, and you say what you meant.
+Unselected axes count as what they resolve to: `--with=cameras` alone is refused because the commander *defaults* to the web panel and the recorder stays off, and the refusal's echo marks both with `(default)` / `(off)` so the fix is visible. A constraint never picks an option to satisfy itself: it refuses, and you say what you meant.
 
-That leaves 19 members on the v1 base: all 12 camera-less combinations, `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both, and `scene_commander` over the 4 camera-less `isaac_sim` selections. The v2 base adds `sim_cameras` on either engine over the same three consumers, `scene_commander` over those 3 rendered-camera `isaac_sim` selections too, and `mcp_commander` over `real`, `mujoco`, `isaac_sim`, and `isaac_sim` with `scene_commander` (every other pairing of it is refused by the recorder rule or the camera rules), for 32. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
+That leaves 19 members on the v1 base: all 12 camera-less combinations, `real` with cameras and any of `lerobot_recorder`, `xr_commander`, or both, and `scene_commander` over the 4 camera-less `isaac_sim` selections. The v2 base adds `mujoco_bevy` as a third engine (its 4 camera-less selections over the panel and the headset, and `scene_commander` over each of them, 8 in all), `sim_cameras` on any of the three engines over the same three consumers (9), `scene_commander` over the rendered-camera `isaac_sim` and `mujoco_bevy` selections too (6), and `mcp_commander` over `real`, `mujoco`, `isaac_sim`, `mujoco_bevy`, and the last two with `scene_commander` (6; every other pairing of it is refused by the recorder rule or the camera rules), for 48. `peppy repo index --check` enumerates exactly these and also fails if a constraint ever strangles an option (or the bare launch) out of the family.
 
 ## Who leads, and in which space
 
@@ -62,16 +64,16 @@ Each option's body lives in `fragments/`, one concern per file, and the bases re
 
 | Fragment | Carries |
 |---|---|
-| `sim_relays.json5` | the four engine-agnostic relays both sim options share, plus the sim's raised EE-speed cap |
-| `mujoco_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it; the isaac fragment also carries the browser frontend for the engine's WebRTC stream |
+| `sim_relays.json5` | the four engine-agnostic relays all three sim options share, plus the sim's raised EE-speed cap |
+| `mujoco_engine.json5` / `mujoco_bevy_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it; the isaac fragment also carries the browser frontend for the engine's WebRTC stream (the MuJoCo Bevy engine serves its own Bevy viewer over https) |
 | `web_commander.json5` / `xr_commander.json5` | the leader, plus (headset) the backbone's pose-mode flip and the camera retunes |
 | `mcp_commander.json5` | the built-in MCP server serving `openarm_v2:v1` with both targets bound to the backbone, plus the backbone's leader-socket and governor-control vacancies |
 | `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
 | `cameras.json5` | the three cameras and their binds into whichever recorder was selected |
 | `sim_cameras.json5` | the same three viewpoints rendered by whichever engine was selected, and the same binds |
-| `scene_commander.json5` | the runtime scene panel driving the Isaac engine's scene services |
+| `scene_commander.json5` | the runtime scene panel driving the `scene_control` contract of whichever engine was selected |
 
-The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (initializer, backbone), each generation's real-hardware option inline, and the generation's `hardware_version` and dataset labels as base adjustments. A fragment is referenced by the option that wants it and is never a launchable stack of its own; `peppy repo index --check` validates every fragment and every legal selection.
+The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (initializer, backbone), each generation's real-hardware option inline, and the generation's `hardware_version` (the MuJoCo Bevy engine's `world`) and dataset labels as base adjustments. A fragment is referenced by the option that wants it and is never a launchable stack of its own; `peppy repo index --check` validates every fragment and every legal selection.
 
 ## Before launching
 
@@ -91,6 +93,14 @@ peppy node add /path/to/ws/nodes-hub/sim_rgb_camera -sb
 peppy node add /path/to/ws/nodes-hub/sim_rgbd_camera -sb
 ```
 
+The `mujoco_bevy` option deploys `mujoco_bevy_sim`, which comes from the separate `mujoco-wasm-rust-experiment` repository: register it with `peppy repo add <path-or-url>` (followed by `peppy repo refresh`) and build it before the first launch, with the larger idle timeout its first build needs:
+
+```sh
+peppy node add /path/to/ws/mujoco-wasm-rust-experiment -sb --idle-timeout 18000
+```
+
+Its Bevy viewer is at https://localhost:8080 (accept the self-signed certificate once).
+
 Then verify:
 
 ```sh
@@ -108,7 +118,7 @@ peppy stack launch openarm_v2 --with=mujoco
 The launcher starts the instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:
 
 - open **http://localhost:8765** for the control panel, one slider per joint (panel-led selections)
-- open **http://localhost:8080** for the MuJoCo viewer (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)
+- open **http://localhost:8080** for the MuJoCo viewer, or **https://localhost:8080** for the MuJoCo Bevy viewer (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)
 
 In the panel-led selections, move a slider, press **Send**, and watch the arm follow; the headset selections are driven from the headset instead (next section). To stop everything, Ctrl-C the launch terminal, or stop instances individually with `peppy node stop <instance_id>`.
 
@@ -129,7 +139,7 @@ With the cameras selected too, both wrist cameras and the ZED chest camera run. 
 
 ## MCP commander
 
-The `mcp_commander` selection (v2 base) runs no leader node: the server built into peppy serves the `openarm_v2:v1` exposure from the mcp-hub, both of its targets (`postures`, `limb_motion`) bound to the backbone, and publishes four tools backed by MCP tasks: `openarm.move_to_ready`, `openarm.move_to_home`, `openarm.move_arm`, and `openarm.move_gripper`. The same fragment serves the real robot and either engine, since the backbone is the same instance under all three. After `Launch complete`:
+The `mcp_commander` selection (v2 base) runs no leader node: the server built into peppy serves the `openarm_v2:v1` exposure from the mcp-hub, both of its targets (`postures`, `limb_motion`) bound to the backbone, and publishes four tools backed by MCP tasks: `openarm.move_to_ready`, `openarm.move_to_home`, `openarm.move_arm`, and `openarm.move_gripper`. The same fragment serves the real robot and every engine, since the backbone is the same instance under all four. After `Launch complete`:
 
 1. `peppy stack list` shows the endpoint in its `Instance endpoints` table: `http://127.0.0.1:8900/openarm_v2/v1/mcp` (the port is the fragment's `port` argument).
 2. Point an MCP client at it, or run the standard-library script that ships beside the exposure in mcp-hub: `python3 openarm/openarm_v2_demo.py tools` prints what the endpoint advertises, `... demo` brings the arms to ready, closes and opens both grippers, and returns home, and each tool has a subcommand (`move-to-ready`, `move-to-home`, `move-arm`, `move-gripper`). Ctrl-C cancels the move in flight and waits for the robot to settle.
@@ -169,7 +179,7 @@ peppy node add /path/to/ws/nodes-hub/openarm/sim_isaac -sb --idle-timeout 18000
 ```
 
 **Everything launches but the arms don't respond**
-The sim keeps loading after `Launch complete`, and Isaac can take a minute. Check instance health with `peppy stack list` and watch the sim's log with `peppy node info openarm_sim_<engine>:v1`.
+The sim keeps loading after `Launch complete`, and Isaac can take a minute. Check instance health with `peppy stack list` and watch the sim's log with `peppy node info openarm_sim_<engine>:v1` (or `mujoco_bevy_sim:v1`).
 
 **The Isaac stream is a black screen**
 Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and launch again.

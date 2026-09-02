@@ -1,8 +1,8 @@
 // The engine-agnostic half of a simulated robot: four relays pairing the
 // simulator's limbs onto the same instance ids the real CAN drivers use, so
 // every downstream link (initializer, backbone, commander, recorder) is
-// identical under real and sim. Shared by the mujoco and isaac_sim options,
-// which pair it with the engine fragment that differs.
+// identical under real and sim. Shared by the mujoco, mujoco_bevy and
+// isaac_sim options, which pair it with the engine fragment that differs.
 {
   peppy_schema: "launcher_fragment/v1",
 

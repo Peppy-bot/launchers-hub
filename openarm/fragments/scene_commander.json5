@@ -1,5 +1,6 @@
-// The runtime scene/object commander: an HTTP panel driving the Isaac
-// engine's scene services.
+// The runtime scene/object commander: an HTTP panel driving the
+// scene_control contract of whichever engine the base binds into its
+// `simulation` slot.
 {
   peppy_schema: "launcher_fragment/v1",
 

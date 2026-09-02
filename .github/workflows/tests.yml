@@ -420,6 +420,53 @@ jobs:
             echo "UV_PYTHON_INSTALL_DIR=$CI_CACHE_DIR/uv/python"
           } >> "$GITHUB_ENV"
 
+      # The waldo engine node lives in Peppy-bot/private-nodes-hub, which
+      # only an authenticated reader can clone, so the daemon gets a
+      # repository deploy key: a read-only one, scoped to that repository
+      # alone, held as the PRIVATE_NODES_HUB_DEPLOY_KEY secret. peppy
+      # authenticates ssh clones through the ssh-agent, so the agent's
+      # socket is exported through GITHUB_ENV — the daemon the next step
+      # starts inherits it, which is the whole handoff. The agent is this
+      # job's own and dies with the runner.
+      #
+      # github.com's host key is pinned, not trusted on first sight: the
+      # scan must fingerprint exactly GitHub's published ed25519 key, or
+      # the job stops before any private bytes move. It lands in
+      # ~/.ssh/known_hosts, where libgit2 — peppy's git transport —
+      # checks it.
+      - name: Give the daemon the private hub's deploy key
+        env:
+          PRIVATE_NODES_HUB_DEPLOY_KEY: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          # A fork's pull request runs without this repository's secrets,
+          # so the key arrives empty: skip everything, and the private hub
+          # below stays unregistered. Launchers that deploy nothing from
+          # it must keep passing from a fork; the waldo combinations
+          # cannot, for the same reason a fork cannot clone the hub.
+          if [ -z "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
+            echo "no deploy key for private-nodes-hub (fork pull request?); skipping"
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          scan="$(ssh-keyscan -t ed25519 github.com 2>/dev/null)"
+          fingerprint="$(ssh-keygen -lf - <<<"$scan" | awk '{print $2}')"
+          if [ "$fingerprint" != "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU" ]; then
+            echo "github.com fingerprints as $fingerprint, not GitHub's published ed25519 key" >&2
+            exit 1
+          fi
+          printf '%s\n' "$scan" >>~/.ssh/known_hosts
+
+          eval "$(ssh-agent -a "$RUNNER_TEMP/private-hub-agent.sock")" >/dev/null
+          key="$(mktemp "$RUNNER_TEMP/private-hub-key.XXXXXX")"
+          printf '%s\n' "${PRIVATE_NODES_HUB_DEPLOY_KEY%$'\n'}" >"$key"
+          chmod 600 "$key"
+          ssh-add "$key"
+          rm -f "$key"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >>"$GITHUB_ENV"
+
       # The daemon gets its own data root and port under RUNNER_TEMP: the CLI
       # finds it through PEPPY_HOME/daemon_state.json5, so pointing PEPPY_HOME
       # at the run's directory is discovery and isolation from any other
@@ -452,8 +499,15 @@ jobs:
       # launcher to the stale main-branch copy instead of the checkout, so it
       # is removed and the checkout registered in its place. The other hub
       # repositories stay: the nodes, contracts and pairings these launchers
-      # deploy genuinely live there, at their latest main.
+      # deploy genuinely live there, at their latest main — and the private
+      # hub joins them from the reserved id band, registered like any other
+      # git repository, whenever the deploy key reached this job: the refresh
+      # below clones it over ssh, which is what puts `waldo:v1` into the
+      # nodes cache a launch resolves against. On a fork's pull request the
+      # key is empty and the registration is skipped with it.
       - name: Register this checkout as the launcher repository
+        env:
+          PRIVATE_NODES_HUB_DEPLOY_KEY: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
         run: |
           set -euo pipefail
           repo_id=$(grep -B 3 'Peppy-bot/launchers-hub' "$PEPPY_HOME/conf/repositories.json5" \
@@ -462,6 +516,9 @@ jobs:
             peppy repo remove "$repo_id"
           fi
           peppy repo add "$GITHUB_WORKSPACE"
+          if [ -n "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
+            peppy repo add git@github.com:Peppy-bot/private-nodes-hub.git --ref main --id 2000
+          fi
           peppy repo refresh
 
       # This job's one combination, start to end: the launch resolves the

@@ -1,0 +1,40 @@
+// The Waldo half of a simulated robot: the engine instance the relays
+// connect to. Generation-agnostic on purpose (each base names the world on
+// sim_inst for itself). The engine serves its Bevy browser viewer over https
+// on viewer_port (8080 by default) with a self-signed certificate, with the
+// hand teleop plugin on: the viewer page's "Start camera" panel tracks the
+// operator's hands on the webcam and drives the arm of the same name, ahead
+// of the backbone's setpoints while a hand is tracked (the pairing takes
+// over again when the hand is lost or the camera stopped).
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "waldo", tag: "v1" },
+      instances: [
+        // cameras_enabled is off here and turned on by the sim_cameras
+        // option, so a stack's camera state reads off its own selection.
+        // plugins names the engine's plugins to run (a comma-separated
+        // list): hand_teleop needs the plugins.hand_teleop block the
+        // openarm_v2 robot carries in the engine's registry.
+        { instance_id: "sim_inst",
+          arguments: { state_rate_hz: 100, cameras_enabled: false, plugins: "hand_teleop" },
+          // The cameras axis owns these slots and may go unselected, so say
+          // they are empty on purpose; sim_cameras unsets them when it pairs
+          // its relays in.
+          links: {
+            wrist_left: { vacant: "the cameras axis selected no rendered cameras" },
+            wrist_right: { vacant: "the cameras axis selected no rendered cameras" },
+            chest: { vacant: "the cameras axis selected no rendered cameras" },
+          } },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Unguarded: skips on its own when no recorder was selected.
+    { target: "recorder_inst",
+      set_arguments: { storage_root: "/tmp/lerobot_openarm_waldo" } },
+  ],
+}

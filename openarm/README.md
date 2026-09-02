@@ -99,7 +99,7 @@ The `waldo` option deploys `waldo:v1`, which comes from the separate `private-no
 peppy node add /path/to/ws/private-nodes-hub/waldo -sb --idle-timeout 18000
 ```
 
-Its Bevy viewer is at https://localhost:8080 (accept the self-signed certificate once).
+Its Bevy viewer is at https://localhost:8080 (accept the self-signed certificate once). The option runs the engine's `hand_teleop` plugin (`plugins: "hand_teleop"` on `sim_inst`): the viewer's "Start camera" panel tracks your hands on the webcam and each drives the arm of the same name, pinching to close its gripper, ahead of the backbone's setpoints while the hand is tracked.
 
 Then verify:
 

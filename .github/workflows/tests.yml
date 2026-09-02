@@ -440,6 +440,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A fork's pull request runs without this repository's secrets,
+          # so the key arrives empty: skip everything, and the private hub
+          # below stays unregistered. Launchers that deploy nothing from
+          # it must keep passing from a fork; the waldo combinations
+          # cannot, for the same reason a fork cannot clone the hub.
+          if [ -z "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
+            echo "no deploy key for private-nodes-hub (fork pull request?); skipping"
+            exit 0
+          fi
+
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           scan="$(ssh-keyscan -t ed25519 github.com 2>/dev/null)"
           fingerprint="$(ssh-keygen -lf - <<<"$scan" | awk '{print $2}')"
@@ -483,6 +493,7 @@ jobs:
           echo "daemon did not come up; serve log:" >&2
           cat "$RUNNER_TEMP/peppy-serve.log" >&2
           exit 1
+
       # The bundled defaults register the GitHub copy of this repository.
       # With it present, a launch by name would resolve the pull request's
       # launcher to the stale main-branch copy instead of the checkout, so it
@@ -490,10 +501,13 @@ jobs:
       # repositories stay: the nodes, contracts and pairings these launchers
       # deploy genuinely live there, at their latest main — and the private
       # hub joins them from the reserved id band, registered like any other
-      # git repository: the deploy key is already in the agent the daemon
-      # inherited, and the refresh below clones it over ssh, which is what
-      # puts `waldo:v1` into the nodes cache a launch resolves against.
+      # git repository, whenever the deploy key reached this job: the refresh
+      # below clones it over ssh, which is what puts `waldo:v1` into the
+      # nodes cache a launch resolves against. On a fork's pull request the
+      # key is empty and the registration is skipped with it.
       - name: Register this checkout as the launcher repository
+        env:
+          PRIVATE_NODES_HUB_DEPLOY_KEY: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
         run: |
           set -euo pipefail
           repo_id=$(grep -B 3 'Peppy-bot/launchers-hub' "$PEPPY_HOME/conf/repositories.json5" \
@@ -502,7 +516,9 @@ jobs:
             peppy repo remove "$repo_id"
           fi
           peppy repo add "$GITHUB_WORKSPACE"
-          peppy repo add git@github.com:Peppy-bot/private-nodes-hub.git --ref main --id 2000
+          if [ -n "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
+            peppy repo add git@github.com:Peppy-bot/private-nodes-hub.git --ref main --id 2000
+          fi
           peppy repo refresh
 
       # This job's one combination, start to end: the launch resolves the

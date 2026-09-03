@@ -36,5 +36,11 @@
     // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
       set_arguments: { storage_root: "/tmp/lerobot_openarm_waldo" } },
+    // The scene panel's robot menu: this engine is the one that can restart
+    // on another world of its registry (world_control), so the panel's
+    // otherwise vacant worlds slot binds here. Unguarded: skips when no
+    // scene panel was selected.
+    { target: "scene_commander_inst",
+      set_links: { worlds: "sim_inst" } },
   ],
 }

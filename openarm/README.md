@@ -24,7 +24,7 @@ The five axes, one option per axis per launch:
 | `commander` | `web_commander`, `xr_commander`, `mcp_commander` (v2) | `web_commander` | the command surface (`commander_inst`): the browser panel, the XR headset, or the MCP server built into peppy serving the `openarm_v2:v1` exposure |
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
 | `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
-| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac Sim or Waldo engine |
+| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac Sim or Waldo engine, with a robot menu switching the Waldo engine between its worlds |
 
 Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
 
@@ -71,7 +71,7 @@ Each option's body lives in `fragments/`, one concern per file, and the bases re
 | `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
 | `cameras.json5` | the three cameras and their binds into whichever recorder was selected |
 | `sim_cameras.json5` | the same three viewpoints rendered by whichever engine was selected, and the same binds |
-| `scene_commander.json5` | the runtime scene panel driving the `scene_control` contract of whichever engine was selected |
+| `scene_commander.json5` | the runtime scene panel driving the `scene_control` contract of whichever engine was selected; its `world_control` slot (the robot menu) is vacant here and bound by the Waldo engine's fragment, the one engine that implements it |
 
 The bases (`openarm_v1.json5`, `openarm_v2.json5`) hold the invariant graph (initializer, backbone), each generation's real-hardware option inline, and the generation's `hardware_version` (the Waldo engine's `world`) and dataset labels as base adjustments. A fragment is referenced by the option that wants it and is never a launchable stack of its own; `peppy repo index --check` validates every fragment and every legal selection.
 

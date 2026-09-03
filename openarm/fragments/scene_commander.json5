@@ -1,6 +1,9 @@
 // The runtime scene/object commander: an HTTP panel driving the
 // scene_control contract of whichever engine the base binds into its
-// `simulation` slot.
+// `simulation` slot, and the robot menu of an engine that can switch
+// worlds (world_control), which only the Waldo engine implements: its
+// fragment binds the panel's worlds slot to itself, so the slot is
+// vacant here and the panel shows no robot menu on the other engines.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -9,7 +12,10 @@
       source: { name: "openarm_scene_commander", tag: "v1" },
       instances: [
         { instance_id: "scene_commander_inst",
-          links: { simulation: "sim_inst" } },
+          links: {
+            simulation: "sim_inst",
+            worlds: { vacant: "the engine selected keeps one world for its life (only the Waldo engine implements world_control, and its fragment binds this slot)" },
+          } },
       ],
     },
   ],

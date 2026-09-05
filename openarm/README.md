@@ -12,6 +12,7 @@ peppy stack launch openarm_v2 --with=waldo,scene_commander   # Waldo, runtime sc
 peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # ... with rendered cameras
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
 peppy stack launch openarm_v2 --with=mujoco,mcp_commander       # MuJoCo, driven through MCP
+peppy stack launch openarm_v2 --with=mujoco,web_commander,ai_brain  # MuJoCo, the panel, and the AI brain with its own MCP endpoint
 peppy stack launch openarm_v2 --with=isaac_sim,mcp_commander    # Isaac Sim, driven through MCP
 peppy stack launch openarm_v1 --with=...                        # same axes on the v1 base
 ```
@@ -25,6 +26,7 @@ The five axes, one option per axis per launch:
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
 | `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
 | `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac Sim or Waldo engine |
+| `brain` | `ai_brain` | off (`optional`) | the environment aware action layer (`brain_inst`) serving `basic_actions` over the backbone's `limb_motion`, plus the MCP server built into peppy serving the `openarm_ai_brain:v1` exposure (`brain_mcp_inst`, port 8901) |
 
 Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
 

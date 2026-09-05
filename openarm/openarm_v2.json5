@@ -121,6 +121,16 @@
       provides: ["scene_commander_inst"],
       options: { scene_commander: "fragments/scene_commander.json5" },
     },
+    {
+      // The environment aware action layer. Optional and independent of the
+      // commander axis: the brain consumes limb_motion from the backbone,
+      // which every selection deploys, so it needs no engine, no camera and
+      // no particular command surface to sit beside.
+      name: "brain",
+      optional: true,
+      provides: ["brain_inst"],
+      options: { ai_brain: "fragments/ai_brain.json5" },
+    },
   ],
 
   // The selections this family refuses to be. Both rules exist for members

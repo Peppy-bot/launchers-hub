@@ -128,7 +128,7 @@
       // no particular command surface to sit beside.
       name: "brain",
       optional: true,
-      provides: ["brain_inst"],
+      provides: ["brain_inst", "brain_mcp_inst"],
       options: { ai_brain: "fragments/ai_brain.json5" },
     },
   ],

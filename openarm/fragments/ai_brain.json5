@@ -28,5 +28,19 @@
         },
       ],
     },
+    {
+      // The brain's MCP surface: the server built into peppy serves the
+      // openarm_ai_brain:v1 exposure from the MCP hub, its one target filled
+      // by the brain instance above. Its own port, so it runs beside the
+      // mcp_commander option's server on 8900 when both are selected.
+      source: { exposures: ["openarm_ai_brain:v1"] },
+      instances: [
+        {
+          instance_id: "brain_mcp_inst",
+          arguments: { port: 8901 },
+          links: { basic_actions: "brain_inst" },
+        },
+      ],
+    },
   ],
 }

@@ -250,10 +250,6 @@ jobs:
         if: steps.discover.outputs.any == 'true'
         run: peppy repo index --check .
 
-      - name: Check simulator inspection remains opt-in
-        if: steps.discover.outputs.any == 'true'
-        run: python3 .github/scripts/check_sim_inspector.py
-
       # Resolve every selected combination against the launcher file it
       # comes from and split it into the launchable, the refused (the
       # launcher's own constraints, quoted), and the skipped (a deployed

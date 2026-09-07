@@ -13,6 +13,8 @@ peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # .
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
 peppy stack launch openarm_v2 --with=mujoco,mcp_commander       # MuJoCo, driven through MCP
 peppy stack launch openarm_v2 --with=mujoco,web_commander,ai_brain  # MuJoCo, the panel, and the AI brain with its own MCP endpoint
+peppy stack launch openarm_v2 --with=waldo,web_commander,ai_brain   # Waldo, the panel, and the AI brain
+peppy stack launch openarm_v2 --with=isaac_sim,web_commander,ai_brain  # Isaac Sim, the panel, and the AI brain (needs a GPU)
 peppy stack launch openarm_v2 --with=isaac_sim,mcp_commander    # Isaac Sim, driven through MCP
 peppy stack launch openarm_v1 --with=...                        # same axes on the v1 base
 ```

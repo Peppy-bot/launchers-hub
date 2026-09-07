@@ -1,8 +1,9 @@
 // The Waldo half of a simulated robot: the engine instance the relays
 // connect to. Generation-agnostic on purpose (each base names the world on
-// sim_inst for itself). The engine serves its Bevy browser viewer over https
-// on viewer_port (8080 by default) with a self-signed certificate, with the
-// hand teleop plugin on: the viewer page's "Start camera" panel tracks the
+// sim_inst for itself). Its https host runs on viewer_port (8080 by default)
+// with a self-signed certificate and the hand teleop plugin on. The scene
+// commander selection also enables the privileged warehouse viewer.
+// With hand teleop, the viewer page's "Start camera" panel tracks the
 // operator's hands on the webcam and drives the arm of the same name, ahead
 // of the backbone's setpoints while a hand is tracked (the pairing takes
 // over again when the hand is lost or the camera stopped).
@@ -39,6 +40,10 @@
   ],
 
   adjustments: [
+    // The scene panel explicitly enables editing, diagnostics and the warehouse
+    // viewer. Without it, hand teleop runs with robot observations only.
+    { target: "sim_inst", when: { scene: "scene_commander" },
+      set_arguments: { plugins: "hand_teleop,sim_inspector" } },
     // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
       set_arguments: { storage_root: "/tmp/lerobot_openarm_waldo" } },

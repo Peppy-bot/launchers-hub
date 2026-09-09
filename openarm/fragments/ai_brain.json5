@@ -1,5 +1,5 @@
-// The AI brain: the node that serves basic_actions, the environment aware
-// layer above limb_motion. It leads no pairing and reaches the arms only
+// The AI brain: the node that serves item_perception and item_manipulation,
+// the environment aware layer above limb_motion. It leads no pairing and reaches the arms only
 // through the backbone's discrete moves, so it composes with whichever
 // commander was selected instead of competing with it: the operator and the
 // brain send the same kind of goal to the same producer, and the governor
@@ -30,15 +30,16 @@
     },
     {
       // The brain's MCP surface: the server built into peppy serves the
-      // openarm_ai_brain:v1 exposure from the MCP hub, its one target filled
-      // by the brain instance above. Its own port, so it runs beside the
-      // mcp_commander option's server on 8900 when both are selected.
-      source: { exposures: ["openarm_ai_brain:v1"] },
+      // ai_brain:v1 exposure from the MCP hub, both of its targets filled by
+      // the brain instance above, which implements the two contracts. Its
+      // own port, so it runs beside the mcp_commander option's server on
+      // 8900 when both are selected.
+      source: { exposures: ["ai_brain:v1"] },
       instances: [
         {
           instance_id: "brain_mcp_inst",
           arguments: { port: 8901 },
-          links: { basic_actions: "brain_inst" },
+          links: { item_perception: "brain_inst", item_manipulation: "brain_inst" },
         },
       ],
     },

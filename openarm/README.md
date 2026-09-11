@@ -32,7 +32,7 @@ and hardware generation before enabling the buses.
 peppy repo refresh
 peppy stack launch fleet
 peppy stack join openarm_v2 -i alpha                     # a v2 with the browser panel, on this machine
-peppy stack join openarm_v2 -i alpha --place alpha@jetson-1
+peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join openarm_v1 -i bravo --place bravo@jetson-2
 peppy stack list
 peppy stack remove alpha

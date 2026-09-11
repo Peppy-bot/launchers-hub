@@ -47,7 +47,7 @@ peppy stack remove alpha                       # the simulation keeps running
 peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
 peppy stack list
 peppy stack launch fleet                       # a new stack with no simulation
-peppy stack join openarm_v2 -i alpha --place alpha@jetson-1
+peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join so101 -i bravo
 ```
 
@@ -223,7 +223,5 @@ Use a Peppy release whose launchers deploy options (`{ simulation: "waldo" }`
 in `deployments`) and the matching nodes-hub release with `openarm_initializer`,
 `openarm_sim_arm`, `openarm_sim_gripper`, and refreshed repository entries
 for the scene commander and Isaac viewer. Refresh repository caches after
-upgrading. Existing custom launchers must replace `optional: true` with
-`cardinality: "zero_or_one"` and `default: "<option>"` with a
-`deployments` entry. Rebuild application nodes with the matching SDK. Set the
-CI `PEPPY_VERSION` variable to the compatible release.
+upgrading. Rebuild application nodes with the matching SDK. Set the CI
+`PEPPY_VERSION` variable to the compatible release.

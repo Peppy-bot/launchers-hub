@@ -1,11 +1,10 @@
 // The Waldo half of a simulated robot: the engine instance the relays
 // connect to. Generation-agnostic on purpose (each base names the world on
 // sim_inst for itself). Its https host runs on viewer_port (8080 by default)
-// with a self-signed certificate and the hand teleop plugin on. The scene
-// commander selection also enables the privileged warehouse viewer, whose
-// WebTransport session runs over UDP on the same viewer_port: both TCP and
-// UDP on that port must reach the engine's machine.
-// With hand teleop, the viewer page's "Start camera" panel tracks the
+// with a self-signed certificate and two plugins on: the inspector, whose
+// 3D viewer runs a WebTransport session over UDP on the same viewer_port
+// (both TCP and UDP on that port must reach the engine's machine), and hand
+// teleop, whose "Start camera" panel on the viewer page tracks the
 // operator's hands on the webcam and drives the arm of the same name, ahead
 // of the backbone's setpoints while a hand is tracked (the pairing takes
 // over again when the hand is lost or the camera stopped).
@@ -20,9 +19,11 @@
         // option, so a stack's camera state reads off its own selection.
         // plugins names the engine's plugins to run (a comma-separated
         // list): hand_teleop needs the plugins.hand_teleop block the
-        // openarm_v2 robot carries in the engine's registry.
+        // openarm_v2 robot carries in the engine's registry; sim_inspector
+        // (the 3D viewer, scene editing and ground-truth diagnostics) works
+        // on any world.
         { instance_id: "sim_inst",
-          arguments: { state_rate_hz: 100, cameras_enabled: false, plugins: "hand_teleop" },
+          arguments: { state_rate_hz: 100, cameras_enabled: false, plugins: "hand_teleop,sim_inspector" },
           // The engine is this launch's one source of simulated time: the
           // daemon hands it every machine of the launch and it publishes
           // MuJoCo's own clock to each, on the state_rate_hz cadence above.
@@ -42,10 +43,6 @@
   ],
 
   adjustments: [
-    // The scene panel explicitly enables editing, diagnostics and the warehouse
-    // viewer. Without it, hand teleop runs with robot observations only.
-    { target: "sim_inst", when: { scene: "scene_commander" },
-      set_arguments: { plugins: "hand_teleop,sim_inspector" } },
     // Unguarded: skips on its own when no recorder was selected.
     { target: "recorder_inst",
       set_arguments: { storage_root: "/tmp/lerobot_openarm_waldo" } },

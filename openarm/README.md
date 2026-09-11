@@ -7,8 +7,8 @@ peppy stack launch openarm_v2                                   # real robot, br
 peppy stack launch openarm_v2 --with=mujoco                     # MuJoCo, browser panel
 peppy stack launch openarm_v2 --with=isaac_sim,lerobot_recorder # Isaac Sim, recording
 peppy stack launch openarm_v2 --with=isaac_sim,scene_commander  # Isaac Sim, runtime scene panel
-peppy stack launch openarm_v2 --with=waldo                   # Waldo, browser panel (hand teleop page, no 3D viewer)
-peppy stack launch openarm_v2 --with=waldo,scene_commander   # Waldo, runtime scene panel and the engine's 3D viewer
+peppy stack launch openarm_v2 --with=waldo                   # Waldo, browser panel
+peppy stack launch openarm_v2 --with=waldo,scene_commander   # Waldo, runtime scene panel
 peppy stack launch openarm_v2 --with=mujoco,lerobot_recorder,sim_cameras     # ... with rendered cameras
 peppy stack launch openarm_v2 --with=xr_commander,lerobot_recorder,cameras  # the headset session
 peppy stack launch openarm_v2 --with=mujoco,mcp_commander       # MuJoCo, driven through MCP
@@ -27,7 +27,7 @@ The five axes, one option per axis per launch:
 | `commander` | `web_commander`, `xr_commander`, `mcp_commander` (v2) | `web_commander` | the command surface (`commander_inst`): the browser panel, the XR headset, or the MCP server built into peppy serving the `openarm_v2:v1` exposure |
 | `recorder` | `lerobot_recorder` | off (`optional`) | the dataset recorder and the record button |
 | `cameras` | `cameras`, `sim_cameras` (v2) | off (`optional`) | both wrist cameras and the chest camera, filmed by the USB rig or rendered by the engine |
-| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac Sim or Waldo engine; on the Waldo engine it also turns on the `sim_inspector` plugin, which serves the engine's 3D viewer |
+| `scene` | `scene_commander` | off (`optional`) | the runtime scene panel spawning and moving objects in a running Isaac Sim or Waldo engine |
 | `brain` | `ai_brain` | off (`optional`) | the environment aware action layer (`brain_inst`) serving `item_perception` and `item_manipulation` over the backbone's `limb_motion`, plus the MCP server built into peppy serving the `ai_brain:v1` exposure (`brain_mcp_inst`, port 8901) |
 
 Every axis left unselected takes its default, so the bare launch is the plain real-robot teleop. `peppy stack resolve openarm_v2 --with=...` prints the flattened launcher each selection produces, plus a report of every adjustment it applied and skipped.
@@ -69,7 +69,7 @@ Each option's body lives in `fragments/`, one concern per file, and the bases re
 | Fragment | Carries |
 |---|---|
 | `sim_relays.json5` | the four engine-agnostic relays all three sim options share, plus the sim's raised EE-speed cap |
-| `mujoco_engine.json5` / `waldo_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it; the isaac fragment also carries the browser frontend for the engine's WebRTC stream (the Waldo engine serves its own https page, and its Bevy viewer on it once `scene_commander` turns the inspector on) |
+| `mujoco_engine.json5` / `waldo_engine.json5` / `isaac_engine.json5` | the engine instance and the recorder's storage root for it; the isaac fragment also carries the browser frontend for the engine's WebRTC stream (the Waldo engine serves its own Bevy viewer over https) |
 | `web_commander.json5` / `xr_commander.json5` | the leader, plus (headset) the backbone's pose-mode flip and the camera retunes |
 | `mcp_commander.json5` | the built-in MCP server serving `openarm_v2:v1` with both targets bound to the backbone, plus the backbone's leader-socket and governor-control vacancies |
 | `lerobot_recorder.json5` | the recorder and the record-button attach to whichever leader was selected |
@@ -103,7 +103,7 @@ The `waldo` option deploys `waldo:v1`, which comes from the separate `private-no
 peppy node add /path/to/ws/private-nodes-hub/waldo -sb --idle-timeout 18000
 ```
 
-Its https page is at https://localhost:8080 (accept the self-signed certificate once). The option runs the engine's `hand_teleop` plugin (`plugins: "hand_teleop"` on `sim_inst`): the page's "Start camera" panel tracks your hands on the webcam and each drives the arm of the same name, pinching to close its gripper, ahead of the backbone's setpoints while the hand is tracked. The engine's 3D viewer belongs to its `sim_inspector` plugin, which the `scene_commander` selection turns on (`--with=waldo,scene_commander` sets `plugins: "hand_teleop,sim_inspector"`); without it the page carries the hand teleop panel only and its centre overlay says the viewer is off. The inspector's viewer streams over WebTransport on UDP port 8080 beside the https port, so both must reach the engine's machine.
+Its Bevy viewer is at https://localhost:8080 (accept the self-signed certificate once; the viewer needs WebGPU and WebTransport, so Chrome or Edge 119 or newer). The option runs two engine plugins (`plugins: "hand_teleop,sim_inspector"` on `sim_inst`): `sim_inspector` serves the 3D viewer, the scene editing `scene_commander` drives and the ground-truth diagnostics, and `hand_teleop` puts a "Start camera" panel on the page that tracks your hands on the webcam, each driving the arm of the same name, pinching to close its gripper, ahead of the backbone's setpoints while the hand is tracked. The viewer streams over WebTransport on UDP port 8080 beside the https port, so both must reach the engine's machine.
 
 Then verify:
 
@@ -122,7 +122,7 @@ peppy stack launch openarm_v2 --with=mujoco
 The launcher starts the instances in dependency order (sim first, then arms and grippers, then backbone, then the UI) and wires the links between them. Once it prints `Launch complete`:
 
 - open **http://localhost:8765** for the control panel, one slider per joint (panel-led selections)
-- open **http://localhost:8080** for the MuJoCo viewer, or **https://localhost:8080** for the Waldo page (its 3D viewer needs the `scene_commander` selection, see the `waldo` option above) (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)
+- open **http://localhost:8080** for the MuJoCo viewer, or **https://localhost:8080** for the Waldo viewer (for Isaac, connect with the [livestream client](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/manual_livestream_clients.html) instead)
 
 In the panel-led selections, move a slider, press **Send**, and watch the arm follow; the headset selections are driven from the headset instead (next section). To stop everything, Ctrl-C the launch terminal, or stop instances individually with `peppy node stop <instance_id>`.
 

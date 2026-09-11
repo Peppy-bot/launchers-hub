@@ -1,0 +1,60 @@
+// A simulation with simulated robots as copies. The simulation is the
+// stack, Waldo unless a launch word selects another; the robot alpha, a v2
+// with the browser panel, is deployed here, and more copies are added later
+// with `stack join`, their ids minted under their names: alpha_backbone_inst,
+// alpha_commander_inst.
+//
+//   peppy stack launch simulation                          # Waldo and alpha, with the browser panel
+//   peppy stack launch simulation --with mujoco            # the same copy in MuJoCo
+//   peppy stack launch simulation --with isaac_sim,web_scene_commander
+//   peppy stack launch simulation --with mujoco,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim
+//   peppy stack remove alpha                               # the simulation keeps running
+//   peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
+//   peppy stack remove bravo
+//
+// The simulations pair one robot per limb slot, so this file ships one
+// copy; a second simulated robot in one simulation waits for the
+// multi-robot slot.
+{
+  peppy_schema: "launcher/v1",
+
+  components: [
+    {
+      name: "simulation",
+      cardinality: "one",
+      provides: ["simulation_inst"],
+      options: {
+        mujoco: "simulation/fragments/mujoco.json5",
+        isaac_sim: "simulation/fragments/isaac_sim.json5",
+        waldo: "simulation/fragments/waldo.json5",
+      },
+    },
+    {
+      name: "robot",
+      cardinality: "zero_or_more",
+      options: {
+        openarm_v1_sim: "openarm/fragments/openarm_v1_sim.json5",
+        openarm_v2_sim: "openarm/fragments/openarm_v2_sim.json5",
+      },
+    },
+  ],
+
+  // Component deployments: the entry names the component and its option.
+  // `with` selects the robot's own axes, an axis left out taking what the
+  // robot deploys; `arguments` is keyed by the ids written in its fragment.
+  deployments: [
+    { simulation: "waldo" },
+    {
+      robot: "openarm_v2_sim",
+      instances: [
+        { instance_id: "alpha" },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Waldo's world declares the robot it simulates.
+    { target: "simulation_inst", when: { simulation: "waldo" },
+      set_arguments: { world: "openarm_v2" } },
+  ],
+}

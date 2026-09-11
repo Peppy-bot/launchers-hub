@@ -1,4 +1,4 @@
-# so101 launcher
+# SO-101 fragment
 
 Single-arm SO-101 teleop over the `nodes-hub` so101 family:
 
@@ -6,22 +6,31 @@ Single-arm SO-101 teleop over the `nodes-hub` so101 family:
 commander_inst ──(joint or pose)+gripper──▶ backbone_inst ──joint+gripper──▶ follower_inst
 ```
 
-The base deploys the follower and the backbone. "Leader"/"follower"
+The [robot fragment](fragments/so101.json5) is the `so101` option of the
+repository's [fleet launcher](../fleet.json5); one copy runs the follower,
+the backbone and the commander, its ids under the copy's name
+(`alpha_follower_inst`, `alpha_backbone_inst`, `alpha_commander_inst`). The
+fragment owns the follower, the backbone and the robot's own axes with their
+bindings.
+XR and recorder deployments are shared with OpenArm through the
+repository-level robot commander and recording directories. "Leader"/"follower"
 name pairing roles here; the SO-101 leader arm is one commander option
-among several (see nodes-hub/so101/README.md, Terminology). Components:
+among several (see nodes-hub/so101/README.md, Terminology). The fragment's
+axes:
 
 | Axis | Options | Provides |
 |---|---|---|
-| `commander` (required, no default) | `so101_leader`, `xr_commander`, `none` | `commander_inst`, except under `none` |
-| `recorder` (optional) | `lerobot_recorder` | `recorder_inst` |
-| `cameras` (optional) | `cameras` | `front` |
+| `robot_commander` (deploys `so101_leader`) | `so101_leader`, `xr_commander`, `no_commander` (actions only) | `commander_inst` with a commander |
+| `recorder` (`zero_or_one`) | `lerobot_recorder` | `recorder_inst` |
+| `camera_rig` (`zero_or_one`) | `cameras` | `front` |
 
 ```sh
-peppy stack launch so101 --with=so101_leader                    # leader-arm teleop
-peppy stack launch so101 --with=xr_commander,lerobot_recorder   # headset + recording
-peppy stack launch so101 --with=xr_commander,lerobot_recorder,cameras
-peppy stack launch so101 --with=none                            # actions only, no teleop surface
-peppy stack resolve so101 --with=...                            # inspect the flattened stack
+peppy stack launch fleet
+peppy stack join so101 -i alpha                                          # leader-arm teleop
+peppy stack join so101 -i alpha --with xr_commander,lerobot_recorder     # headset + recording
+peppy stack join so101 -i alpha --with xr_commander,lerobot_recorder,cameras
+peppy stack join so101 -i alpha --with no_commander                      # actions only
+peppy stack resolve fleet --join so101 --join-name alpha --join-with xr_commander   # inspect the flattened stack
 ```
 
 Recording requires the XR commander: episodes start via the recorder's
@@ -52,7 +61,7 @@ Recording requires the XR commander: episodes start via the recorder's
 
    Each writes `<id>.json` under lerobot's own calibration directory. Place
    or symlink both under `/var/lib/so101/calibration/`, which is the host
-   path this launcher bind-mounts and where the nodes look for `<id>.json`.
+   path this fragment bind-mounts and where the nodes look for `<id>.json`.
 3. **Postures**: `move_to_home` targets the collapsed park pose the arm
    rests in, and `move_to_ready` the calibration midpoint where work starts;
    both are `so101_description` constants, validated at startup against the

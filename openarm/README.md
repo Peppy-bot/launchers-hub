@@ -33,7 +33,7 @@ peppy repo refresh
 peppy stack launch fleet
 peppy stack join openarm_v2 -i alpha                     # a v2 with the browser panel, on this machine
 peppy stack join openarm_v2 -i alpha --place jetson-1
-peppy stack join openarm_v1 -i bravo --place bravo@jetson-2
+peppy stack join openarm_v1 -i bravo --place jetson-2
 peppy stack list
 peppy stack remove alpha
 peppy stack reset --federated
@@ -63,7 +63,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 
 ```sh
 peppy stack join openarm_v2 -i bravo --with xr_commander,lerobot_recorder,cameras
-peppy stack join openarm_v1 -i charlie --with mcp_commander --place charlie@jetson-2
+peppy stack join openarm_v1 -i charlie --with mcp_commander --place jetson-2
 peppy stack join openarm_v2 -i delta --with web_commander,ai_brain
 ```
 

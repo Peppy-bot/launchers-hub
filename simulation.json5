@@ -47,7 +47,7 @@
     {
       robot: "openarm_v2_sim",
       instances: [
-        { instance_id: "alpha", with: { robot_commander: "web_commander" } },
+        { instance_id: "alpha" },
       ],
     },
   ],

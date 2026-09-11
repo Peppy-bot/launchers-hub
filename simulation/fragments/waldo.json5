@@ -1,7 +1,8 @@
 // The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
 // default) with a self-signed certificate; its scene_control contract takes
-// a scene commander. The fleet sets the world when it selects this
-// simulation.
+// a scene commander. The launcher sets the world when it selects this
+// simulation: hand_teleop reads the plugins.hand_teleop block the openarm_v2
+// world carries.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [

@@ -4,12 +4,12 @@
 // name: alpha_backbone_inst, alpha_commander_inst.
 //
 //   peppy stack launch fleet                                # no simulation
-//   peppy stack join openarm_v2 -i alpha --place alpha@jetson-1
+//   peppy stack join openarm_v2 -i alpha --place jetson-1
 //   peppy stack join so101 -i bravo
 //
 //   peppy stack launch fleet --with mujoco
 //   peppy stack join openarm_v2_sim -i alpha --with xr_commander
-//   peppy stack join openarm_v1 -i bravo --place bravo@jetson-2
+//   peppy stack join openarm_v1 -i bravo --place jetson-2
 //   peppy stack remove alpha
 //
 // A simulated robot refuses to join without a simulation. The simulations

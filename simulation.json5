@@ -53,10 +53,8 @@
   ],
 
   adjustments: [
-    // Waldo's world declares its robot and compatible hand_teleop plugin.
-    // The viewer's "Start camera" panel tracks webcam hands and gives them
-    // command priority while tracked; the pairing resumes when tracking ends.
+    // Waldo's world declares the robot it simulates.
     { target: "simulation_inst", when: { simulation: "waldo" },
-      set_arguments: { world: "openarm_v2", plugins: "hand_teleop" } },
+      set_arguments: { world: "openarm_v2" } },
   ],
 }

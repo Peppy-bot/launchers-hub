@@ -1,7 +1,7 @@
-// The Waldo simulation. It serves its HTTPS viewer on viewer_port (8080 by
-// default) with a self-signed certificate and streams it over HTTPS and
-// WebSocket; its scene_control contract takes a scene commander. The fleet
-// sets the world and its plugins when it selects this simulation.
+// The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
+// default) with a self-signed certificate; its scene_control contract takes
+// a scene commander. The fleet sets the world when it selects this
+// simulation.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [
@@ -9,8 +9,12 @@
       source: { name: "waldo", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
-        // Rendering is enabled by a robot's rendered camera rig.
-        arguments: { cameras_enabled: false, state_rate_hz: 100 },
+        // Rendering is enabled by a robot's rendered camera rig. plugins is
+        // the comma-separated list of engine plugins to run: hand_teleop is
+        // the page's "Start camera" panel, which tracks the operator's hands
+        // on the webcam and drives the arm of the same name ahead of the
+        // robot's pairing while a hand is tracked.
+        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop" },
         links: {
           left_arm: { vacant: "a simulated robot binds this limb through its relays" },
           right_arm: { vacant: "a simulated robot binds this limb through its relays" },
@@ -35,5 +39,13 @@
       name: "scene_commander", cardinality: "zero_or_one",
       options: { web_scene_commander: "web_scene_commander.json5" },
     },
+  ],
+
+  adjustments: [
+    // The scene commander also runs the sim_inspector plugin, which serves
+    // the engine's 3D viewer on the HTTPS page and streams it over
+    // WebTransport on UDP viewer_port.
+    { target: "simulation_inst", when: { scene_commander: "web_scene_commander" },
+      set_arguments: { plugins: "hand_teleop,sim_inspector" } },
   ],
 }

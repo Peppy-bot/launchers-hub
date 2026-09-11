@@ -165,11 +165,16 @@ limits, are in the [repository README](../Readme.md#what-a-copy-can-change).
 
 Isaac Sim and Waldo declare a scene commander, selected at launch with
 `--with web_scene_commander`. It drives the simulation's `scene_control`
-contract. Waldo serves its viewer over HTTPS and WebSocket on `viewer_port`
-(8080).
-The OpenArm world also enables `hand_teleop`: webcam hand tracking in the
-viewer takes command priority while a hand is tracked. Stopping tracking
-returns control to the robot's pairing.
+contract. Waldo serves its HTTPS page on `viewer_port` (8080; accept the
+self-signed certificate once). The page's "Start camera" panel is the
+engine's `hand_teleop` plugin: webcam hand tracking drives the arm of the
+same name, ahead of the robot's pairing while a hand is tracked. The
+engine's 3D viewer belongs to its `sim_inspector` plugin, which the scene
+commander selection turns on (`--with web_scene_commander` sets `plugins:
+"hand_teleop,sim_inspector"`); without it the page carries the hand teleop
+panel only and its centre overlay says the viewer is off. The viewer
+streams over WebTransport on UDP `viewer_port` beside the HTTPS port, so
+both must reach the simulation's machine.
 
 ## Inspection and builds
 

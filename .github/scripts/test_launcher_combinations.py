@@ -284,14 +284,18 @@ class CombinationsTests(unittest.TestCase):
             with self.assertRaises(combinations.Json5Error):
                 combinations.read_launcher(directory, "fleet.json5")
 
-    def test_waldo_scene_commander_links_the_simulation(self):
+    def test_waldo_scene_commander_turns_the_inspector_on(self):
         root = Path(__file__).resolve().parents[2]
         for launcher in ["simulation.json5", "fleet.json5"]:
             document = combinations.load_json5(root / launcher, launcher)
-            plugins = [adjustment["set_arguments"]["plugins"]
-                       for adjustment in document["adjustments"]
-                       if "plugins" in adjustment.get("set_arguments", {})]
-            self.assertEqual(plugins, ["hand_teleop"], launcher)
+            waldo = [adjustment["set_arguments"] for adjustment in document["adjustments"]
+                     if adjustment.get("when") == {"simulation": "waldo"}]
+            self.assertEqual(waldo, [{"world": "openarm_v2"}], launcher)
+        waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
+        self.assertEqual(waldo["deployments"][0]["instances"][0]["arguments"]["plugins"], "hand_teleop")
+        self.assertEqual(waldo["adjustments"], [{
+            "target": "simulation_inst", "when": {"scene_commander": "web_scene_commander"},
+            "set_arguments": {"plugins": "hand_teleop,sim_inspector"}}])
         scene = combinations.load_json5(
             root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
         instance = scene["deployments"][0]["instances"][0]

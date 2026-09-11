@@ -7,6 +7,7 @@
 //   peppy stack launch simulation                          # Waldo and alpha, with the browser panel
 //   peppy stack launch simulation --with mujoco            # the same copy in MuJoCo
 //   peppy stack launch simulation --with isaac_sim,web_scene_commander
+//   peppy stack launch simulation --with mujoco,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim
 //   peppy stack remove alpha                               # the simulation keeps running
 //   peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
 //   peppy stack remove bravo

@@ -27,26 +27,26 @@ at launch too.
 
 ## Launchers
 
-Two launchers at the repository root run robots as copies, each named, its
-ids minted under its name: `alpha_left_arm_inst`, `alpha_backbone_inst`,
-`alpha_commander_inst`. [simulation.json5](simulation.json5) runs one
-simulation, Waldo unless a launch word selects another, and deploys the copy
-`alpha`, a simulated OpenArm v2 with the browser commander.
+Two launchers run robots as copies, each named, its ids minted under its
+name: `alpha_left_arm_inst`, `alpha_backbone_inst`, `alpha_commander_inst`.
 [fleet.json5](fleet.json5) deploys nothing: a simulation is selected at
 launch, or none, and every robot, physical or simulated, is joined by name,
-a physical one placed on its machine by that name. The robot options are the
-four OpenArm fragments, `openarm_v1`, `openarm_v2` (physical),
-`openarm_v1_sim`, `openarm_v2_sim` (simulated), sharing the OpenArm control
-in `control_common.json5`, and `so101`; the [OpenArm guide](openarm/README.md)
-and the [SO-101 guide](so101/README.md) cover the hardware and commander
-setup:
+a physical one placed on its machine by that name.
+[openarm/openarm_simulation.json5](openarm/openarm_simulation.json5) runs
+one simulation, Waldo unless a launch word selects another, and deploys the
+copy `alpha`, a simulated OpenArm v2 with the browser commander. The robot
+options are the four OpenArm fragments, `openarm_v1`, `openarm_v2`
+(physical), `openarm_v1_sim`, `openarm_v2_sim` (simulated), sharing the
+OpenArm control in `control_common.json5`, and `so101`; the
+[OpenArm guide](openarm/README.md) and the [SO-101 guide](so101/README.md)
+cover the hardware and commander setup:
 
 ```sh
-peppy stack launch simulation --with mujoco   # MuJoCo and alpha
-peppy stack remove alpha                       # the simulation keeps running
+peppy stack launch openarm_simulation --with mujoco   # MuJoCo and alpha
+peppy stack remove alpha                               # the simulation keeps running
 peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
 peppy stack list
-peppy stack launch fleet                       # a new stack with no simulation
+peppy stack launch fleet                               # a new stack with no simulation
 peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join so101 -i bravo
 ```
@@ -65,9 +65,9 @@ discovery and host setup.
 
 | Axis | Declared by | Options |
 |---|---|---|
-| `simulation` | `simulation.json5` (`one`) and `fleet.json5` (`zero_or_one`) | `waldo` (deployed by `simulation.json5`), `mujoco`, `isaac_sim` |
+| `simulation` | `openarm_simulation.json5` (`one`) and `fleet.json5` (`zero_or_one`) | `waldo` (deployed by `openarm_simulation.json5`), `mujoco`, `isaac_sim` |
 | `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`; on Waldo it also serves the engine's 3D viewer |
-| `robot` | both launchers | `openarm_v1_sim`, `openarm_v2_sim` in `simulation.json5`; those, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
+| `robot` | both launchers | `openarm_v1_sim`, `openarm_v2_sim` in `openarm_simulation.json5`; those, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
 | `control` | the robot | `control_common` (deployed): the shared initializer and backbone |
 | `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, `mcp_commander` |
 | `recorder` | the robot | `lerobot_recorder`; requires web or XR |
@@ -78,7 +78,7 @@ A copy selects one option per axis of its robot. `stack resolve` previews any
 launch, and a join onto it, without starting nodes:
 
 ```sh
-peppy stack resolve simulation --with mujoco
+peppy stack resolve openarm_simulation --with mujoco
 peppy stack resolve fleet --with mujoco --join openarm_v2_sim --join-name bravo --join-with xr_commander,lerobot_recorder
 ```
 
@@ -100,7 +100,7 @@ launch-only.
 ### Current simulation limits
 
 The simulations pair one robot per limb slot, so a stack runs **one
-simulated robot**, the copy `simulation.json5` deploys. A second simulated
+simulated robot**, the copy `openarm_simulation.json5` deploys. A second simulated
 copy is refused where its relays reach for slots the first one paired. The
 simulation stays up when its robot is removed, its loaded model with it;
 `stack reset` stops everything. Physical robots can join beside the
@@ -152,7 +152,7 @@ peppy stack join so101 -i alpha --with xr_commander,lerobot_recorder,cameras
 ## Inspecting and testing
 
 ```sh
-peppy stack resolve simulation --with mujoco --join openarm_v2_sim --join-name bravo --join-with xr_commander
+peppy stack resolve openarm_simulation --with mujoco --join openarm_v2_sim --join-name bravo --join-with xr_commander
 peppy repo index --check .
 python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 ```
@@ -176,7 +176,7 @@ lacks. Structural checks and runtime startup checks are separate results.
 
 | Location | Owns |
 |---|---|
-| `simulation.json5`, `fleet.json5` | The simulation axis, the robot options, what the file deploys, and the simulation's world |
+| `fleet.json5`, `openarm/openarm_simulation.json5` | The simulation axis, the robot options, what the file deploys, and the simulation's world |
 | `openarm/fragments/control_common.json5` | The initializer and backbone every OpenArm shares, with the commander and recorder wiring into both |
 | `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs or relays, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning and dataset labels |
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |

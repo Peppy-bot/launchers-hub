@@ -6,10 +6,10 @@ simulation's limbs. Every fragment selects the shared OpenArm control
 ([fragments/control_common.json5](fragments/control_common.json5)), the
 robot's initializer and backbone, and declares the robot's own axes: the
 robot commander, the recorder, and the camera rig. The repository's two
-launchers compose them: [simulation.json5](../simulation.json5) runs one
-simulation and simulated robots as copies, deploying `alpha`, and
-[fleet.json5](../fleet.json5) deploys nothing and takes any mix from the
-command line, physical robots placed on their machines. A copy's ids carry
+launchers compose them: [fleet.json5](../fleet.json5) deploys nothing and
+takes any mix from the command line, physical robots placed on their
+machines, and [openarm_simulation.json5](openarm_simulation.json5) runs one
+simulation and simulated robots as copies, deploying `alpha`. A copy's ids carry
 its name:
 `alpha_backbone_inst`. See the [repository README](../Readme.md) for the
 option table, limits, and configuration ownership.
@@ -130,13 +130,14 @@ Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for th
 
 ## Simulation
 
-`simulation.json5` runs the simulation as the stack and the robot as a
-copy. The file deploys Waldo and `alpha`, a v2 with the browser commander:
+`openarm_simulation.json5` runs the simulation as the stack and the robot
+as a copy. The file deploys Waldo and `alpha`, a v2 with the browser
+commander:
 
 ```sh
-peppy stack launch simulation                         # Waldo and alpha
-peppy stack launch simulation --with mujoco           # the same copy in MuJoCo
-peppy stack launch simulation --with isaac_sim
+peppy stack launch openarm_simulation                 # Waldo and alpha
+peppy stack launch openarm_simulation --with mujoco   # the same copy in MuJoCo
+peppy stack launch openarm_simulation --with isaac_sim
 peppy stack remove alpha                              # the simulation keeps running
 peppy stack join openarm_v2_sim -i bravo --with xr_commander
 peppy stack remove bravo                              # one simulated robot at a time
@@ -179,7 +180,7 @@ both must reach the simulation's machine.
 ## Inspection and builds
 
 ```sh
-peppy stack resolve simulation --with mujoco
+peppy stack resolve openarm_simulation --with mujoco
 peppy stack resolve fleet --join openarm_v1 --join-name bravo --join-with xr_commander
 peppy stack resolve fleet --with isaac_sim,web_scene_commander --join openarm_v2_sim --join-name alpha --join-with xr_commander
 peppy node add /path/to/ws/nodes-hub/openarm/initializer -sb

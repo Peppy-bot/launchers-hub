@@ -122,23 +122,23 @@ class CombinationsTests(unittest.TestCase):
             fleet,
         )
         self.assertIn(["combo", "fleet", "simulation=mujoco", "openarm_v2_sim", "robot_commander=web_commander", "-"], fleet)
-        # The simulation launcher: one stack selection per simulation, Isaac Sim
+        # The openarm_simulation launcher: one stack selection per simulation, Isaac Sim
         # and Waldo each with and without their scene commander (5), each
         # bare, with every other selection of its deployed v2 copy's axes,
         # and joined by either simulated robot: the v1 has no camera rig and
         # no brain (3 times 2), the v2 has both (3 times 2 times 2 times 2).
-        sim = combos("simulation")
+        sim = combos("openarm_simulation")
         self.assertEqual(len(sim), 5 * (1 + (3 * 2 * 2 * 2 - 1) + 3 * 2 + 3 * 2 * 2 * 2))
-        self.assertIn(["combo", "simulation", "simulation=waldo,scene_commander=web_scene_commander", "", "", "-"], sim)
+        self.assertIn(["combo", "openarm_simulation", "simulation=waldo,scene_commander=web_scene_commander", "", "", "-"], sim)
         self.assertIn(
-            ["combo", "simulation", "simulation=mujoco,alpha.robot_commander=xr_commander,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim", "", "", "-"],
+            ["combo", "openarm_simulation", "simulation=mujoco,alpha.robot_commander=xr_commander,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim", "", "", "-"],
             sim,
         )
         self.assertIn(
-            ["combo", "simulation", "simulation=mujoco", "openarm_v2_sim", "robot_commander=xr_commander,recorder=lerobot_recorder,camera_rig=cameras_sim", "-"],
+            ["combo", "openarm_simulation", "simulation=mujoco", "openarm_v2_sim", "robot_commander=xr_commander,recorder=lerobot_recorder,camera_rig=cameras_sim", "-"],
             sim,
         )
-        references = next(line for line in lines if line.startswith("launcher\tsimulation\t"))
+        references = next(line for line in lines if line.startswith("launcher\topenarm_simulation\t"))
         for reference in [
             "openarm/fragments/openarm_v1_sim.json5",
             "openarm/fragments/openarm_v2_sim.json5",
@@ -179,7 +179,7 @@ class CombinationsTests(unittest.TestCase):
     def test_both_robots_share_capabilities_and_own_their_tuning(self):
         root = Path(__file__).resolve().parents[2]
         for robot, launcher, robot_path, tuning_path, command_rate, fps in [
-            ("openarm", "simulation.json5", "openarm/fragments/openarm_v2_sim.json5",
+            ("openarm", "openarm/openarm_simulation.json5", "openarm/fragments/openarm_v2_sim.json5",
              "openarm/fragments/control_common.json5", 100, 15),
             ("so101", "fleet.json5", "so101/fragments/so101.json5", "so101/fragments/so101.json5", 60, 30),
         ]:
@@ -286,7 +286,7 @@ class CombinationsTests(unittest.TestCase):
 
     def test_waldo_scene_commander_turns_the_inspector_on(self):
         root = Path(__file__).resolve().parents[2]
-        for launcher in ["simulation.json5", "fleet.json5"]:
+        for launcher in ["openarm/openarm_simulation.json5", "fleet.json5"]:
             document = combinations.load_json5(root / launcher, launcher)
             waldo = [adjustment["set_arguments"] for adjustment in document["adjustments"]
                      if adjustment.get("when") == {"simulation": "waldo"}]

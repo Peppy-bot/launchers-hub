@@ -598,13 +598,21 @@ jobs:
             tail -n 60 "$log"
           done
           echo "== the environment script a node is handed"
-          sif=$(find "$PEPPY_HOME/built_nodes" -name '*.sif' | head -1)
+          apptainer=$(ls -d "$HOME"/.peppy/tmp/apptainer-*/bin/apptainer 2>/dev/null | head -1)
+          [ -x "$apptainer" ] || apptainer="$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer"
+          echo "-- $apptainer"
+          sif=$(find "$PEPPY_HOME/built_nodes" -path '*sim_mujoco*' -name '*.sif' | head -1)
           echo "-- $sif"
-          "$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer" exec --cleanenv "$sif" \
-            cat /.inject-apptainer-env.sh > "$RUNNER_TEMP/clean.sh" 2>&1
-          echo "with --cleanenv: $(wc -l < "$RUNNER_TEMP/clean.sh") lines"
-          "$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer" exec "$sif" \
-            cat /.inject-apptainer-env.sh > "$RUNNER_TEMP/dirty.sh" 2>&1
-          echo "without: $(wc -l < "$RUNNER_TEMP/dirty.sh") lines"
-          echo "-- lines 540 to 560 without --cleanenv"
-          sed -n '540,560p' "$RUNNER_TEMP/dirty.sh"
+          script="$RUNNER_TEMP/inject.txt"
+          "$apptainer" exec --cleanenv --nv "$sif" sh -c 'cat /.inject-apptainer-env.sh' \
+            > "$script" 2>&1
+          echo "-- $(wc -l < "$script") lines"
+          echo "-- exports whose name is not a shell identifier"
+          grep -nE '^[[:space:]]*export[[:space:]]+[^A-Za-z_]' "$script" | head -20
+          echo "-- lines that are neither blank, a comment, an assignment nor an export"
+          grep -nvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=|export[[:space:]]|unset[[:space:]]|\})' \
+            "$script" | head -20
+          echo "-- the first 30 lines"
+          sed -n '1,30p' "$script"
+          echo "== the node started the way the daemon starts it"
+          "$apptainer" run --cleanenv --nv "$sif" --help 2>&1 | head -5

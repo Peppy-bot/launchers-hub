@@ -1,24 +1,19 @@
-// How a simulated robot reaches a simulation that seats robots: the
-// attachment takes this robot's seat there, standing it with its own model,
-// and the four relays pair into the seat's limbs instead of the
-// simulation's own. The simulation tells its robots apart by the seat that
-// commands them, so a stack holds as many as its machines can run.
+// How a simulated robot reaches a simulation that seats robots: the robot's
+// initializer takes its seat there, standing it with its own model, and the
+// four relays pair into the seat's limbs instead of the simulation's own.
+// The simulation tells its robots apart by the seat that commands them, so a
+// stack holds as many as its machines can run.
 {
   peppy_schema: "launcher_fragment/v1",
 
-  deployments: [
-    {
-      source: { name: "openarm_sim_attachment", tag: "v1" },
-      instances: [
-        { instance_id: "attachment_inst", links: { simulation: "simulation_inst" } },
-      ],
-    },
-  ],
-
   adjustments: [
-    { target: "left_arm_inst",      set_links: { simulation: "attachment_inst/left_arm" } },
-    { target: "right_arm_inst",     set_links: { simulation: "attachment_inst/right_arm" } },
-    { target: "left_gripper_inst",  set_links: { simulation: "attachment_inst/left_gripper" } },
-    { target: "right_gripper_inst", set_links: { simulation: "attachment_inst/right_gripper" } },
+    // The seat, and the limbs it offers the relays in place of the
+    // vacancies a robot without one leaves.
+    { target: "init_inst", set_links: { simulation: "simulation_inst" },
+      unset_links: ["left_arm_link", "right_arm_link", "left_gripper_link", "right_gripper_link"] },
+    { target: "left_arm_inst",      set_links: { simulation: "init_inst/left_arm_link" } },
+    { target: "right_arm_inst",     set_links: { simulation: "init_inst/right_arm_link" } },
+    { target: "left_gripper_inst",  set_links: { simulation: "init_inst/left_gripper_link" } },
+    { target: "right_gripper_inst", set_links: { simulation: "init_inst/right_gripper_link" } },
   ],
 }

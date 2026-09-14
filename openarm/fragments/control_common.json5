@@ -9,8 +9,8 @@
 
   deployments: [
     {
-      // The initializer polls each limb's is_ready and reports the robot
-      // ready only when all four are up.
+      // The initializer reports the robot ready only when all four of its
+      // limbs are, and holds its seat in a simulation that hosts several.
       source: { name: "openarm_initializer", tag: "v1" },
       instances: [
         {
@@ -20,6 +20,13 @@
             right_arm: "right_arm_inst",
             left_gripper: "left_gripper_inst",
             right_gripper: "right_gripper_inst",
+            // The seat's limbs. This robot drives limbs of its own, so they
+            // stand empty until it takes a seat in a simulation that hosts
+            // several, which pairs the relays into them.
+            left_arm_link: { vacant: "this robot holds no seat in a simulation" },
+            right_arm_link: { vacant: "this robot holds no seat in a simulation" },
+            left_gripper_link: { vacant: "this robot holds no seat in a simulation" },
+            right_gripper_link: { vacant: "this robot holds no seat in a simulation" },
           },
         },
       ],

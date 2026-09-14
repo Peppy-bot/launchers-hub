@@ -67,8 +67,17 @@
   ],
 
   constraints: [
-    { requires: [{ simulation: ["mujoco", "isaac_sim"] }],
-      reason: "OpenArm v1 simulation runs on mujoco or isaac_sim; Waldo supplies an OpenArm v2 world" },
+    // A seat is held in a simulation that seats robots, which is Waldo. A
+    // robot with no simulation drives its own hardware and holds no seat.
+    { when: { wiring: "sim_seat" },
+      requires: [{ simulation: "waldo" }],
+      reason: "wiring=sim_seat takes a seat in Waldo; select waldo, or leave the wiring on sim_limbs" },
+    // A robot driven through the simulation's own limb slots is the robot
+    // that simulation stands, and Waldo's world stands an OpenArm v2. A v1
+    // that takes a seat brings its own model, so it stands in any of them.
+    { when: { wiring: "sim_limbs" },
+      requires: [{ simulation: ["mujoco", "isaac_sim"] }],
+      reason: "OpenArm v1 simulation runs on mujoco or isaac_sim; Waldo supplies an OpenArm v2 world, which a v1 joins with wiring=sim_seat" },
   ],
 
   adjustments: [
@@ -76,9 +85,9 @@
     // declares for a launch without a robot go, and it loads the v1 model.
     { target: "simulation_inst", when: { wiring: "sim_limbs" },
       set_arguments: { hardware_version: "v1" } },
-    // The model the seat stands, which is this robot's.
-    { target: "attachment_inst", when: { wiring: "sim_seat" },
-      set_arguments: { hardware_version: "v1" } },
+    // The generation this robot is, which is also the model a simulation
+    // stands for it when it takes a seat.
+    { target: "init_inst", set_arguments: { hardware_version: "v1" } },
     // The generation the backbone governs, and a startup EE-speed cap the
     // simulation, faster than the real arm, allows.
     { target: "backbone_inst",

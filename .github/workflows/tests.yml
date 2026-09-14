@@ -567,3 +567,38 @@ jobs:
           fi
           peppy stack list
           peppy stack reset
+
+      # What a failing launch leaves behind on the runner. The job log carries
+      # only the last lines of a node's stderr, while the daemon writes each
+      # node's whole run log, and a node that dies at startup says why there.
+      # The environment names come next to it because a name that is not a
+      # shell identifier aborts the script apptainer generates to carry a
+      # node's environment, and every variable after it is dropped.
+      - name: Report what the runner holds about the failure
+        if: failure()
+        run: |
+          set +e
+          echo "== environment names that are not shell identifiers"
+          for pid in $(pgrep -f 'peppy service serve'); do
+            echo "-- daemon $pid"
+            tr '\0' '\n' < "/proc/$pid/environ" | cut -d= -f1 \
+              | grep -vE '^[A-Za-z_][A-Za-z0-9_]*$'
+          done
+          echo "-- this step"
+          env | cut -d= -f1 | grep -vE '^[A-Za-z_][A-Za-z0-9_]*$'
+          echo "== node run logs"
+          for log in "$PEPPY_HOME"/logs/run/*.log; do
+            echo "-- $log"
+            tail -n 60 "$log"
+          done
+          echo "== the environment script a node is handed"
+          sif=$(find "$PEPPY_HOME/built_nodes" -name '*.sif' | head -1)
+          echo "-- $sif"
+          "$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer" exec --cleanenv "$sif" \
+            cat /.inject-apptainer-env.sh > "$RUNNER_TEMP/clean.sh" 2>&1
+          echo "with --cleanenv: $(wc -l < "$RUNNER_TEMP/clean.sh") lines"
+          "$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer" exec "$sif" \
+            cat /.inject-apptainer-env.sh > "$RUNNER_TEMP/dirty.sh" 2>&1
+          echo "without: $(wc -l < "$RUNNER_TEMP/dirty.sh") lines"
+          echo "-- lines 540 to 560 without --cleanenv"
+          sed -n '540,560p' "$RUNNER_TEMP/dirty.sh"

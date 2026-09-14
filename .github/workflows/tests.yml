@@ -604,34 +604,38 @@ jobs:
           "$apptainer" buildcfg 2>/dev/null | grep -iE 'setuid|userns|namespace' | head -5
           echo "-- unprivileged_userns_clone: $(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo absent)"
           echo "-- subuid: $(grep "^$(id -un):" /etc/subuid 2>/dev/null || echo none)"
-          echo "== the environment script a node is handed, from a probe image"
-          probe="$RUNNER_TEMP/probe.def"
-          cat > "$probe" <<'DEF'
-          Bootstrap: docker
-          From: alpine:3.20
-          %runscript
-              f=/.inject-apptainer-env.sh
-              if [ -f "$f" ]; then
-                echo "inject script: $(wc -l < "$f") lines"
-                echo "-- exports whose name is not a shell identifier, with context"
-                for n in $(grep -nE '^[[:space:]]*export[[:space:]]+[^A-Za-z_]' "$f" | cut -d: -f1 | head -5); do
-                  sed -n "$((n-2)),$((n+1))p" "$f"; echo "----"
-                done
-                echo "-- lines that are neither blank, a comment, an assignment nor an export"
-                grep -nvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=|export[[:space:]]|unset[[:space:]]|\})' "$f" | head -10
-                echo "-- first 12 lines"; sed -n '1,12p' "$f"
-              else
-                echo "no inject script"
-              fi
-          DEF
-          sed -i 's/^          //' "$probe"
-          "$apptainer" build --force "$RUNNER_TEMP/probe.sif" "$probe" > "$RUNNER_TEMP/probe-build.log" 2>&1 \
-            || { echo "probe build failed"; tail -5 "$RUNNER_TEMP/probe-build.log"; }
-          echo "-- one variable"
-          "$apptainer" run --cleanenv --nv --env PROBE=x "$RUNNER_TEMP/probe.sif" 2>&1 | tail -20
-          echo "-- every variable the launch forwards"
+          echo "== the environment script the simulation node is handed"
+          sif=$(find "$PEPPY_HOME/built_nodes" -path '*sim_mujoco*' -name '*.sif' | head -1)
+          echo "-- $sif"
+          # A runscript that reports the file instead of starting the node,
+          # bound over the image's own, so the `run` path is the one exercised.
+          wrapper="$RUNNER_TEMP/report-env.sh"
+          cat > "$wrapper" <<'SH'
+          #!/bin/sh
+          f=/.inject-apptainer-env.sh
+          if [ -f "$f" ]; then
+            echo "inject script: $(wc -l < "$f") lines"
+            echo "-- exports whose name is not a shell identifier, with context"
+            for n in $(grep -nE '^[[:space:]]*export[[:space:]]+[^A-Za-z_]' "$f" | cut -d: -f1 | head -5); do
+              sed -n "$((n-2)),$((n+1))p" "$f"; echo "----"
+            done
+            echo "-- lines that are neither blank, a comment, an assignment nor an export"
+            grep -nvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=|export[[:space:]]|unset[[:space:]]|\})' "$f" | head -10
+            echo "-- first 15 lines"; sed -n '1,15p' "$f"
+          else
+            echo "no inject script; env dir holds:"; ls /.singularity.d/env/
+          fi
+          SH
+          sed -i 's/^          //' "$wrapper"; chmod +x "$wrapper"
+          echo "-- exec with one variable"
+          "$apptainer" exec --cleanenv --nv --env PROBE=x "$sif" sh -c 'ls -la /.inject-apptainer-env.sh 2>&1; ls /.singularity.d/env/' 2>&1 | tail -12
+          echo "-- run with one variable, runscript replaced by the report"
+          "$apptainer" run --cleanenv --nv --env PROBE=x \
+            --bind "$wrapper:/.singularity.d/runscript" "$sif" 2>&1 | tail -40
+          echo "-- run with every variable the launch forwards"
           args=()
           while IFS= read -r kv; do args+=(--env "$kv"); done \
             < <(env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./:,=@+%-]*$')
           echo "   ${#args[@]} flags"
-          "$apptainer" run --cleanenv --nv "${args[@]}" "$RUNNER_TEMP/probe.sif" 2>&1 | tail -40
+          "$apptainer" run --cleanenv --nv "${args[@]}" \
+            --bind "$wrapper:/.singularity.d/runscript" "$sif" 2>&1 | tail -60

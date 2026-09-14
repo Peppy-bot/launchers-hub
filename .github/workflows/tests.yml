@@ -586,6 +586,12 @@ jobs:
           done
           echo "-- this step"
           env | cut -d= -f1 | grep -vE '^[A-Za-z_][A-Za-z0-9_]*$'
+          echo "== every variable the launch forwards to a node"
+          # The same rule peppy applies: a shell-identifier name, and a value
+          # of alphanumerics and `_-./:,=@+%` only.
+          env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./:,=@+%-]*$'
+          echo "== every variable, name only"
+          env | cut -d= -f1 | sort
           echo "== node run logs"
           for log in "$PEPPY_HOME"/logs/run/*.log; do
             echo "-- $log"

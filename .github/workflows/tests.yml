@@ -597,22 +597,41 @@ jobs:
             echo "-- $log"
             tail -n 60 "$log"
           done
-          echo "== the environment script a node is handed"
+          echo "== how apptainer runs on this host"
           apptainer=$(ls -d "$HOME"/.peppy/tmp/apptainer-*/bin/apptainer 2>/dev/null | head -1)
           [ -x "$apptainer" ] || apptainer="$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer"
-          echo "-- $apptainer"
-          sif=$(find "$PEPPY_HOME/built_nodes" -path '*sim_mujoco*' -name '*.sif' | head -1)
-          echo "-- $sif"
-          script="$RUNNER_TEMP/inject.txt"
-          "$apptainer" exec --cleanenv --nv "$sif" sh -c 'cat /.inject-apptainer-env.sh' \
-            > "$script" 2>&1
-          echo "-- $(wc -l < "$script") lines"
-          echo "-- exports whose name is not a shell identifier"
-          grep -nE '^[[:space:]]*export[[:space:]]+[^A-Za-z_]' "$script" | head -20
-          echo "-- lines that are neither blank, a comment, an assignment nor an export"
-          grep -nvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=|export[[:space:]]|unset[[:space:]]|\})' \
-            "$script" | head -20
-          echo "-- the first 30 lines"
-          sed -n '1,30p' "$script"
-          echo "== the node started the way the daemon starts it"
-          "$apptainer" run --cleanenv --nv "$sif" --help 2>&1 | head -5
+          echo "-- $apptainer"; "$apptainer" --version
+          "$apptainer" buildcfg 2>/dev/null | grep -iE 'setuid|userns|namespace' | head -5
+          echo "-- unprivileged_userns_clone: $(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo absent)"
+          echo "-- subuid: $(grep "^$(id -un):" /etc/subuid 2>/dev/null || echo none)"
+          echo "== the environment script a node is handed, from a probe image"
+          probe="$RUNNER_TEMP/probe.def"
+          cat > "$probe" <<'DEF'
+          Bootstrap: docker
+          From: alpine:3.20
+          %runscript
+              f=/.inject-apptainer-env.sh
+              if [ -f "$f" ]; then
+                echo "inject script: $(wc -l < "$f") lines"
+                echo "-- exports whose name is not a shell identifier, with context"
+                for n in $(grep -nE '^[[:space:]]*export[[:space:]]+[^A-Za-z_]' "$f" | cut -d: -f1 | head -5); do
+                  sed -n "$((n-2)),$((n+1))p" "$f"; echo "----"
+                done
+                echo "-- lines that are neither blank, a comment, an assignment nor an export"
+                grep -nvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=|export[[:space:]]|unset[[:space:]]|\})' "$f" | head -10
+                echo "-- first 12 lines"; sed -n '1,12p' "$f"
+              else
+                echo "no inject script"
+              fi
+          DEF
+          sed -i 's/^          //' "$probe"
+          "$apptainer" build --force "$RUNNER_TEMP/probe.sif" "$probe" > "$RUNNER_TEMP/probe-build.log" 2>&1 \
+            || { echo "probe build failed"; tail -5 "$RUNNER_TEMP/probe-build.log"; }
+          echo "-- one variable"
+          "$apptainer" run --cleanenv --nv --env PROBE=x "$RUNNER_TEMP/probe.sif" 2>&1 | tail -20
+          echo "-- every variable the launch forwards"
+          args=()
+          while IFS= read -r kv; do args+=(--env "$kv"); done \
+            < <(env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./:,=@+%-]*$')
+          echo "   ${#args[@]} flags"
+          "$apptainer" run --cleanenv --nv "${args[@]}" "$RUNNER_TEMP/probe.sif" 2>&1 | tail -40

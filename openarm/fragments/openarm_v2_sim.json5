@@ -25,6 +25,9 @@
       ],
     },
     { control: "control_common" },
+    // The relays terminate on the simulation's own limb slots unless a copy
+    // takes a seat instead.
+    { wiring: "sim_limbs" },
     // The commander this robot runs unless a copy's `with` selects another.
     { robot_commander: "web_commander" },
   ],
@@ -44,6 +47,16 @@
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
         mcp_commander: "mcp_commander.json5",
+      },
+    },
+    // Where this robot's relays terminate: on the simulation's own limb
+    // slots, which one robot fills, or on a seat it takes in a simulation
+    // that hosts several.
+    {
+      name: "wiring",
+      options: {
+        sim_limbs: "sim_limbs.json5",
+        sim_seat: "sim_seat.json5",
       },
     },
     {
@@ -76,10 +89,9 @@
   ],
 
   adjustments: [
-    // The relays pair into the simulation's limb slots, so the vacancies it
-    // declares for a launch without a robot go.
-    { target: "simulation_inst",
-      unset_links: ["left_arm", "right_arm", "left_gripper", "right_gripper"] },
+    // The model the seat stands, which is this robot's.
+    { target: "attachment_inst", when: { wiring: "sim_seat" },
+      set_arguments: { hardware_version: "v2" } },
     // The generation the backbone governs, and a startup EE-speed cap the
     // simulation, faster than the real arm, allows.
     { target: "backbone_inst",

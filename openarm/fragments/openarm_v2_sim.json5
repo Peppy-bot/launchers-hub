@@ -103,9 +103,9 @@
     // a robot on its own limb slots is the one it names here.
     { target: "simulation_inst", when: { simulation: "isaac_sim", wiring: "sim_limbs" },
       set_arguments: { model: "openarm_v2" } },
-    // The generation this robot is, which is also the model a simulation
-    // stands for it when it takes a seat.
-    { target: "init_inst", set_arguments: { hardware_version: "v2" } },
+    // The model the simulation stands for this robot when it takes a seat.
+    { target: "init_inst", when: { wiring: "sim_seat" },
+      set_arguments: { model: "openarm_v2" } },
     // The generation the backbone governs, and a startup EE-speed cap the
     // simulation, faster than the real arm, allows.
     { target: "backbone_inst",

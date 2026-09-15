@@ -296,10 +296,23 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(waldo["adjustments"], [{
             "target": "simulation_inst", "when": {"scene_commander": "web_scene_commander"},
             "set_arguments": {"plugins": "hand_teleop,sim_inspector"}}])
+
+    def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
+        root = Path(__file__).resolve().parents[2]
+        # Both simulations that declare the commander deploy it as
+        # simulation_inst, the instance its scene_control and object_state
+        # links both name.
+        for simulation in ["waldo", "isaac_sim"]:
+            with self.subTest(simulation=simulation):
+                path = f"simulation/fragments/{simulation}.json5"
+                fragment = combinations.load_json5(root / path, path)
+                commander = next(axis for axis in fragment["components"] if axis["name"] == "scene_commander")
+                self.assertEqual(commander["options"], {"web_scene_commander": "web_scene_commander.json5"})
+                self.assertEqual(fragment["deployments"][0]["instances"][0]["instance_id"], "simulation_inst")
         scene = combinations.load_json5(
             root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
         instance = scene["deployments"][0]["instances"][0]
-        self.assertEqual(instance["links"]["simulation"], "simulation_inst")
+        self.assertEqual(instance["links"], {"simulation": "simulation_inst", "objects": "simulation_inst"})
 
     def test_an_option_entry_may_carry_settings_shared_by_its_copies(self):
         with tempfile.TemporaryDirectory() as directory:

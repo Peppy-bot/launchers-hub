@@ -15,26 +15,6 @@
           arguments: {
             hardware_version: "v2",
             command_rate_hz: 100,
-            // Firmware 2.0.0 zeroes each joint on the calibration jig and
-            // streams it in the follower's joint frame: right arm CH01-CH07,
-            // left arm CH09-CH15, so signs are 1 and offsets 0.
-            right_channels: "1,2,3,4,5,6,7",
-            right_signs: "1,1,1,1,1,1,1",
-            right_offsets_deg: "0,0,0,0,0,0,0",
-            left_channels: "9,10,11,12,13,14,15",
-            left_signs: "1,1,1,1,1,1,1",
-            left_offsets_deg: "0,0,0,0,0,0,0",
-            // Trigger travel swept on one unit: released reads 0 deg, full
-            // squeezes peaked at -59.5 to -60.2 (right) and 62.0 to 62.2
-            // (left). Closed sits at the shallowest peak, so every full
-            // squeeze reads opening 0. Another unit takes its own sweep
-            // (openarm_ker README, log_raw).
-            right_trigger_channel: 8,
-            right_trigger_closed_deg: -59.5,
-            right_trigger_open_deg: 0.0,
-            left_trigger_channel: 16,
-            left_trigger_closed_deg: 62.0,
-            left_trigger_open_deg: 0.0,
             // A squeeze to a fifth of the travel engages that arm, the depth
             // enactic's follower waits for.
             engage_opening: 0.2,

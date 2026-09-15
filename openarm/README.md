@@ -143,9 +143,9 @@ For the KER, install the udev rule from the `openarm_ker` README and zero the
 KER on its calibration jig first. A released trigger holds its gripper half
 open and a full squeeze closes it. Squeeze an arm's trigger to engage that arm;
 from then on the arm and its gripper track the KER until the KER disconnects
-or its frames stop, which holds both arms until the next squeeze. The trigger
-ranges in [fragments/ker_commander.json5](fragments/ker_commander.json5) are one
-unit's sweep; sweep your unit's triggers and set its own.
+or its frames stop, which holds both arms until the next squeeze. The node
+reads firmware 2.x's fixed channel layout, so a unit needs no per-unit wiring
+arguments.
 
 For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:

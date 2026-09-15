@@ -1,7 +1,7 @@
 // The Isaac Sim simulation of an OpenArm and the browser frontend for its
 // WebRTC livestream. It loads the v2 model; a v1 robot the file deploys
-// sets hardware_version at launch. Its scene_control contract takes a
-// scene commander.
+// sets hardware_version at launch. Its scene_control and object_state
+// contracts take a scene commander.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [

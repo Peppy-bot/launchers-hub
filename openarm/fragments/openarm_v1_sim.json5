@@ -67,17 +67,19 @@
   ],
 
   constraints: [
-    // A seat is held in a simulation that seats robots, which is Waldo. A
-    // robot with no simulation drives its own hardware and holds no seat.
+    // A seat is held in a simulation that seats robots, which is Waldo or
+    // Isaac Sim. A robot with no simulation drives its own hardware and holds
+    // no seat.
     { when: { wiring: "sim_seat" },
-      requires: [{ simulation: "waldo" }],
-      reason: "wiring=sim_seat takes a seat in Waldo; select waldo, or leave the wiring on sim_limbs" },
+      requires: [{ simulation: ["waldo", "isaac_sim"] }],
+      reason: "wiring=sim_seat takes a seat in Waldo or Isaac Sim; select one of those, or leave the wiring on sim_limbs" },
     // A robot driven through the simulation's own limb slots is the robot
-    // that simulation stands, and Waldo's world stands an OpenArm v2. A v1
-    // that takes a seat brings its own model, so it stands in any of them.
+    // that simulation stands, and MuJoCo is the one that stands a v1 itself.
+    // Waldo stands an OpenArm v2 world and Isaac Sim opens an empty stage; a
+    // v1 brings its own model to either by taking a seat.
     { when: { wiring: "sim_limbs" },
-      requires: [{ simulation: ["mujoco", "isaac_sim"] }],
-      reason: "OpenArm v1 simulation runs on mujoco or isaac_sim; Waldo supplies an OpenArm v2 world, which a v1 joins with wiring=sim_seat" },
+      requires: [{ simulation: "mujoco" }],
+      reason: "OpenArm v1 on the simulation's own limb slots runs on mujoco; join Waldo or Isaac Sim with wiring=sim_seat" },
   ],
 
   adjustments: [

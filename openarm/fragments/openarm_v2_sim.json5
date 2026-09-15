@@ -81,11 +81,19 @@
   ],
 
   constraints: [
-    // A seat is held in a simulation that seats robots, which is Waldo. A
-    // robot with no simulation drives its own hardware and holds no seat.
+    // A seat is held in a simulation that seats robots, which is Waldo or
+    // Isaac Sim. A robot with no simulation drives its own hardware and holds
+    // no seat.
     { when: { wiring: "sim_seat" },
-      requires: [{ simulation: "waldo" }],
-      reason: "wiring=sim_seat takes a seat in Waldo; select waldo, or leave the wiring on sim_limbs" },
+      requires: [{ simulation: ["waldo", "isaac_sim"] }],
+      reason: "wiring=sim_seat takes a seat in Waldo or Isaac Sim; select one of those, or leave the wiring on sim_limbs" },
+    // A robot driven through the simulation's own limb slots is the robot
+    // that simulation stands. MuJoCo and Waldo each stand an OpenArm v2
+    // themselves; Isaac Sim opens an empty stage, so a robot reaches it by
+    // taking a seat.
+    { when: { wiring: "sim_limbs" },
+      requires: [{ simulation: ["mujoco", "waldo"] }],
+      reason: "Isaac Sim stands no robot of its own; join it with wiring=sim_seat" },
     // The recorder and XR headset consume camera streams; the rig must feed
     // at least one of them.
     { when: { camera_rig: "cameras_sim" },

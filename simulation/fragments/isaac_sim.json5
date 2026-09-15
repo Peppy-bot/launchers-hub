@@ -1,7 +1,8 @@
-// The Isaac Sim simulation of an OpenArm and the browser frontend for its
-// WebRTC livestream. It loads the v2 model; a v1 robot the file deploys
-// sets hardware_version at launch. Its scene_control contract takes a
-// scene commander.
+// The Isaac Sim simulation and the browser frontend for its WebRTC
+// livestream. It stands no robot of its own: `model` is empty, so the stage
+// opens empty and every robot arrives by taking a seat, each referenced under
+// /World as a prim of its own. Its scene_control contract takes a scene
+// commander.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [
@@ -10,7 +11,14 @@
       instances: [{
         instance_id: "simulation_inst",
         // Rendering is enabled by a robot's rendered camera rig.
-        arguments: { cameras_enabled: false, hardware_version: "v2", state_rate_hz: 60 },
+        // Isaac publishes measured state once per rendered frame, capped at
+        // 60 Hz. An empty model leaves the stage to the robots that seat
+        // themselves in it.
+        arguments: { cameras_enabled: false, model: "", state_rate_hz: 60 },
+        // The livestream advertises media candidates from an address it
+        // detects inside the container, which a browser often cannot reach: a
+        // viewer stuck on "waiting for stream" wants
+        // PEPPY_ISAAC_PUBLIC_IP set to the host's own address here.
         links: {
           left_arm: { vacant: "a simulated robot binds this limb through its relays" },
           right_arm: { vacant: "a simulated robot binds this limb through its relays" },

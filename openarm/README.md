@@ -166,7 +166,8 @@ limits, are in the [repository README](../Readme.md#what-a-copy-can-change).
 
 Isaac Sim and Waldo declare a scene commander, selected at launch with
 `--with web_scene_commander`. It drives the simulation's `scene_control`
-contract. Waldo serves its HTTPS page on `viewer_port` (8080; accept the
+contract and lists the spawned objects from its `object_state` contract.
+Waldo serves its HTTPS page on `viewer_port` (8080; accept the
 self-signed certificate once). The page's "Start camera" panel is the
 engine's `hand_teleop` plugin: webcam hand tracking drives the arm of the
 same name, ahead of the robot's pairing while a hand is tracked. The

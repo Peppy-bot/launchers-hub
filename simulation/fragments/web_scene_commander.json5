@@ -1,5 +1,7 @@
 // Runtime scene and object control: a browser panel driving the
-// scene_control contract of the simulation that declares this option.
+// scene_control contract of the simulation that declares this option, and
+// listing what it spawned from the object_state contract of that same
+// simulation.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -7,8 +9,16 @@
     {
       source: { name: "scene_commander", tag: "v1" },
       instances: [
-        { instance_id: "scene_commander_inst",
-          links: { simulation: "simulation_inst" } },
+        {
+          instance_id: "scene_commander_inst",
+          links: {
+            // Both slots point at the one simulation: scene editing through
+            // its scene_control contract, the spawned objects' poses through
+            // its object_state contract.
+            simulation: "simulation_inst",
+            objects: "simulation_inst",
+          },
+        },
       ],
     },
   ],

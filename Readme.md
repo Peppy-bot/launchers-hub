@@ -51,8 +51,9 @@ peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join so101 -i bravo
 ```
 
-The simulations pair one robot at a time, so a second simulated copy
-replaces the first: remove it, then join.
+Waldo and Isaac Sim seat any number of robots at once, each joined copy
+taking a seat of its own with `--with sim_seat`; MuJoCo carries the one
+robot its own limb slots stand.
 
 These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
@@ -97,19 +98,29 @@ cameras are selected in the file at launch. The
 [planner](.github/scripts/launcher_combinations.py) reports such copies as
 launch-only.
 
-### Current simulation limits
+### How a robot reaches a simulation
 
-The simulations pair one robot per limb slot, so a stack runs **one
-simulated robot**, the copy `openarm_simulation.json5` deploys. A second simulated
-copy is refused where its relays reach for slots the first one paired. The
-simulation stays up when its robot is removed, its loaded model with it;
-`stack reset` stops everything. Physical robots can join beside the
-simulated one in the default wall-time daemon mode.
+A robot is wired to a simulation one of two ways, chosen per copy on the
+`wiring` axis. On `sim_limbs` the robot's relays pair into the simulation's
+own limb slots, which the one robot that simulation stands fills. On
+`sim_seat` the robot's initializer takes a seat through the
+`simulation_robot` contract, standing the robot with its own model, and the
+relays pair into the seat's limbs; the simulation tells its robots apart by
+the seat that commands them, so a stack holds as many as its machines can
+run. The simulation stays up when a robot is removed; `stack reset` stops
+everything. Physical robots can join beside the simulated ones in the
+default wall-time daemon mode.
 
 | Robot | MuJoCo | Isaac Sim | Waldo | Rendered cameras |
 |---|---|---|---|---|
-| OpenArm v1 | Yes | Yes | No | No |
-| OpenArm v2 | Yes | Yes | Yes | Yes |
+| OpenArm v1 | Limbs | Limbs, seat | Seat | No |
+| OpenArm v2 | Limbs | Limbs, seat | Limbs, seat | Yes |
+
+A seated robot in Waldo stands in a world that carries none (`stage`); a
+robot on Waldo's own limb slots is the robot its world stands. Isaac Sim
+opens an empty stage and stands the model a limb-wired robot names. Its
+rendered cameras hang off the robot the simulation stands, so a camera rig
+there runs on `sim_limbs`.
 
 Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
 endpoint and a headset for operator control. To run on the simulation's
@@ -176,9 +187,10 @@ lacks. Structural checks and runtime startup checks are separate results.
 
 | Location | Owns |
 |---|---|
-| `fleet.json5`, `openarm/openarm_simulation.json5` | The simulation axis, the robot options, what the file deploys, and the simulation's world |
+| `fleet.json5`, `openarm/openarm_simulation.json5` | The simulation axis, the robot options, and what the file deploys |
 | `openarm/fragments/control_common.json5` | The initializer and backbone every OpenArm shares, with the commander and recorder wiring into both |
-| `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs or relays, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning and dataset labels |
+| `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs or relays, the control it selects, the robot commander, recorder, camera rig and wiring axes, its generation, speed cap, commander tuning, dataset labels, and the model or world the simulation stands for it |
+| `openarm/fragments/sim_relays.json5` | The four relays that stand in for a simulated OpenArm's CAN drivers, and both termini the `wiring` axis selects between |
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs |
 | `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, with its MCP server |

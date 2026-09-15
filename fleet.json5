@@ -8,12 +8,17 @@
 //   peppy stack join so101 -i bravo
 //
 //   peppy stack launch fleet --with mujoco
-//   peppy stack join openarm_v2_sim -i alpha --with xr_commander
+//   peppy stack join openarm_v2_sim -i alpha --with xr_commander,sim_limbs
 //   peppy stack join openarm_v1 -i bravo --place jetson-2
 //   peppy stack remove alpha
 //
-// A simulated robot refuses to join without a simulation. The simulations
-// pair one robot per limb slot, so one simulated copy runs at a time.
+//   peppy stack launch fleet --with waldo                   # a world of seats
+//   peppy stack join openarm_v2_sim -i alpha --with sim_seat
+//   peppy stack join openarm_v1_sim -i bravo --with sim_seat
+//
+// A simulated robot refuses to join without a simulation. Waldo and Isaac
+// Sim seat any number of robots at once; MuJoCo carries the one robot its
+// own limb slots stand.
 {
   peppy_schema: "launcher/v1",
 
@@ -53,8 +58,11 @@
   ],
 
   adjustments: [
-    // Waldo's world declares the robot it simulates.
+    // Waldo's world declares the robots it stands. This file deploys none,
+    // so it opens a world that stands none and every robot brings its own
+    // model to a seat; a robot joined on the world's own limb slots names
+    // the world that stands it, in its fragment.
     { target: "simulation_inst", when: { simulation: "waldo" },
-      set_arguments: { world: "openarm_v2" } },
+      set_arguments: { world: "stage" } },
   ],
 }

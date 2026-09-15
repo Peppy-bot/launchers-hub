@@ -567,3 +567,15 @@ jobs:
           fi
           peppy stack list
           peppy stack reset
+
+      # What a failing launch leaves behind on the runner. The job log carries
+      # only the last lines of a node's stderr, while the daemon writes each
+      # node's whole run log, and a node that dies at startup says why there.
+      - name: Report what the runner holds about the failure
+        if: failure()
+        run: |
+          set +e
+          for log in "$PEPPY_HOME"/logs/run/*.log; do
+            echo "-- $log"
+            tail -n 60 "$log"
+          done

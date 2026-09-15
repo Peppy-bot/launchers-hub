@@ -10,10 +10,10 @@
         // Rendering is enabled by a robot's rendered camera rig.
         arguments: { cameras_enabled: false, hardware_version: "v2", state_rate_hz: 100 },
         links: {
-          left_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          right_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          left_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          right_gripper: { vacant: "a simulated robot binds this limb through its relays" },
+          left_arm: { vacant: "a robot wired to this simulation's own limbs binds this" },
+          right_arm: { vacant: "a robot wired to this simulation's own limbs binds this" },
+          left_gripper: { vacant: "a robot wired to this simulation's own limbs binds this" },
+          right_gripper: { vacant: "a robot wired to this simulation's own limbs binds this" },
           wrist_left: { vacant: "select cameras_sim to render this camera" },
           wrist_right: { vacant: "select cameras_sim to render this camera" },
           chest: { vacant: "select cameras_sim to render this camera" },

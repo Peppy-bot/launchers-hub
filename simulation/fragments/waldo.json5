@@ -1,8 +1,8 @@
 // The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
-// default) with a self-signed certificate; its scene_control contract takes
-// a scene commander. The launcher sets the world when it selects this
-// simulation: hand_teleop reads the plugins.hand_teleop block the openarm_v2
-// world carries.
+// default) with a self-signed certificate, showing the world and every robot
+// standing in it; its scene_control contract takes a scene commander. The
+// launcher sets the world when it selects this simulation: hand_teleop reads
+// the plugins.hand_teleop block the openarm_v2 world carries.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [
@@ -11,16 +11,18 @@
       instances: [{
         instance_id: "simulation_inst",
         // Rendering is enabled by a robot's rendered camera rig. plugins is
-        // the comma-separated list of engine plugins to run: hand_teleop is
-        // the page's "Start camera" panel, which tracks the operator's hands
-        // on the webcam and drives the arm of the same name ahead of the
+        // the comma-separated list of engine plugins to run. sim_inspector
+        // draws the world on the page and streams it over WebTransport, so
+        // the robots are visible to anyone who opens it. hand_teleop is the
+        // page's "Start camera" panel, which tracks the operator's hands on
+        // the webcam and drives the arm of the same name ahead of the
         // robot's pairing while a hand is tracked.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop" },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop,sim_inspector" },
         links: {
-          left_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          right_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          left_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          right_gripper: { vacant: "a simulated robot binds this limb through its relays" },
+          left_arm: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          right_arm: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          left_gripper: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          right_gripper: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
           wrist_left: { vacant: "select cameras_sim to render this camera" },
           wrist_right: { vacant: "select cameras_sim to render this camera" },
           chest: { vacant: "select cameras_sim to render this camera" },
@@ -40,13 +42,5 @@
       name: "scene_commander", cardinality: "zero_or_one",
       options: { web_scene_commander: "web_scene_commander.json5" },
     },
-  ],
-
-  adjustments: [
-    // The scene commander also runs the sim_inspector plugin, which serves
-    // the engine's 3D viewer on the HTTPS page and streams it over
-    // WebTransport on UDP viewer_port.
-    { target: "simulation_inst", when: { scene_commander: "web_scene_commander" },
-      set_arguments: { plugins: "hand_teleop,sim_inspector" } },
   ],
 }

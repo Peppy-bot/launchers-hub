@@ -9,12 +9,15 @@
 //   peppy stack launch openarm_simulation --with isaac_sim,web_scene_commander
 //   peppy stack launch openarm_simulation --with mujoco,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim
 //   peppy stack remove alpha                                       # the simulation keeps running
-//   peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
-//   peppy stack remove bravo
 //
-// The simulations pair one robot per limb slot, so this file ships one
-// copy; a second simulated robot in one simulation waits for the
-// multi-robot slot.
+// alpha stands on the simulation's own limb slots, which one robot fills.
+// A stack of several robots seats each of them instead, and the simulation
+// runs throughout:
+//
+//   peppy stack launch openarm_simulation --with alpha.wiring=sim_seat
+//   peppy stack join openarm_v2_sim -i bravo --with sim_seat,xr_commander --set-arguments commander_inst.https_port=4444
+//   peppy stack join openarm_v1_sim -i charlie --with sim_seat
+//   peppy stack remove bravo
 {
   peppy_schema: "launcher/v1",
 
@@ -52,9 +55,4 @@
     },
   ],
 
-  adjustments: [
-    // Waldo's world declares the robot it simulates.
-    { target: "simulation_inst", when: { simulation: "waldo" },
-      set_arguments: { world: "openarm_v2" } },
-  ],
 }

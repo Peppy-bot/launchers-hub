@@ -139,13 +139,21 @@ peppy stack launch openarm_simulation                 # Waldo and alpha
 peppy stack launch openarm_simulation --with mujoco   # the same copy in MuJoCo
 peppy stack launch openarm_simulation --with isaac_sim
 peppy stack remove alpha                              # the simulation keeps running
-peppy stack join openarm_v2_sim -i bravo --with xr_commander
-peppy stack remove bravo                              # one simulated robot at a time
-peppy stack join openarm_v2_sim -i charlie --with web_commander,ai_brain
 ```
 
-MuJoCo and Isaac Sim simulate v1 and v2; Waldo supplies the v2 world from
-private-nodes-hub. For rendered wrist/chest streams and recording, the copy
+alpha stands on the simulation's own limb slots, which one robot fills. Seat
+the robots instead and Waldo or Isaac Sim holds as many as the machines can
+run, the simulation running throughout:
+
+```sh
+peppy stack launch openarm_simulation --with alpha.wiring=sim_seat
+peppy stack join openarm_v2_sim -i bravo --with sim_seat,xr_commander
+peppy stack join openarm_v1_sim -i charlie --with sim_seat,ai_brain
+peppy stack remove bravo
+```
+
+MuJoCo and Isaac Sim stand a v1 or a v2 on their own limb slots; Waldo's
+world from private-nodes-hub stands a v2, and seats either generation. For rendered wrist/chest streams and recording, the copy
 selects them in the file:
 
 ```json5

@@ -571,71 +571,11 @@ jobs:
       # What a failing launch leaves behind on the runner. The job log carries
       # only the last lines of a node's stderr, while the daemon writes each
       # node's whole run log, and a node that dies at startup says why there.
-      # The environment names come next to it because a name that is not a
-      # shell identifier aborts the script apptainer generates to carry a
-      # node's environment, and every variable after it is dropped.
       - name: Report what the runner holds about the failure
         if: failure()
         run: |
           set +e
-          echo "== environment names that are not shell identifiers"
-          for pid in $(pgrep -f 'peppy service serve'); do
-            echo "-- daemon $pid"
-            tr '\0' '\n' < "/proc/$pid/environ" | cut -d= -f1 \
-              | grep -vE '^[A-Za-z_][A-Za-z0-9_]*$'
-          done
-          echo "-- this step"
-          env | cut -d= -f1 | grep -vE '^[A-Za-z_][A-Za-z0-9_]*$'
-          echo "== every variable the launch forwards to a node"
-          # The same rule peppy applies: a shell-identifier name, and a value
-          # of alphanumerics and `_-./:,=@+%` only.
-          env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./:,=@+%-]*$'
-          echo "== every variable, name only"
-          env | cut -d= -f1 | sort
-          echo "== node run logs"
           for log in "$PEPPY_HOME"/logs/run/*.log; do
             echo "-- $log"
             tail -n 60 "$log"
           done
-          echo "== how apptainer runs on this host"
-          apptainer=$(ls -d "$HOME"/.peppy/tmp/apptainer-*/bin/apptainer 2>/dev/null | head -1)
-          [ -x "$apptainer" ] || apptainer="$RUNNER_TEMP/peppy-dist/bin/apptainer/bin/apptainer"
-          echo "-- $apptainer"; "$apptainer" --version
-          "$apptainer" buildcfg 2>/dev/null | grep -iE 'setuid|userns|namespace' | head -5
-          echo "-- unprivileged_userns_clone: $(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo absent)"
-          echo "-- subuid: $(grep "^$(id -un):" /etc/subuid 2>/dev/null || echo none)"
-          echo "== the environment script the simulation node is handed"
-          sif=$(find "$PEPPY_HOME/built_nodes" -path '*sim_mujoco*' -name '*.sif' | head -1)
-          echo "-- $sif"
-          # A runscript that reports the file instead of starting the node,
-          # bound over the image's own, so the `run` path is the one exercised.
-          wrapper="$RUNNER_TEMP/report-env.sh"
-          cat > "$wrapper" <<'SH'
-          #!/bin/sh
-          f=/.inject-apptainer-env.sh
-          if [ -f "$f" ]; then
-            echo "inject script: $(wc -l < "$f") lines"
-            echo "-- exports whose name is not a shell identifier, with context"
-            for n in $(grep -nE '^[[:space:]]*export[[:space:]]+[^A-Za-z_]' "$f" | cut -d: -f1 | head -5); do
-              sed -n "$((n-2)),$((n+1))p" "$f"; echo "----"
-            done
-            echo "-- lines that are neither blank, a comment, an assignment nor an export"
-            grep -nvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=|export[[:space:]]|unset[[:space:]]|\})' "$f" | head -10
-            echo "-- first 15 lines"; sed -n '1,15p' "$f"
-          else
-            echo "no inject script; env dir holds:"; ls /.singularity.d/env/
-          fi
-          SH
-          sed -i 's/^          //' "$wrapper"; chmod +x "$wrapper"
-          echo "-- exec with one variable"
-          "$apptainer" exec --cleanenv --nv --env PROBE=x "$sif" sh -c 'ls -la /.inject-apptainer-env.sh 2>&1; ls /.singularity.d/env/' 2>&1 | tail -12
-          echo "-- run with one variable, runscript replaced by the report"
-          "$apptainer" run --cleanenv --nv --env PROBE=x \
-            --bind "$wrapper:/.singularity.d/runscript" "$sif" 2>&1 | tail -40
-          echo "-- run with every variable the launch forwards"
-          args=()
-          while IFS= read -r kv; do args+=(--env "$kv"); done \
-            < <(env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./:,=@+%-]*$')
-          echo "   ${#args[@]} flags"
-          "$apptainer" run --cleanenv --nv "${args[@]}" \
-            --bind "$wrapper:/.singularity.d/runscript" "$sif" 2>&1 | tail -60

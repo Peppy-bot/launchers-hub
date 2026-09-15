@@ -19,10 +19,10 @@
         // robot's pairing while a hand is tracked.
         arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop,sim_inspector" },
         links: {
-          left_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          right_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          left_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          right_gripper: { vacant: "a simulated robot binds this limb through its relays" },
+          left_arm: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          right_arm: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          left_gripper: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          right_gripper: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
           wrist_left: { vacant: "select cameras_sim to render this camera" },
           wrist_right: { vacant: "select cameras_sim to render this camera" },
           chest: { vacant: "select cameras_sim to render this camera" },

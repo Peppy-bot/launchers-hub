@@ -1,33 +1,21 @@
 // A simulated OpenArm v2: four relays pair the simulation's limbs onto the
 // instance ids the real CAN drivers use, so the shared OpenArm control,
 // its commander and its recorder keep the same links as on hardware. The
-// launcher's simulation axis supplies simulation_inst, which loads the v2
-// model unless told otherwise; MuJoCo, Isaac Sim and Waldo all simulate a
-// v2, and all three render its camera rig.
+// launcher's simulation axis supplies simulation_inst. MuJoCo, Isaac Sim
+// and Waldo all stand a v2 on their own limb slots, and all three render
+// its camera rig there; Waldo and Isaac Sim also seat one, which is how a
+// stack runs several at once.
 {
   peppy_schema: "launcher_fragment/v1",
 
   // The robot's relays, and the option it deploys on its own axes unless a
   // copy's `with` says otherwise.
   deployments: [
-    {
-      source: { name: "openarm_sim_arm", tag: "v1" },
-      instances: [
-        { instance_id: "left_arm_inst",  links: { simulation: "simulation_inst/left_arm" } },
-        { instance_id: "right_arm_inst", links: { simulation: "simulation_inst/right_arm" } },
-      ],
-    },
-    {
-      source: { name: "openarm_sim_gripper", tag: "v1" },
-      instances: [
-        { instance_id: "left_gripper_inst",  links: { simulation: "simulation_inst/left_gripper" } },
-        { instance_id: "right_gripper_inst", links: { simulation: "simulation_inst/right_gripper" } },
-      ],
-    },
-    { control: "control_common" },
+    { relays: "sim_relays" },
     // The relays terminate on the simulation's own limb slots unless a copy
     // takes a seat instead.
     { wiring: "sim_limbs" },
+    { control: "control_common" },
     // The commander this robot runs unless a copy's `with` selects another.
     { robot_commander: "web_commander" },
   ],
@@ -49,15 +37,19 @@
         mcp_commander: "mcp_commander.json5",
       },
     },
-    // Where this robot's relays terminate: on the simulation's own limb
-    // slots, which one robot fills, or on a seat it takes in a simulation
+    // The four relays that stand in for this robot's CAN drivers, wired to
+    // the terminus `wiring` selects. Both live in sim_relays.json5.
+    {
+      name: "relays",
+      provides: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"],
+      options: { sim_relays: "sim_relays.json5" },
+    },
+    // Where those relays terminate: on the simulation's own limb slots,
+    // which one robot fills, or on a seat this robot takes in a simulation
     // that hosts several.
     {
       name: "wiring",
-      options: {
-        sim_limbs: "sim_limbs.json5",
-        sim_seat: "sim_seat.json5",
-      },
+      options: { sim_limbs: {}, sim_seat: {} },
     },
     {
       name: "recorder", cardinality: "zero_or_one", provides: ["recorder_inst"],
@@ -86,14 +78,12 @@
     // no seat.
     { when: { wiring: "sim_seat" },
       requires: [{ simulation: ["waldo", "isaac_sim"] }],
-      reason: "wiring=sim_seat takes a seat in Waldo or Isaac Sim; select one of those, or leave the wiring on sim_limbs" },
-    // A robot driven through the simulation's own limb slots is the robot
-    // that simulation stands. MuJoCo and Waldo each stand an OpenArm v2
-    // themselves; Isaac Sim opens an empty stage, so a robot reaches it by
-    // taking a seat.
-    { when: { wiring: "sim_limbs" },
-      requires: [{ simulation: ["mujoco", "waldo"] }],
-      reason: "Isaac Sim stands no robot of its own; join it with wiring=sim_seat" },
+      reason: "a seat is held in Waldo or Isaac Sim; select one of those, or wire this robot to the simulation's own limbs with <copy>.wiring=sim_limbs" },
+    // Isaac Sim renders this robot's cameras off the robot it stands, so a
+    // rig there runs on the simulation's own limb slots.
+    { when: { camera_rig: "cameras_sim", simulation: "isaac_sim" },
+      requires: [{ wiring: "sim_limbs" }],
+      reason: "Isaac Sim renders cameras off the robot it stands, not off a seat; select <copy>.wiring=sim_limbs, or drop the camera rig" },
     // The recorder and XR headset consume camera streams; the rig must feed
     // at least one of them.
     { when: { camera_rig: "cameras_sim" },
@@ -102,6 +92,17 @@
   ],
 
   adjustments: [
+    // Waldo's world declares the robots it stands: this robot is the one it
+    // stands on its own limb slots, and a robot that takes a seat brings its
+    // own model to a world that carries none.
+    { target: "simulation_inst", when: { simulation: "waldo", wiring: "sim_limbs" },
+      set_arguments: { world: "openarm_v2" } },
+    { target: "simulation_inst", when: { simulation: "waldo", wiring: "sim_seat" },
+      set_arguments: { world: "stage" } },
+    // Isaac Sim opens an empty stage and stands the robot `model` names, so
+    // a robot on its own limb slots is the one it names here.
+    { target: "simulation_inst", when: { simulation: "isaac_sim", wiring: "sim_limbs" },
+      set_arguments: { model: "openarm_v2" } },
     // The generation this robot is, which is also the model a simulation
     // stands for it when it takes a seat.
     { target: "init_inst", set_arguments: { hardware_version: "v2" } },

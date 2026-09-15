@@ -1,8 +1,15 @@
 // The Isaac Sim simulation and the browser frontend for its WebRTC
-// livestream. It stands no robot of its own: `model` is empty, so the stage
-// opens empty and every robot arrives by taking a seat, each referenced under
-// /World as a prim of its own. Its scene_control contract takes a scene
+// livestream. The stage opens empty and stands the robot `model` names, which
+// the robot wired to these limb slots sets; robots that take a seat instead
+// bring their own model, each referenced under /World as a prim of its own,
+// and any number hold one at a time. Its scene_control contract takes a scene
 // commander.
+//
+// The livestream advertises media candidates from an address it detects
+// inside the container, which a browser often cannot reach. A viewer stuck on
+// "waiting for stream" wants the host's own address on the network the
+// browser is on, as `env_vars: { PEPPY_ISAAC_PUBLIC_IP: "..." }` on
+// simulation_inst below.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [
@@ -10,20 +17,16 @@
       source: { name: "openarm_sim_isaac", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
-        // Rendering is enabled by a robot's rendered camera rig.
-        // Isaac publishes measured state once per rendered frame, capped at
-        // 60 Hz. An empty model leaves the stage to the robots that seat
-        // themselves in it.
+        // Rendering is enabled by a robot's rendered camera rig. Isaac
+        // publishes measured state once per rendered frame, capped at 60 Hz.
+        // An empty model leaves the stage to the robots that seat themselves
+        // in it; a robot on these limb slots names the model to stand.
         arguments: { cameras_enabled: false, model: "", state_rate_hz: 60 },
-        // The livestream advertises media candidates from an address it
-        // detects inside the container, which a browser often cannot reach: a
-        // viewer stuck on "waiting for stream" wants
-        // PEPPY_ISAAC_PUBLIC_IP set to the host's own address here.
         links: {
-          left_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          right_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          left_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          right_gripper: { vacant: "a simulated robot binds this limb through its relays" },
+          left_arm: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          right_arm: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          left_gripper: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
+          right_gripper: { vacant: "a robot wired to this simulation's own limbs binds this; a seated robot binds its seat instead" },
           wrist_left: { vacant: "select cameras_sim to render this camera" },
           wrist_right: { vacant: "select cameras_sim to render this camera" },
           chest: { vacant: "select cameras_sim to render this camera" },

@@ -1,0 +1,49 @@
+// A simulated OpenArm's limbs: four relays that stand in for the CAN drivers
+// under the same instance ids, and where they terminate. A simulation that
+// carries one robot offers its own limb slots, which that robot fills
+// (`wiring=sim_limbs`); a simulation that seats robots offers each one the
+// limbs of its seat (`wiring=sim_seat`), and holds as many as its machines
+// can run. Both generations wire the same way, so this file is the one place
+// a relay or a terminus changes; the robot fragment declaring the `wiring`
+// axis says which simulations offer which.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "openarm_sim_arm", tag: "v1" },
+      instances: [
+        { instance_id: "left_arm_inst",  links: { simulation: "simulation_inst/left_arm" } },
+        { instance_id: "right_arm_inst", links: { simulation: "simulation_inst/right_arm" } },
+      ],
+    },
+    {
+      source: { name: "openarm_sim_gripper", tag: "v1" },
+      instances: [
+        { instance_id: "left_gripper_inst",  links: { simulation: "simulation_inst/left_gripper" } },
+        { instance_id: "right_gripper_inst", links: { simulation: "simulation_inst/right_gripper" } },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // The relays pair into the simulation's own limb slots, so the vacancies
+    // it declares for a launch without a robot go.
+    { target: "simulation_inst", when: { wiring: "sim_limbs" },
+      unset_links: ["left_arm", "right_arm", "left_gripper", "right_gripper"] },
+
+    // The seat, and the limbs it offers the relays in place of the vacancies
+    // a robot without one leaves.
+    { target: "init_inst", when: { wiring: "sim_seat" },
+      set_links: { simulation: "simulation_inst" },
+      unset_links: ["left_arm_link", "right_arm_link", "left_gripper_link", "right_gripper_link"] },
+    { target: "left_arm_inst",      when: { wiring: "sim_seat" },
+      set_links: { simulation: "init_inst/left_arm_link" } },
+    { target: "right_arm_inst",     when: { wiring: "sim_seat" },
+      set_links: { simulation: "init_inst/right_arm_link" } },
+    { target: "left_gripper_inst",  when: { wiring: "sim_seat" },
+      set_links: { simulation: "init_inst/left_gripper_link" } },
+    { target: "right_gripper_inst", when: { wiring: "sim_seat" },
+      set_links: { simulation: "init_inst/right_gripper_link" } },
+  ],
+}

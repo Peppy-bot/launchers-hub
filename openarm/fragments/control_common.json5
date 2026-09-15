@@ -23,10 +23,10 @@
             // The seat's limbs. This robot drives limbs of its own, so they
             // stand empty until it takes a seat in a simulation that hosts
             // several, which pairs the relays into them.
-            left_arm_link: { vacant: "this robot holds no seat in a simulation" },
-            right_arm_link: { vacant: "this robot holds no seat in a simulation" },
-            left_gripper_link: { vacant: "this robot holds no seat in a simulation" },
-            right_gripper_link: { vacant: "this robot holds no seat in a simulation" },
+            left_arm_link: { vacant: "select <copy>.wiring=sim_seat to take a seat in a simulation" },
+            right_arm_link: { vacant: "select <copy>.wiring=sim_seat to take a seat in a simulation" },
+            left_gripper_link: { vacant: "select <copy>.wiring=sim_seat to take a seat in a simulation" },
+            right_gripper_link: { vacant: "select <copy>.wiring=sim_seat to take a seat in a simulation" },
           },
         },
       ],

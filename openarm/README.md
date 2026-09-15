@@ -79,6 +79,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 peppy stack join openarm_v2 -i bravo --with xr_commander,lerobot_recorder,cameras
 peppy stack join openarm_v1 -i charlie --with mcp_commander,cameras --place jetson-2
 peppy stack join openarm_v2 -i delta --with web_commander,ai_brain
+peppy stack join openarm_v2 -i echo --with ker_commander
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
@@ -94,6 +95,9 @@ fixed and every target takes a link, so it requires the robot's rig,
 `cameras` on a physical robot and `cameras_sim` on a simulated v2, and the
 rig counts it among its consumers. No simulation renders a rig on v1 links,
 so a simulated v1 does not offer it; a physical v1 does, with `cameras`.
+
+The KER leader, v2 only, streams joint setpoints from enactic's motorless
+leader arm.
 
 The MCP endpoint defaults to
 `http://127.0.0.1:8900/openarm_v2/v1/mcp`; the launch prints every exposure's
@@ -135,6 +139,14 @@ B moves ready, and either grip cancels a posture move. With recording selected,
 X starts or saves an episode; holding Y for one second finishes the session.
 Set the demonstration task at `https://<host>:4443/task` before recording.
 
+For the KER, install the udev rule from the `openarm_ker` README and zero the
+KER on its calibration jig first. A released trigger holds its gripper half
+open and a full squeeze closes it. Squeeze an arm's trigger to engage that arm;
+from then on the arm and its gripper track the KER until the KER disconnects
+or its frames stop, which holds both arms until the next squeeze. The trigger
+ranges in [fragments/ker_commander.json5](fragments/ker_commander.json5) are one
+unit's sweep; sweep your unit's triggers and set its own.
+
 For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:
 
@@ -157,13 +169,13 @@ Arguments name the instance as the fragment writes it, such as
 
 The backbone follows exactly one kind of upstream arm command, named by its required `upstream_mode` argument, and subscribes only that kind of arm slot (gripper and posture slots are read under either mode):
 
-- `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The commander every robot fragment deploys.
+- `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The commander every robot fragment deploys. `openarm_ker` (the KER leader) streams them the same way.
 - `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The robot fragment selects the mode and re-vacates the slots as part of being selected.
 - Nobody streams - `mcp_commander` drives the backbone through discrete actions only: the whole-robot posture moves and the per-limb arm and gripper moves it exposes as tools, beside the cameras it publishes from the rig. `upstream_mode` stays `"joints"`, all six leader sockets are vacant with their reasons, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 
-The `xr_commander` selection runs without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic, so it never will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
+The `xr_commander` and `ker_commander` selections run without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic and the KER produces only motion, so neither ever will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
 
 Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for the dataset workflow). The `cameras` option adds the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header); the headset retunes them for in-headset panels as part of its own selection.
 

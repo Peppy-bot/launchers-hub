@@ -81,6 +81,7 @@
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
         mcp_commander: "mcp_commander.json5",
+        ker_commander: "ker_commander.json5",
       },
     },
     {

@@ -20,8 +20,8 @@
       // gripper and each relay republishes it.
       source: { name: "sim_rgb_camera", tag: "v1" },
       instances: [
-        { instance_id: "wrist_left",  links: { simulation: "simulation_inst/wrist_left" } },
-        { instance_id: "wrist_right", links: { simulation: "simulation_inst/wrist_right" } },
+        { instance_id: "wrist_left",  links: { simulation: "simulation_inst/wrist_left" }, framework: { clock: "simulation" } },
+        { instance_id: "wrist_right", links: { simulation: "simulation_inst/wrist_right" }, framework: { clock: "simulation" } },
       ],
     },
     {
@@ -32,7 +32,7 @@
       // real node's.
       source: { name: "sim_rgbd_camera", tag: "v1" },
       instances: [
-        { instance_id: "chest", links: { simulation: "simulation_inst/chest" } },
+        { instance_id: "chest", links: { simulation: "simulation_inst/chest" }, framework: { clock: "simulation" } },
       ],
     },
   ],

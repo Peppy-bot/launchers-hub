@@ -9,7 +9,8 @@
       source: { name: "scene_commander", tag: "v1" },
       instances: [
         { instance_id: "scene_commander_inst",
-          links: { simulation: "simulation_inst", objects: "simulation_inst" } },
+          links: { simulation: "simulation_inst", objects: "simulation_inst" },
+          framework: { clock: "simulation" } },
       ],
     },
   ],

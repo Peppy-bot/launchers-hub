@@ -104,7 +104,8 @@ simulated robot**, the copy `openarm_simulation.json5` deploys. A second simulat
 copy is refused where its relays reach for slots the first one paired. The
 simulation stays up when its robot is removed, its loaded model with it;
 `stack reset` stops everything. Physical robots can join beside the
-simulated one in the default wall-time daemon mode.
+simulated one: they read wall time while the simulated robot reads the
+simulation's clock.
 
 | Robot | MuJoCo | Isaac Sim | Waldo | Rendered cameras |
 |---|---|---|---|---|
@@ -112,10 +113,14 @@ simulated one in the default wall-time daemon mode.
 | OpenArm v2 | Yes | Yes | Yes | Yes |
 
 Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
-endpoint and a headset for operator control. To run on the simulation's
-clock, start every participating daemon with
-`peppy service serve --clock-source sim`; clock consumers require a live
-simulation-time source.
+endpoint and a headset for operator control.
+
+Each simulation fragment declares the clock domain `simulation`, supplied by
+`simulation_inst`, and every instance of the simulated robot binds to it with
+`framework: { clock: "simulation" }`. The binding travels in the launch, so a
+daemon runs a simulated robot and a physical one at the same time and needs no
+flag and no restart to switch between them. `peppy clock list` shows the
+domains a federation is running and what reads each one.
 
 ### Per-copy arguments
 

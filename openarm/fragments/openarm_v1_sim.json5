@@ -13,15 +13,15 @@
     {
       source: { name: "openarm_sim_arm", tag: "v1" },
       instances: [
-        { instance_id: "left_arm_inst",  links: { simulation: "simulation_inst/left_arm" } },
-        { instance_id: "right_arm_inst", links: { simulation: "simulation_inst/right_arm" } },
+        { instance_id: "left_arm_inst",  links: { simulation: "simulation_inst/left_arm" }, framework: { clock: "simulation" } },
+        { instance_id: "right_arm_inst", links: { simulation: "simulation_inst/right_arm" }, framework: { clock: "simulation" } },
       ],
     },
     {
       source: { name: "openarm_sim_gripper", tag: "v1" },
       instances: [
-        { instance_id: "left_gripper_inst",  links: { simulation: "simulation_inst/left_gripper" } },
-        { instance_id: "right_gripper_inst", links: { simulation: "simulation_inst/right_gripper" } },
+        { instance_id: "left_gripper_inst",  links: { simulation: "simulation_inst/left_gripper" }, framework: { clock: "simulation" } },
+        { instance_id: "right_gripper_inst", links: { simulation: "simulation_inst/right_gripper" }, framework: { clock: "simulation" } },
       ],
     },
     { control: "control_common" },
@@ -59,6 +59,13 @@
   ],
 
   adjustments: [
+    // Everything this robot runs reads the simulation's clock. The control,
+    // commander and recorder fragments are shared with the physical robot, so
+    // this robot binds the instances they deploy.
+    { target: "init_inst", set_framework: { clock: "simulation" } },
+    { target: "backbone_inst", set_framework: { clock: "simulation" } },
+    { target: "commander_inst", set_framework: { clock: "simulation" } },
+    { target: "recorder_inst", set_framework: { clock: "simulation" } },
     // The relays pair into the simulation's limb slots, so the vacancies it
     // declares for a launch without a robot go, and it loads the v1 model.
     { target: "simulation_inst",

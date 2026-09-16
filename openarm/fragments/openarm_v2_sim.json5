@@ -63,16 +63,16 @@
     {
       name: "brain", cardinality: "zero_or_one",
       provides: ["brain_inst", "brain_mcp_inst"],
-      options: { ai_brain: "ai_brain.json5" },
+      options: { ai_brain_vla: "ai_brain_vla.json5" },
     },
   ],
 
   constraints: [
-    // The recorder and XR headset consume camera streams; the rig must feed
-    // at least one of them.
+    // The recorder, the XR headset and the brain consume camera streams;
+    // the rig must feed at least one of them.
     { when: { camera_rig: "cameras_sim" },
-      requires: [{ recorder: "lerobot_recorder" }, { robot_commander: "xr_commander" }],
-      reason: "camera streams need a consumer; select lerobot_recorder or xr_commander" },
+      requires: [{ recorder: "lerobot_recorder" }, { robot_commander: "xr_commander" }, { brain: "ai_brain_vla" }],
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or ai_brain_vla" },
   ],
 
   adjustments: [

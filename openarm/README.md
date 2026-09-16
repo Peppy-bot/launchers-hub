@@ -64,7 +64,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 ```sh
 peppy stack join openarm_v2 -i bravo --with xr_commander,lerobot_recorder,cameras
 peppy stack join openarm_v1 -i charlie --with mcp_commander --place jetson-2
-peppy stack join openarm_v2 -i delta --with web_commander,ai_brain
+peppy stack join openarm_v2 -i delta --with web_commander,ai_brain_vla
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
@@ -76,7 +76,7 @@ The MCP endpoint defaults to
 `http://127.0.0.1:8900/openarm_v2/v1/mcp`; `stack list` reports its endpoints.
 Recording requires the web or XR commander.
 
-A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
+A v2 copy's `brain` axis adds `ai_brain_vla`, the environment aware action layer
 serving `item_perception` and `item_manipulation` over the backbone's
 `limb_motion`, with the MCP server built into peppy serving the `ai_brain:v1`
 exposure on port 8901. It composes with any commander: the operator and the
@@ -141,7 +141,7 @@ peppy stack launch openarm_simulation --with isaac_sim
 peppy stack remove alpha                              # the simulation keeps running
 peppy stack join openarm_v2_sim -i bravo --with xr_commander
 peppy stack remove bravo                              # one simulated robot at a time
-peppy stack join openarm_v2_sim -i charlie --with web_commander,ai_brain
+peppy stack join openarm_v2_sim -i charlie --with web_commander,ai_brain_vla
 ```
 
 MuJoCo and Isaac Sim simulate v1 and v2; Waldo supplies the v2 world from

@@ -99,7 +99,7 @@
     {
       name: "brain", cardinality: "zero_or_one",
       provides: ["brain_inst", "brain_mcp_inst"],
-      options: { ai_brain: "ai_brain.json5" },
+      options: { ai_brain_vla: "ai_brain_vla.json5" },
     },
   ],
 

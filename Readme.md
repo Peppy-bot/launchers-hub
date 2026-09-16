@@ -72,7 +72,7 @@ discovery and host setup.
 | `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, `mcp_commander` |
 | `recorder` | the robot | `lerobot_recorder`; requires web or XR |
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a recorder or XR |
-| `brain` | the v2 robots | `ai_brain`, with its MCP server on port 8901 |
+| `brain` | the v2 robots | `ai_brain_vla`, with its MCP server on port 8901 |
 
 A copy selects one option per axis of its robot. `stack resolve` previews any
 launch, and a join onto it, without starting nodes:
@@ -181,7 +181,7 @@ lacks. Structural checks and runtime startup checks are separate results.
 | `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs or relays, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning and dataset labels |
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs |
-| `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, with its MCP server |
+| `openarm/fragments/ai_brain_vla.json5` | The environment aware action layer beside a robot commander, with its MCP server |
 | `robot_commanders/fragments/` | Reusable robot commanders, with robot tuning supplied by the robot fragments |
 | `recording/fragments/` | Reusable recorder deployment and record-button attachment |
 | `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander |

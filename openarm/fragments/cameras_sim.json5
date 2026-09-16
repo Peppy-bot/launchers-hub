@@ -53,5 +53,9 @@
     { target: "commander_inst", when: { robot_commander: "xr_commander" },
       add_links: { color_cameras: ["wrist_left", "wrist_right"],
                    rgbd_cameras: ["chest"] } },
+    // The brain looks through the chest camera, colour and depth from
+    // one producer. Unguarded: skips on its own when no brain was selected.
+    { target: "brain_inst",
+      set_links: { camera: "chest" } },
   ],
 }

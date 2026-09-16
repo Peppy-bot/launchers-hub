@@ -336,9 +336,9 @@ class CombinationsTests(unittest.TestCase):
             self.assertEqual(waldo, [{"world": "openarm_v2"}], launcher)
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
         self.assertEqual(waldo["deployments"][0]["instances"][0]["arguments"]["plugins"], "hand_teleop")
-        self.assertEqual(waldo["adjustments"], [{
+        self.assertIn({
             "target": "simulation_inst", "when": {"scene_commander": "web_scene_commander"},
-            "set_arguments": {"plugins": "hand_teleop,sim_inspector"}}])
+            "set_arguments": {"plugins": "hand_teleop,sim_inspector"}}, waldo["adjustments"])
 
     def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
         root = Path(__file__).resolve().parents[2]
@@ -365,16 +365,28 @@ class CombinationsTests(unittest.TestCase):
         instance, = scene["deployments"][0]["instances"]
         self.assertEqual(instance["instance_id"], "scene_commander_inst")
         # The two optional slots are written vacant, with a reason, and the
-        # camera slots (zero_or_more) are left to the rendered rig.
+        # camera slots (zero_or_more) are left to the rendered rig; the
+        # panel's fragment binds nothing itself.
         self.assertEqual(
             set(instance["links"]), {"simulation", "objects", "lighting", "materials"})
         for slot in ["lighting", "materials"]:
             with self.subTest(slot=slot):
                 self.assertEqual(set(instance["links"][slot]), {"vacant"})
                 self.assertTrue(instance["links"][slot]["vacant"].strip())
-        self.assertEqual(scene["adjustments"], [{
-            "target": "scene_commander_inst", "when": {"simulation": "waldo"},
-            "set_links": {"lighting": "simulation_inst", "materials": "simulation_inst"}}])
+        self.assertNotIn("adjustments", scene)
+        # Waldo, the one simulation serving the two contracts, binds them from
+        # its own fragment without a guard: the adjustment runs exactly when
+        # Waldo is selected and is skipped when no scene commander is.
+        waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
+        self.assertIn({
+            "target": "scene_commander_inst",
+            "set_links": {"lighting": "simulation_inst", "materials": "simulation_inst"},
+        }, waldo["adjustments"])
+        for other in ["isaac_sim", "mujoco"]:
+            with self.subTest(simulation=other):
+                fragment = combinations.load_json5(root / f"simulation/fragments/{other}.json5", other)
+                self.assertNotIn("scene_commander_inst", [
+                    adjustment["target"] for adjustment in fragment.get("adjustments", [])])
 
     def test_the_mcp_sim_commander_lists_five_exposures_and_binds_every_target(self):
         root = Path(__file__).resolve().parents[2]

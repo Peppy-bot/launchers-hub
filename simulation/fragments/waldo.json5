@@ -49,5 +49,10 @@
     // on UDP viewer_port.
     { target: "simulation_inst", when: { scene_commander: "web_scene_commander" },
       set_arguments: { plugins: "hand_teleop,sim_inspector" } },
+    // Waldo serves scene_lighting and scene_materials on the same instance
+    // as its scene, so the scene commander's two optional slots bind to it
+    // here; the adjustment is skipped when no scene commander is selected.
+    { target: "scene_commander_inst",
+      set_links: { lighting: "simulation_inst", materials: "simulation_inst" } },
   ],
 }

@@ -4,7 +4,21 @@
 // wrist_right / chest, plus chest_depth). The frames come from the
 // simulation, so there are no device paths and no udev rule here; each
 // relay views one camera slot on the simulation and presents the
-// rgb_camera / rgbd_camera contract, exactly as the uvc and zed nodes do.
+// rgb_camera / rgbd_camera contract, exactly as the uvc and zed nodes do,
+// and describes its device through camera_profile.
+//
+// Each relay also holds a control slot for the simulation's camera
+// response model (sim_camera_control), which forwards the controls a
+// consumer sets on the camera to the simulation under the slot's name.
+// Waldo implements it, so the relays bind it there; MuJoCo and Isaac Sim
+// have no response model, so the slot is written vacant and every camera
+// control refuses on them.
+//
+// Beside the recorder and the XR headset, the browser scene commander
+// consumes the rig: its camera panel lists the cameras whose relays are
+// linked in, each matched to its profile by the relay serving both. That
+// attach targets the stack's scene_commander_inst and is skipped when no
+// scene commander is selected.
 //
 // Camera placement, intrinsics and rates live with the simulation (MuJoCo
 // and Isaac Sim read config/cameras.json5, and Waldo keeps the same
@@ -20,8 +34,16 @@
       // gripper and each relay republishes it.
       source: { name: "sim_rgb_camera", tag: "v1" },
       instances: [
-        { instance_id: "wrist_left",  links: { simulation: "simulation_inst/wrist_left" } },
-        { instance_id: "wrist_right", links: { simulation: "simulation_inst/wrist_right" } },
+        { instance_id: "wrist_left",
+          links: {
+            simulation: "simulation_inst/wrist_left",
+            control: { vacant: "this simulation has no camera response model; every camera control refuses" },
+          } },
+        { instance_id: "wrist_right",
+          links: {
+            simulation: "simulation_inst/wrist_right",
+            control: { vacant: "this simulation has no camera response model; every camera control refuses" },
+          } },
       ],
     },
     {
@@ -32,7 +54,11 @@
       // real node's.
       source: { name: "sim_rgbd_camera", tag: "v1" },
       instances: [
-        { instance_id: "chest", links: { simulation: "simulation_inst/chest" } },
+        { instance_id: "chest",
+          links: {
+            simulation: "simulation_inst/chest",
+            control: { vacant: "this simulation has no camera response model; every camera control refuses" },
+          } },
       ],
     },
   ],
@@ -44,6 +70,11 @@
     { target: "simulation_inst",
       set_arguments: { cameras_enabled: true },
       unset_links: ["wrist_left", "wrist_right", "chest"] },
+    // Waldo models each rendered camera's response after the real device,
+    // so the relays forward their controls to it.
+    { target: "wrist_left",  when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
+    { target: "wrist_right", when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
+    { target: "chest",       when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
     // Bind into whichever recorder was selected, in the same order as the
     // real fragment so both produce the same feature order.
     { target: "recorder_inst",
@@ -53,5 +84,13 @@
     { target: "commander_inst", when: { robot_commander: "xr_commander" },
       add_links: { color_cameras: ["wrist_left", "wrist_right"],
                    rgbd_cameras: ["chest"] } },
+    // The browser scene commander's camera panel: the relays and, matched
+    // by instance, their profiles. The relay ids take the copy's name on
+    // the stack instance (alpha_wrist_left); the target itself is the
+    // stack's.
+    { target: "scene_commander_inst",
+      add_links: { color_cameras: ["wrist_left", "wrist_right"],
+                   rgbd_cameras: ["chest"],
+                   camera_profiles: ["wrist_left", "wrist_right", "chest"] } },
   ],
 }

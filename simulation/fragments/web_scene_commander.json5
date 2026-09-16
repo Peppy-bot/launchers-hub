@@ -1,6 +1,12 @@
 // Runtime scene and object control: a browser panel driving the
-// scene_control contract of the simulation that declares this option and
-// reading the object_state of that same simulation.
+// scene_manipulation contract of the simulation that declares this option
+// and reading the object_state of that same simulation. The page shows a
+// lighting panel and a materials panel only when those slots are bound;
+// Waldo is the one simulation implementing scene_lighting and
+// scene_materials, so the adjustment below binds both there and every
+// other simulation leaves them vacant. It shows a camera panel when a
+// rendered camera rig links its relays into the camera slots, which the
+// rig's own fragment (cameras_sim) does for the copy that selects it.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -9,8 +15,20 @@
       source: { name: "scene_commander", tag: "v1" },
       instances: [
         { instance_id: "scene_commander_inst",
-          links: { simulation: "simulation_inst", objects: "simulation_inst" } },
+          links: {
+            simulation: "simulation_inst",
+            objects: "simulation_inst",
+            lighting: { vacant: "this simulation implements no scene_lighting; the page carries no lighting panel" },
+            materials: { vacant: "this simulation implements no scene_materials; the page carries no materials panel" },
+          } },
       ],
     },
+  ],
+
+  adjustments: [
+    // Waldo serves scene_lighting and scene_materials on the same instance
+    // as its scene, so the panel's two optional slots bind to it there.
+    { target: "scene_commander_inst", when: { simulation: "waldo" },
+      set_links: { lighting: "simulation_inst", materials: "simulation_inst" } },
   ],
 }

@@ -27,14 +27,19 @@ at launch too.
 
 ## Launchers
 
-Two launchers run robots as copies, each named, its ids minted under its
+Three launchers run robots as copies, each named, its ids minted under its
 name: `alpha_left_arm_inst`, `alpha_backbone_inst`, `alpha_commander_inst`.
 [fleet.json5](fleet.json5) deploys nothing: a simulation is selected at
 launch, or none, and every robot, physical or simulated, is joined by name,
 a physical one placed on its machine by that name.
 [openarm/openarm_simulation.json5](openarm/openarm_simulation.json5) runs
 one simulation, Waldo unless a launch word selects another, and deploys the
-copy `alpha`, a simulated OpenArm v2 with the browser commander. The robot
+copy `alpha`, a simulated OpenArm v2 with the browser commander.
+[mcp/openarm_simulation_mcp.json5](mcp/openarm_simulation_mcp.json5) runs
+Waldo and deploys `alpha` with the MCP simulation commander and the
+rendered camera rig: five MCP endpoints on one port, the robot's moves
+beside the scene, its lighting, its materials and the rendered cameras,
+documented in the [MCP guide](mcp/README.md). The robot
 options are the four OpenArm fragments, `openarm_v1`, `openarm_v2`
 (physical), `openarm_v1_sim`, `openarm_v2_sim` (simulated), sharing the
 OpenArm control in `control_common.json5`, and `so101`; the
@@ -49,6 +54,7 @@ peppy stack list
 peppy stack launch fleet                               # a new stack with no simulation
 peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join so101 -i bravo
+peppy stack launch openarm_simulation_mcp              # Waldo and alpha, driven over MCP
 ```
 
 The simulations pair one robot at a time, so a second simulated copy
@@ -65,13 +71,13 @@ discovery and host setup.
 
 | Axis | Declared by | Options |
 |---|---|---|
-| `simulation` | `openarm_simulation.json5` (`one`) and `fleet.json5` (`zero_or_one`) | `waldo` (deployed by `openarm_simulation.json5`), `mujoco`, `isaac_sim` |
-| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also serves the engine's 3D viewer |
-| `robot` | both launchers | `openarm_v1_sim`, `openarm_v2_sim` in `openarm_simulation.json5`; those, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
+| `simulation` | `openarm_simulation.json5` and `openarm_simulation_mcp.json5` (`one`), `fleet.json5` (`zero_or_one`) | `waldo` (deployed by both `one` launchers), `mujoco`, `isaac_sim` |
+| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also serves the engine's 3D viewer and edits the scene's lighting and the robot's materials, and it shows a camera panel when a rendered rig runs |
+| `robot` | all three launchers | `openarm_v1_sim`, `openarm_v2_sim` in `openarm_simulation.json5`; `openarm_v2_sim` in `openarm_simulation_mcp.json5`; those, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
 | `control` | the robot | `control_common` (deployed): the shared initializer and backbone |
-| `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, `mcp_commander` |
+| `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, `mcp_commander`; on a simulated v2 also `mcp_sim_commander`, which requires `cameras_sim` and `waldo` |
 | `recorder` | the robot | `lerobot_recorder`; requires web or XR |
-| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a recorder or XR |
+| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a consumer: a recorder, XR or, on the simulated v2, `mcp_sim_commander` |
 | `brain` | the v2 robots | `ai_brain`, with its MCP server on port 8901 |
 
 A copy selects one option per axis of its robot. `stack resolve` previews any
@@ -80,6 +86,7 @@ launch, and a join onto it, without starting nodes:
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
 peppy stack resolve fleet --with mujoco --join openarm_v2_sim --join-name bravo --join-with xr_commander,lerobot_recorder
+peppy stack resolve openarm_simulation_mcp --with web_scene_commander
 ```
 
 ### What a copy can change
@@ -182,13 +189,16 @@ lacks. Structural checks and runtime startup checks are separate results.
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs |
 | `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, with its MCP server |
+| `openarm/fragments/mcp_commander.json5`, `mcp_sim_commander.json5` | The MCP command surfaces: the robot's moves alone, and the robot's moves beside the simulation's scene, lighting, materials and rendered cameras |
 | `robot_commanders/fragments/` | Reusable robot commanders, with robot tuning supplied by the robot fragments |
 | `recording/fragments/` | Reusable recorder deployment and record-button attachment |
-| `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander |
+| `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander, with the lighting and materials slots it binds on Waldo |
+| `mcp/` | The launchers whose command surface is MCP, and the guide to their endpoints and clients |
 
-OpenArm's web commander and MCP exposure both reference OpenArm interfaces,
+OpenArm's web commander and MCP exposures all reference OpenArm interfaces,
 so their fragments stay under `openarm/fragments/`. XR is shared by both
-robots.
+robots. A launcher whose command surface is MCP lives under `mcp/` and
+composes the same robot and simulation fragments as the others.
 
 Fragment paths are relative to the file that names them: the launcher's
 directory for its options, the fragment's for the options of its own axes.

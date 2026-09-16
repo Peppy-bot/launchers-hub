@@ -1,0 +1,74 @@
+// An OpenArm v2 in Waldo, driven over MCP: the simulation is the stack and
+// the robot alpha, a v2 with the MCP simulation commander and the rendered
+// camera rig, is the copy the file deploys, its ids minted under its name:
+// alpha_backbone_inst, alpha_commander_inst, alpha_wrist_left. The
+// commander's server built into peppy serves five endpoints on one port:
+//
+//   http://127.0.0.1:8900/openarm_v2/v1/mcp               the robot's posture, arm and gripper moves
+//   http://127.0.0.1:8900/scene_manipulation/v1/mcp       the scene: assets, objects, the robot's placement
+//   http://127.0.0.1:8900/scene_lighting/v1/mcp           the scene's light sources
+//   http://127.0.0.1:8900/scene_materials/v1/mcp          the robot's materials
+//   http://127.0.0.1:8900/openarm_v2_sim_cameras/v1/mcp   the three rendered cameras and their profiles
+//
+// Waldo is the simulation the file deploys because it alone implements
+// scene_lighting and scene_materials, which the commander's exposure list
+// binds unconditionally; the robot fragment's own constraint refuses the
+// MCP simulation commander under any other. MuJoCo and Isaac Sim stay on
+// the axis all the same: the robot fragment's adjustments are guarded on
+// them, and the resolver refuses a fragment guard naming an option the
+// composing launcher's axis does not declare, so a launcher composing
+// openarm_v2_sim.json5 declares every simulation the fragment speaks
+// about. The stacks this file is meant for, and the same client on the
+// real robot, are in mcp/README.md:
+//
+//   peppy stack launch openarm_simulation_mcp                              # Waldo and alpha, the five endpoints
+//   peppy stack launch openarm_simulation_mcp --with web_scene_commander   # the browser scene panel beside them
+//   peppy stack launch openarm_simulation_mcp --with mujoco                # refused: the commander needs Waldo
+//   peppy stack remove alpha                                               # the simulation keeps running
+//   peppy stack join openarm_v2_sim -i bravo --with web_commander          # a copy with the browser panel instead
+//
+// The simulations pair one robot per limb slot, so this file ships one
+// copy.
+{
+  peppy_schema: "launcher/v1",
+
+  components: [
+    {
+      name: "simulation",
+      cardinality: "one",
+      provides: ["simulation_inst"],
+      options: {
+        mujoco: "../simulation/fragments/mujoco.json5",
+        isaac_sim: "../simulation/fragments/isaac_sim.json5",
+        waldo: "../simulation/fragments/waldo.json5",
+      },
+    },
+    {
+      name: "robot",
+      cardinality: "zero_or_more",
+      options: {
+        openarm_v2_sim: "../openarm/fragments/openarm_v2_sim.json5",
+      },
+    },
+  ],
+
+  // The entry names the component and its option. `with` selects the
+  // robot's own axes: the MCP simulation commander requires the rendered
+  // rig, whose relays fill the exposure's camera targets.
+  deployments: [
+    { simulation: "waldo" },
+    {
+      robot: "openarm_v2_sim",
+      instances: [
+        { instance_id: "alpha",
+          with: { robot_commander: "mcp_sim_commander", camera_rig: "cameras_sim" } },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Waldo's world declares the robot it simulates.
+    { target: "simulation_inst", when: { simulation: "waldo" },
+      set_arguments: { world: "openarm_v2" } },
+  ],
+}

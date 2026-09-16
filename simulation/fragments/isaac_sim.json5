@@ -4,6 +4,13 @@
 // contracts take a scene commander.
 {
   peppy_schema: "launcher_fragment/v1",
+
+  // The simulation supplies the `simulation` clock: naming simulation_inst
+  // its publisher assigns that instance the domain, so it carries no
+  // `framework.clock` of its own. Every instance of a simulated robot binds
+  // to this domain, and Isaac's timeline clock is the time they all read.
+  framework: { clocks: { simulation: { publisher: "simulation_inst" } } },
+
   deployments: [
     {
       source: { name: "openarm_sim_isaac", tag: "v1" },
@@ -20,10 +27,6 @@
           wrist_right: { vacant: "select cameras_sim to render this camera" },
           chest: { vacant: "select cameras_sim to render this camera" },
         },
-        // In sim-time mode the simulation publishes Isaac's timeline clock
-        // to each participating daemon at state_rate_hz. In wall-time mode
-        // this declaration resolves to an empty participant list.
-        framework: { publishes_sim_time: true },
       }],
     },
     {

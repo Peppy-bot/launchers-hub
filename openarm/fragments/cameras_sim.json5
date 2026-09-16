@@ -38,12 +38,14 @@
           links: {
             simulation: "simulation_inst/wrist_left",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
-          } },
+          },
+          framework: { clock: "simulation" } },
         { instance_id: "wrist_right",
           links: {
             simulation: "simulation_inst/wrist_right",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
-          } },
+          },
+          framework: { clock: "simulation" } },
       ],
     },
     {
@@ -58,7 +60,8 @@
           links: {
             simulation: "simulation_inst/chest",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
-          } },
+          },
+          framework: { clock: "simulation" } },
       ],
     },
   ],

@@ -1,5 +1,7 @@
 // The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
-// default) with a self-signed certificate; its scene_control and
+// default) with a self-signed certificate: the engine's 3D viewer of the
+// running world, streamed over WebTransport on UDP viewer_port, and the hand
+// teleop panel, both on from the first launch. Its scene_control and
 // object_state contracts take a scene commander. The launcher sets the world
 // when it selects this simulation: hand_teleop reads the plugins.hand_teleop
 // block the openarm_v2 world carries.
@@ -18,11 +20,15 @@
       instances: [{
         instance_id: "simulation_inst",
         // Rendering is enabled by a robot's rendered camera rig. plugins is
-        // the comma-separated list of engine plugins to run: hand_teleop is
-        // the page's "Start camera" panel, which tracks the operator's hands
-        // on the webcam and drives the arm of the same name ahead of the
-        // robot's pairing while a hand is tracked.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop" },
+        // the comma-separated list of engine plugins to run, and both run
+        // whatever else the launch selects. sim_inspector serves the
+        // engine's 3D viewer on the HTTPS page (without it the page is
+        // blank) and answers the scene_control and object_state calls of
+        // the scene commander; hand_teleop is the page's "Start camera"
+        // panel, which tracks the operator's hands on the webcam and drives
+        // the arm of the same name ahead of the robot's pairing while a
+        // hand is tracked.
+        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop,sim_inspector" },
         links: {
           left_arm: { vacant: "a simulated robot binds this limb through its relays" },
           right_arm: { vacant: "a simulated robot binds this limb through its relays" },
@@ -43,14 +49,5 @@
       name: "scene_commander", cardinality: "zero_or_one",
       options: { web_scene_commander: "web_scene_commander.json5" },
     },
-  ],
-
-  adjustments: [
-    // The scene commander also runs the sim_inspector plugin, which answers
-    // the commander's scene_control and object_state calls, serves the
-    // engine's 3D viewer on the HTTPS page and streams it over WebTransport
-    // on UDP viewer_port.
-    { target: "simulation_inst", when: { scene_commander: "web_scene_commander" },
-      set_arguments: { plugins: "hand_teleop,sim_inspector" } },
   ],
 }

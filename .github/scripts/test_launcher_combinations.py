@@ -284,18 +284,23 @@ class CombinationsTests(unittest.TestCase):
             with self.assertRaises(combinations.Json5Error):
                 combinations.read_launcher(directory, "fleet.json5")
 
-    def test_waldo_scene_commander_turns_the_inspector_on(self):
+    def test_waldo_runs_the_inspector_whatever_the_launch_selects(self):
+        # The 3D viewer and the scene services are the inspector's, so the
+        # fragment runs it from the first launch of every launcher deploying
+        # Waldo rather than behind the scene commander selection; no
+        # adjustment of the fragment or of a launcher touches `plugins`.
         root = Path(__file__).resolve().parents[2]
         for launcher in ["openarm/openarm_simulation.json5", "fleet.json5"]:
             document = combinations.load_json5(root / launcher, launcher)
             waldo = [adjustment["set_arguments"] for adjustment in document["adjustments"]
                      if adjustment.get("when") == {"simulation": "waldo"}]
             self.assertEqual(waldo, [{"world": "openarm_v2"}], launcher)
+            for adjustment in document["adjustments"]:
+                self.assertNotIn("plugins", adjustment.get("set_arguments", {}), launcher)
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
-        self.assertEqual(waldo["deployments"][0]["instances"][0]["arguments"]["plugins"], "hand_teleop")
-        self.assertEqual(waldo["adjustments"], [{
-            "target": "simulation_inst", "when": {"scene_commander": "web_scene_commander"},
-            "set_arguments": {"plugins": "hand_teleop,sim_inspector"}}])
+        self.assertEqual(
+            waldo["deployments"][0]["instances"][0]["arguments"]["plugins"], "hand_teleop,sim_inspector")
+        self.assertEqual(waldo.get("adjustments", []), [])
 
     def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
         root = Path(__file__).resolve().parents[2]

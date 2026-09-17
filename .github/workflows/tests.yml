@@ -58,12 +58,9 @@ name: Tests
 # runner would make this directory shared mutable state and is a reason to
 # revisit it.
 #
-# Every job runs on that runner, except on a pull request from a fork: fork
-# code must not run on a box that persists between jobs and holds every
-# repository's build caches, so those runs go to a GitHub-hosted runner,
-# which neither reads nor writes the cache and so launches everything cold.
-# `github.event.pull_request.head.repo.fork` is null on push, which the
-# expression reads as false.
+# Every job runs on that runner; no job uses a GitHub-hosted one. A pull
+# request from a fork lands there too, so what keeps fork code off the box is
+# the repository's fork-PR approval gate, not the runner it is scheduled on.
 #
 # The planner still names one combination per launcher its cache writer (the
 # launchable one deploying the most nodes): after its own launch that job
@@ -102,7 +99,7 @@ jobs:
   tested-tree:
     name: Check whether this tree was already tested
     if: github.event_name == 'push'
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: self-hosted
     timeout-minutes: 5
     permissions:
       contents: read
@@ -156,7 +153,7 @@ jobs:
     # from an empty cache rather than a wrong-arch one. The launch jobs' base
     # images are published for both. No daemon and no container runs here,
     # only the planner and `peppy repo index`.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: self-hosted
     timeout-minutes: 15
     permissions:
       contents: read
@@ -378,7 +375,7 @@ jobs:
       fail-fast: false
       matrix:
         combo: ${{ fromJSON(needs.discover.outputs.matrix) }}
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: self-hosted
     # A cold launch of the heaviest combination pulls the mujoco simulation
     # image, compiles the openarm Rust nodes, and resolves the lerobot
     # recorder's tree (torch included) inside its image build; the shared

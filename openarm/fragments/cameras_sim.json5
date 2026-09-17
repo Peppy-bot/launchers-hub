@@ -7,10 +7,10 @@
 // rgb_camera / rgbd_camera contract, exactly as the uvc and zed nodes do.
 //
 // Camera placement, intrinsics and rates live with the simulation (MuJoCo
-// and Isaac Sim read config/cameras.json5, and Waldo keeps the same
-// placement in its world manifest), taken from Enactic's published v2
-// geometry. The simulations reject this camera rig on v1 links, so only
-// openarm_v2_sim declares it.
+// and Isaac Sim read config/cameras.json5; Waldo's robot MJCF carries the
+// cameras and its world manifest the streams), taken from Enactic's
+// published v2 geometry and the head camera CAD assembly. The simulations
+// reject this camera rig on v1 links, so only openarm_v2_sim declares it.
 {
   peppy_schema: "launcher_fragment/v1",
 

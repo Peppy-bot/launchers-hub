@@ -9,10 +9,9 @@ name: Tests
 # request that adds it, and a pull request runs only the launchers its diff
 # touches (its own file, or a fragment any of its options references). A
 # change outside every launcher (this workflow, the skips file, the
-# repository index, ...) and every push to main still run every
-# combination, so anything a scoped run could miss is caught on the
-# integration branch; a Markdown file outside every launcher is the one
-# exception, testing nothing.
+# repository index, ...) runs every combination, as does a push to main
+# whose tree no run has tested yet and the weekly run; a Markdown file
+# outside every launcher is the one exception, testing nothing.
 #
 # Two jobs. `discover` enumerates the launchers and every combination of
 # their axes (printed to its log and the run summary), scopes them to the
@@ -40,30 +39,106 @@ name: Tests
 # through the bundled hub repositories at their latest main, which is the
 # point: a launcher must keep launching against the nodes and contracts
 # actually published. The runners are ephemeral Blacksmith VMs, so the
-# rebuildable caches (apptainer's pulled layers, uv's wheels and
-# interpreters) live on sticky disks — keyed per combination, because the
-# matrix jobs of a push to main commit their caches in parallel and must
-# not race on one disk, and keyed on the combination rather than its
-# position so a launcher added tomorrow warms nobody's cache away. Built
-# node images deliberately stay off the disks: they are name:tag
-# addressed, so a cached image could be yesterday's node.
+# rebuildable caches live on one sticky disk shared by every launch job:
+# apptainer's pulled layers, uv's wheels and interpreters, the daemon's
+# container build cache (the crates.io registry and sccache the Rust
+# nodes compile through), and the daemon's build artifact cache, where
+# every built node image sits under the fingerprint of the staged sources
+# it was built from (the node's tree, its def, its generated code and the
+# peppy version). A launch reuses an image whose fingerprint it finds and
+# builds the rest, so a job rebuilds exactly the nodes whose sources moved
+# since the last commit of the disk. Every job mounts its own clone of the
+# disk's last snapshot; a job that built something commits its clone when
+# it comes from this repository (a fork's pull request only reads), and the
+# last committer of concurrent jobs wins, so the snapshot grows by one
+# job's builds at a time until it holds every image the matrix launches.
+#
+# A push to main runs only when its tree was never tested: a merge whose
+# result is exactly the pull request's tested tree (the branch was up to
+# date with main) is skipped, since the pull request's run is the run of
+# that tree. The weekly run launches every combination with `--rebuild`,
+# ignoring the artifact cache: the fingerprint does not cover a def's
+# floating base image tag, so this is where a moved base image reaches
+# every node, and where a launcher drifting from the published nodes is
+# caught between pushes.
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Mondays 03:00 UTC.
+    - cron: '0 3 * * 1'
 
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Whether the pushed tree was already tested. A merge commit whose tree is
+  # the pull request head's tree (main had not moved under the branch), or a
+  # squash of such a branch, carries exactly the files a successful run of
+  # this workflow already launched; a tree nobody ran (the branch was behind
+  # main, a direct push) runs in full. Two trees with the same hash hold the
+  # same bytes, so this is an identity, not a heuristic. The lookup fails
+  # open: an API error reports the tree as untested and the run proceeds.
+  tested-tree:
+    name: Check whether this tree was already tested
+    if: github.event_name == 'push'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tested: ${{ steps.lookup.outputs.tested }}
+    steps:
+      - name: Look for a successful run of this workflow on the same tree
+        id: lookup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The workflow file's name, off the ref GitHub reports for this run
+          # (`owner/repo/.github/workflows/tests.yml@refs/heads/main`), so a
+          # renamed file keeps looking at its own runs.
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -uo pipefail
+          workflow="${WORKFLOW_REF%@*}"
+          workflow="${workflow##*/}"
+          tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$GITHUB_SHA" --jq '.tree.sha') || tree=""
+          tested=false
+          if [ -n "$tree" ]; then
+            # Newest first; the run of the pull request just merged is
+            # normally the first one whose head commit shares the tree.
+            while read -r head_sha run_url; do
+              head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head_sha" --jq '.tree.sha' 2>/dev/null) || continue
+              if [ "$head_tree" = "$tree" ]; then
+                tested=true
+                echo "Tree $tree was tested by $run_url (commit $head_sha)."
+                echo "Tree \`${tree:0:12}\` was already tested by [a successful run]($run_url) of commit \`${head_sha:0:12}\`; nothing to launch." >> "$GITHUB_STEP_SUMMARY"
+                break
+              fi
+            done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?status=success&per_page=100" \
+              --jq '.workflow_runs[] | "\(.head_sha) \(.html_url)"' 2>/dev/null | awk '!seen[$1]++')
+          else
+            echo "::warning::could not read the tree of $GITHUB_SHA; running every combination"
+          fi
+          if [ "$tested" = false ]; then
+            echo "Tree ${tree:-?} has no successful run of $workflow; launching every combination."
+          fi
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
   discover:
     name: Discover and plan the launcher combinations
+    needs: tested-tree
+    # Skipped only when the gate above found the tree tested; on a pull
+    # request or the weekly run the gate itself is skipped and this runs.
+    if: ${{ !cancelled() && needs.tested-tree.outputs.tested != 'true' }}
     # x86 rather than the -arm label: the launch jobs' base images are
-    # published for both, and the sticky disk keys below carry the
+    # published for both, and the sticky disk key below carries the
     # architecture, so switching is a label change that starts from an
-    # empty disk rather than a wrong-arch one.
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    # empty disk rather than a wrong-arch one. No daemon and no container
+    # runs here, only the planner and `peppy repo index`.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: read
@@ -300,22 +375,27 @@ jobs:
           # credential sitting in .git/config for every later step to inherit.
           persist-credentials: false
 
-      # The rebuildable caches (apptainer's pulled docker layers for every
-      # node base image, uv's wheels and interpreters) outlive the run on a
-      # Blacksmith sticky disk: they are what makes a warm run cheap, and
-      # the runner's own disk is discarded with the job. Every run mounts a
-      # clone of the disk's last committed snapshot, so nothing stored here
-      # may be state one run depends on another having written — only
-      # caches apptainer and uv can rebuild from scratch. The key carries
-      # the combination and the architecture: the matrix jobs of a push to
-      # main commit in parallel and must not race on one disk, and the
-      # layers are built for the host that pulled them.
+      # The rebuildable caches outlive the run on a Blacksmith sticky disk:
+      # apptainer's pulled docker layers for every node base image, uv's
+      # wheels and interpreters, and the two caches the daemon keeps under
+      # its data root, handed to it below. Every run mounts a clone of the
+      # disk's last committed snapshot, so nothing stored here may be state
+      # one run depends on another having written — only caches apptainer,
+      # uv and the daemon rebuild from scratch. One key for every
+      # combination: the images a combination launches are the images its
+      # siblings launch, so one snapshot serves them all, and concurrent
+      # commits of one key resolve to the last committer, whose clone holds
+      # the previous snapshot plus its own builds. The key carries the
+      # architecture because the layers and images are built for the host
+      # that built them. A job commits only when it changed the disk, and
+      # never from a fork's pull request: what every later run builds on is
+      # written by this repository alone.
       - name: Mount the caches
         uses: useblacksmith/stickydisk@35ba2e331a80056a42af053ee54968511de2b7c7 # v1.5.0
         with:
-          key: ${{ github.repository }}-launch-${{ runner.arch }}-${{ matrix.combo.key }}
+          key: ${{ github.repository }}-launch-${{ runner.arch }}
           path: ~/.cache/launchers-hub-ci
-          commit: ${{ github.event_name == 'push' }}
+          commit: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'on-change' || 'false' }}
 
       # The path the disk is mounted at, and the apptainer cache on it: the
       # daemon this job boots inherits the environment, so every node image
@@ -474,11 +554,23 @@ jobs:
       # at the run's directory is discovery and isolation from any other
       # daemon in one. The name carries the run id because core-node names
       # must be unique among daemons that can reach each other.
+      #
+      # Two directories of the data root are the sticky disk's, linked in
+      # before the daemon creates them: `built_nodes`, the build artifact
+      # cache where a launch finds the image of a node whose staged sources
+      # it already built, and `cache/container_build`, the crates.io
+      # registry and sccache the daemon bind mounts into every Rust node's
+      # image build. Both are keyed by content (the artifact by the staged
+      # tree's fingerprint, sccache by the compiler invocation), so a
+      # snapshot another job committed is always either a hit for the same
+      # bytes or a miss.
       - name: Start an isolated peppy daemon
         run: |
           set -euo pipefail
           PEPPY_HOME="$RUNNER_TEMP/peppy-home"
-          mkdir -p "$PEPPY_HOME"
+          mkdir -p "$PEPPY_HOME/cache" "$CI_CACHE_DIR/built_nodes" "$CI_CACHE_DIR/container_build"
+          ln -s "$CI_CACHE_DIR/built_nodes" "$PEPPY_HOME/built_nodes"
+          ln -s "$CI_CACHE_DIR/container_build" "$PEPPY_HOME/cache/container_build"
           PEPPY_MESSAGING_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
           {
             echo "PEPPY_HOME=$PEPPY_HOME"
@@ -532,6 +624,11 @@ jobs:
       # stuck build is the job's own timeout, not a mid-build abort that
       # names no culprit.
       #
+      # The weekly run passes `--rebuild`: every node builds from its staged
+      # sources even when the artifact cache holds its fingerprint, which is
+      # how a def's floating base image tag, outside the fingerprint, reaches
+      # the images the cache serves for the week after.
+      #
       # The combination's fields reach the shell through the environment
       # rather than `${{ }}` expansions: their values are data the shell
       # reads instead of source the shell parses.
@@ -544,11 +641,13 @@ jobs:
           JOIN_NAME: ${{ matrix.combo.join_name }}
           JOIN_WORDS: ${{ matrix.combo.join_words }}
           LOCAL: ${{ matrix.combo.local }}
+          REBUILD: ${{ github.event_name == 'schedule' }}
         run: |
           set -euo pipefail
           args=("$LAUNCHER")
           [ -n "$WORDS" ] && args+=("--with" "$WORDS")
           [ "$LOCAL" = "true" ] && args+=("--local")
+          [ "$REBUILD" = "true" ] && args+=("--rebuild")
           echo "Launching $LABEL: peppy stack launch ${args[*]}"
           peppy stack launch "${args[@]}" --node-build-idle-timeout-secs 900
           if [ -n "$JOIN_OPTION" ]; then

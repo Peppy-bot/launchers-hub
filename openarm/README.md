@@ -5,12 +5,14 @@ physical robot over CAN, `openarm_v1_sim` and `openarm_v2_sim` relay a
 simulation's limbs. Every fragment selects the shared OpenArm control
 ([fragments/control_common.json5](fragments/control_common.json5)), the
 robot's initializer and backbone, and declares the robot's own axes: the
-robot commander, the recorder, and the camera rig. The repository's two
+robot commander, the recorder, and the camera rig. The repository's three
 launchers compose them: [fleet.json5](../fleet.json5) deploys nothing and
 takes any mix from the command line, physical robots placed on their
-machines, and [openarm_simulation.json5](openarm_simulation.json5) runs one
-simulation and simulated robots as copies, deploying `alpha`. A copy's ids carry
-its name:
+machines, [openarm_simulation.json5](openarm_simulation.json5) runs one
+simulation and simulated robots as copies, deploying `alpha`, and
+[../mcp/openarm_simulation_mcp.json5](../mcp/openarm_simulation_mcp.json5)
+runs Waldo and deploys `alpha` with the MCP simulation commander. A copy's
+ids carry its name:
 `alpha_backbone_inst`. See the [repository README](../Readme.md) for the
 option table, limits, and configuration ownership.
 
@@ -75,6 +77,24 @@ hardware generation.
 The MCP endpoint defaults to
 `http://127.0.0.1:8900/openarm_v2/v1/mcp`; `stack list` reports its endpoints.
 Recording requires the web or XR commander.
+
+A simulated v2 has a second MCP option, `mcp_sim_commander`
+([fragments/mcp_sim_commander.json5](fragments/mcp_sim_commander.json5)):
+the same robot endpoint on the same port, beside four endpoints a model
+uses to set the world up, the scene's objects (`scene_manipulation:v1`),
+its lighting (`scene_lighting:v1`), the robot's materials
+(`scene_materials:v1`) and the rendered cameras
+(`openarm_v2_sim_cameras:v1`). It requires the rendered rig, whose relays
+fill the camera targets, and Waldo, the one simulation implementing the
+lighting and materials contracts. A copy runs one MCP option or the other;
+`mcp_commander` stays the real robot's surface. The endpoints, the client
+setup and the move from simulation to the real robot are in the
+[MCP guide](../mcp/README.md):
+
+```sh
+peppy stack launch openarm_simulation_mcp
+peppy stack launch openarm_simulation --with alpha.robot_commander=mcp_sim_commander,alpha.camera_rig=cameras_sim
+```
 
 A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
 serving `item_perception` and `item_manipulation` over the backbone's
@@ -165,8 +185,15 @@ What a copy may change on the running simulation, and the simulation
 limits, are in the [repository README](../Readme.md#what-a-copy-can-change).
 
 Isaac Sim and Waldo declare a scene commander, selected at launch with
-`--with web_scene_commander`. It drives the simulation's `scene_control`
-contract and reads its `object_state` for the list of spawned objects.
+`--with web_scene_commander`. It drives the simulation's `scene_manipulation`
+contract and reads its `object_state` for the list of spawned objects. On
+Waldo its page also carries a lighting panel and a materials panel, bound
+to the engine's `scene_lighting` and `scene_materials`, and with a rendered
+rig running (`alpha.camera_rig=cameras_sim`, which needs a consumer such as
+`alpha.recorder=lerobot_recorder`) a camera panel listing the rig's relays
+with their device profiles; the relays forward their camera controls to
+Waldo's device models, and on MuJoCo and Isaac Sim, which have none, every
+camera control refuses.
 Waldo serves its HTTPS page on `viewer_port` (8080; accept the self-signed
 certificate once). The page carries the engine's 3D viewer of the running
 world, its `sim_inspector` plugin, and the "Start camera" panel, its
@@ -175,7 +202,7 @@ name, ahead of the robot's pairing while a hand is tracked. The fragment
 runs both plugins whatever the launch selects (`plugins:
 "hand_teleop,sim_inspector"`), so the viewer is on from the first launch
 of every launcher deploying Waldo, and the inspector answers the scene
-commander's `scene_control` and `object_state` calls. The viewer needs a
+commander's `scene_manipulation` and `object_state` calls. The viewer needs a
 browser with WebGPU and WebTransport (Chrome or Edge 119+) and streams
 over WebTransport on UDP `viewer_port` beside the HTTPS port, so both must
 reach the simulation's machine.
@@ -186,6 +213,7 @@ reach the simulation's machine.
 peppy stack resolve openarm_simulation --with mujoco
 peppy stack resolve fleet --join openarm_v1 --join-name bravo --join-with xr_commander
 peppy stack resolve fleet --with isaac_sim,web_scene_commander --join openarm_v2_sim --join-name alpha --join-with xr_commander
+peppy stack resolve openarm_simulation_mcp --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/openarm/initializer -sb
 peppy node add /path/to/ws/nodes-hub/openarm/sim_arm -sb
 peppy node add /path/to/ws/nodes-hub/openarm/sim_gripper -sb

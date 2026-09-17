@@ -120,12 +120,14 @@ class CombinationsTests(unittest.TestCase):
         # commander), each bare and joined by any robot under every
         # selection of its own axes: the v1 has no brain (3 times 2 times 2),
         # the v2 has one (3 times 2 times 2 times 2), the simulated v1 has
-        # neither camera rig nor brain (3 times 2), the simulated v2 has both,
-        # and the SO-101 has three commanders, a recorder and a camera rig.
-        # It deploys nothing, so it has no copy of its own to select for.
+        # neither camera rig nor brain (3 times 2), the simulated v2 has both
+        # and a fourth commander, the MCP simulation commander (4 times 2
+        # times 2 times 2), and the SO-101 has three commanders, a recorder
+        # and a camera rig. It deploys nothing, so it has no copy of its own
+        # to select for.
         fleet = combos("fleet")
         self.assertEqual(
-            len(fleet), 6 * (1 + 3 * 2 * 2 + 3 * 2 * 2 * 2 + 3 * 2 + 3 * 2 * 2 * 2 + 3 * 2 * 2)
+            len(fleet), 6 * (1 + 3 * 2 * 2 + 3 * 2 * 2 * 2 + 3 * 2 + 4 * 2 * 2 * 2 + 3 * 2 * 2)
         )
         self.assertIn(["combo", "fleet", "", "", "", "-"], fleet)
         self.assertIn(
@@ -137,9 +139,10 @@ class CombinationsTests(unittest.TestCase):
         # and Waldo each with and without their scene commander (5), each
         # bare, with every other selection of its deployed v2 copy's axes,
         # and joined by either simulated robot: the v1 has no camera rig and
-        # no brain (3 times 2), the v2 has both (3 times 2 times 2 times 2).
+        # no brain (3 times 2), the v2 has both and four commanders (4 times
+        # 2 times 2 times 2).
         sim = combos("openarm_simulation")
-        self.assertEqual(len(sim), 5 * (1 + (3 * 2 * 2 * 2 - 1) + 3 * 2 + 3 * 2 * 2 * 2))
+        self.assertEqual(len(sim), 5 * (1 + (4 * 2 * 2 * 2 - 1) + 3 * 2 + 4 * 2 * 2 * 2))
         self.assertIn(["combo", "openarm_simulation", "simulation=waldo,scene_commander=web_scene_commander", "", "", "-"], sim)
         self.assertIn(
             ["combo", "openarm_simulation", "simulation=mujoco,alpha.robot_commander=xr_commander,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim", "", "", "-"],
@@ -154,8 +157,48 @@ class CombinationsTests(unittest.TestCase):
             "openarm/fragments/openarm_v1_sim.json5",
             "openarm/fragments/openarm_v2_sim.json5",
             "openarm/fragments/cameras_sim.json5",
+            "openarm/fragments/mcp_sim_commander.json5",
             "robot_commanders/fragments/xr_commander.json5",
             "recording/fragments/lerobot_recorder.json5",
+            "simulation/fragments/waldo.json5",
+            "simulation/fragments/web_scene_commander.json5",
+        ]:
+            self.assertIn(reference, references)
+        # The openarm_simulation_mcp launcher: the same five stack selections
+        # (its simulation axis carries the three simulations the robot
+        # fragment's guards name, Waldo deployed), each bare, with every
+        # other selection of its deployed copy's axes (the copy runs the MCP
+        # simulation commander and the rendered rig, so that one selection
+        # is the bare launch), and joined by the simulated v2. The planner
+        # picks the launcher and the option up from the index and the
+        # fragments alone.
+        mcp = combos("openarm_simulation_mcp")
+        self.assertEqual(len(mcp), 5 * (1 + (4 * 2 * 2 * 2 - 1) + 4 * 2 * 2 * 2))
+        self.assertIn(["combo", "openarm_simulation_mcp", "simulation=waldo", "", "", "-"], mcp)
+        self.assertIn(
+            ["combo", "openarm_simulation_mcp", "simulation=waldo,scene_commander=web_scene_commander", "", "", "-"], mcp
+        )
+        self.assertIn(
+            ["combo", "openarm_simulation_mcp", "simulation=waldo,alpha.robot_commander=web_commander,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim", "", "", "-"],
+            mcp,
+        )
+        self.assertIn(
+            ["combo", "openarm_simulation_mcp", "simulation=waldo,alpha.robot_commander=mcp_sim_commander,alpha.camera_rig=cameras_sim,alpha.brain=ai_brain", "", "", "-"],
+            mcp,
+        )
+        self.assertNotIn(
+            ["combo", "openarm_simulation_mcp", "simulation=waldo,alpha.robot_commander=mcp_sim_commander,alpha.camera_rig=cameras_sim", "", "", "-"],
+            mcp,
+        )
+        self.assertIn(
+            ["combo", "openarm_simulation_mcp", "simulation=waldo", "openarm_v2_sim", "robot_commander=mcp_sim_commander,camera_rig=cameras_sim", "-"],
+            mcp,
+        )
+        references = next(line for line in lines if line.startswith("launcher\topenarm_simulation_mcp\t"))
+        for reference in [
+            "openarm/fragments/openarm_v2_sim.json5",
+            "openarm/fragments/mcp_sim_commander.json5",
+            "openarm/fragments/cameras_sim.json5",
             "simulation/fragments/waldo.json5",
             "simulation/fragments/web_scene_commander.json5",
         ]:
@@ -338,7 +381,7 @@ class CombinationsTests(unittest.TestCase):
         # Waldo rather than behind the scene commander selection; no
         # adjustment of the fragment or of a launcher touches `plugins`.
         root = Path(__file__).resolve().parents[2]
-        for launcher in ["openarm/openarm_simulation.json5", "fleet.json5"]:
+        for launcher in ["openarm/openarm_simulation.json5", "mcp/openarm_simulation_mcp.json5", "fleet.json5"]:
             document = combinations.load_json5(root / launcher, launcher)
             waldo = [adjustment["set_arguments"] for adjustment in document["adjustments"]
                      if adjustment.get("when") == {"simulation": "waldo"}]
@@ -348,12 +391,13 @@ class CombinationsTests(unittest.TestCase):
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
         self.assertEqual(
             waldo["deployments"][0]["instances"][0]["arguments"]["plugins"], "hand_teleop,sim_inspector")
-        self.assertEqual(waldo.get("adjustments", []), [])
+        for adjustment in waldo.get("adjustments", []):
+            self.assertNotIn("plugins", adjustment.get("set_arguments", {}))
 
     def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
         root = Path(__file__).resolve().parents[2]
         # Both simulations that declare the commander deploy it as
-        # simulation_inst, the instance its scene_control and object_state
+        # simulation_inst, the instance its scene_manipulation and object_state
         # links both name.
         for simulation in ["waldo", "isaac_sim"]:
             with self.subTest(simulation=simulation):
@@ -365,7 +409,167 @@ class CombinationsTests(unittest.TestCase):
         scene = combinations.load_json5(
             root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
         instance = scene["deployments"][0]["instances"][0]
-        self.assertEqual(instance["links"], {"simulation": "simulation_inst", "objects": "simulation_inst"})
+        self.assertEqual(instance["links"]["simulation"], "simulation_inst")
+        self.assertEqual(instance["links"]["objects"], "simulation_inst")
+
+    def test_the_scene_commander_binds_lighting_and_materials_on_waldo_alone(self):
+        root = Path(__file__).resolve().parents[2]
+        scene = combinations.load_json5(
+            root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
+        instance, = scene["deployments"][0]["instances"]
+        self.assertEqual(instance["instance_id"], "scene_commander_inst")
+        # The two optional slots are written vacant, with a reason, and the
+        # camera slots (zero_or_more) are left to the rendered rig; the
+        # panel's fragment binds nothing itself.
+        self.assertEqual(
+            set(instance["links"]), {"simulation", "objects", "lighting", "materials"})
+        for slot in ["lighting", "materials"]:
+            with self.subTest(slot=slot):
+                self.assertEqual(set(instance["links"][slot]), {"vacant"})
+                self.assertTrue(instance["links"][slot]["vacant"].strip())
+        self.assertNotIn("adjustments", scene)
+        # Waldo, the one simulation serving the two contracts, binds them from
+        # its own fragment without a guard: the adjustment runs exactly when
+        # Waldo is selected and is skipped when no scene commander is.
+        waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
+        self.assertIn({
+            "target": "scene_commander_inst",
+            "set_links": {"lighting": "simulation_inst", "materials": "simulation_inst"},
+        }, waldo["adjustments"])
+        for other in ["isaac_sim", "mujoco"]:
+            with self.subTest(simulation=other):
+                fragment = combinations.load_json5(root / f"simulation/fragments/{other}.json5", other)
+                self.assertNotIn("scene_commander_inst", [
+                    adjustment["target"] for adjustment in fragment.get("adjustments", [])])
+
+    def test_the_mcp_sim_commander_lists_five_exposures_and_binds_every_target(self):
+        root = Path(__file__).resolve().parents[2]
+        fragment = combinations.load_json5(
+            root / "openarm/fragments/mcp_sim_commander.json5", "mcp_sim_commander")
+        deployment, = fragment["deployments"]
+        self.assertEqual(deployment["source"], {"exposures": [
+            "openarm_v2:v1", "scene_manipulation:v1", "scene_lighting:v1",
+            "scene_materials:v1", "openarm_v2_sim_cameras:v1",
+        ]})
+        instance, = deployment["instances"]
+        self.assertEqual(instance["instance_id"], "commander_inst")
+        self.assertEqual(instance["arguments"], {"port": 8900})
+        # One link per target of the five exposures: the robot's two roles
+        # on the backbone, the three scene roles on the simulation, each
+        # camera and its profile on the relay that serves both.
+        self.assertEqual(instance["links"], {
+            "postures": "backbone_inst", "limb_motion": "backbone_inst",
+            "scene": "simulation_inst", "lighting": "simulation_inst", "materials": "simulation_inst",
+            "wrist_left": "wrist_left", "wrist_right": "wrist_right", "chest": "chest",
+            "wrist_left_profile": "wrist_left", "wrist_right_profile": "wrist_right",
+            "chest_profile": "chest",
+        })
+        # The backbone is vacated exactly as under the real robot's MCP
+        # commander, which stays as it is.
+        real = combinations.load_json5(root / "openarm/fragments/mcp_commander.json5", "mcp_commander")
+        self.assertEqual(fragment["adjustments"], real["adjustments"])
+        self.assertEqual(real["deployments"][0]["source"], {"exposures": ["openarm_v2:v1"]})
+        self.assertEqual(
+            real["deployments"][0]["instances"][0]["links"],
+            {"postures": "backbone_inst", "limb_motion": "backbone_inst"})
+
+    def test_the_simulated_v2_offers_the_mcp_sim_commander_under_its_constraints(self):
+        root = Path(__file__).resolve().parents[2]
+        robot = combinations.load_json5(root / "openarm/fragments/openarm_v2_sim.json5", "openarm_v2_sim")
+        commander = next(axis for axis in robot["components"] if axis["name"] == "robot_commander")
+        self.assertEqual(commander["options"]["mcp_sim_commander"], "mcp_sim_commander.json5")
+        self.assertEqual(commander["options"]["mcp_commander"], "mcp_commander.json5")
+        mcp = [c for c in robot["constraints"] if c.get("when") == {"robot_commander": "mcp_sim_commander"}]
+        self.assertEqual([c["requires"] for c in mcp], [[{"camera_rig": "cameras_sim"}], [{"simulation": "waldo"}]])
+        self.assertEqual([c["reason"] for c in mcp], [
+            "mcp_sim_commander serves the rendered cameras and its exposure list is fixed, "
+            "so the camera targets cannot be optional; select cameras_sim",
+            "mcp_sim_commander binds scene_lighting and scene_materials, which only waldo "
+            "implements; launch with waldo",
+        ])
+        # The rig's consumer rule admits the MCP simulation commander; the
+        # scene commander's axis is out of a robot fragment's reach, so the
+        # rule cannot name it.
+        rig, = [c for c in robot["constraints"] if c.get("when") == {"camera_rig": "cameras_sim"}]
+        self.assertEqual(rig["requires"], [
+            {"recorder": "lerobot_recorder"},
+            {"robot_commander": ["xr_commander", "mcp_sim_commander"]},
+        ])
+        self.assertEqual(
+            rig["reason"],
+            "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_sim_commander")
+        # No MCP option serves the physical rig, so the real robots' rule
+        # names the recorder and the headset alone.
+        for path in ["openarm/fragments/openarm_v2.json5", "openarm/fragments/openarm_v1.json5"]:
+            with self.subTest(path=path):
+                real = combinations.load_json5(root / path, path)
+                axes = {axis["name"]: axis for axis in real["components"]}
+                self.assertNotIn("mcp_sim_commander", axes["robot_commander"]["options"])
+                rule, = [c for c in real["constraints"] if c.get("when") == {"camera_rig": "cameras"}]
+                self.assertEqual(
+                    rule["requires"], [{"recorder": "lerobot_recorder"}, {"robot_commander": "xr_commander"}])
+
+    def test_the_rendered_rig_binds_camera_control_per_simulation_and_the_scene_panel(self):
+        root = Path(__file__).resolve().parents[2]
+        rig = combinations.load_json5(root / "openarm/fragments/cameras_sim.json5", "cameras_sim")
+        vacancy = {"vacant": "this simulation has no camera response model; every camera control refuses"}
+        relays = [instance for deployment in rig["deployments"] for instance in deployment["instances"]]
+        self.assertEqual([relay["instance_id"] for relay in relays], ["wrist_left", "wrist_right", "chest"])
+        # Each relay views its slot on the simulation and writes its control
+        # slot vacant; Waldo, the one simulation with a camera response
+        # model, binds it instead.
+        for relay in relays:
+            with self.subTest(relay=relay["instance_id"]):
+                self.assertEqual(relay["links"], {
+                    "simulation": f"simulation_inst/{relay['instance_id']}", "control": vacancy})
+        waldo = [a for a in rig["adjustments"] if a.get("when") == {"simulation": "waldo"}]
+        self.assertEqual(waldo, [
+            {"target": target, "when": {"simulation": "waldo"}, "set_links": {"control": "simulation_inst"}}
+            for target in ["wrist_left", "wrist_right", "chest"]
+        ])
+        # The browser scene commander's camera panel: the relays on the
+        # stack instance, and their profiles matched by instance.
+        panel, = [a for a in rig["adjustments"] if a["target"] == "scene_commander_inst"]
+        self.assertEqual(panel, {"target": "scene_commander_inst", "add_links": {
+            "color_cameras": ["wrist_left", "wrist_right"],
+            "rgbd_cameras": ["chest"],
+            "camera_profiles": ["wrist_left", "wrist_right", "chest"],
+        }})
+
+    def test_the_mcp_launcher_deploys_waldo_and_the_mcp_copy(self):
+        root = Path(__file__).resolve().parents[2]
+        path = "mcp/openarm_simulation_mcp.json5"
+        index = combinations.load_json5(root / "peppy_repository.json5", "index")
+        self.assertEqual(index["launchers"]["openarm_simulation_mcp"], {"path": path})
+        document = combinations.load_json5(root / path, path)
+        simulation = next(axis for axis in document["components"] if axis["name"] == "simulation")
+        # The robot fragment's guards name MuJoCo and Isaac Sim, and a guard
+        # naming an option the axis does not declare is refused when the
+        # launcher loads, so the axis carries all three; the file deploys
+        # Waldo and the fragment's own constraint refuses the MCP simulation
+        # commander under the other two.
+        self.assertEqual(simulation["cardinality"], "one")
+        self.assertEqual(list(simulation["options"]), ["mujoco", "isaac_sim", "waldo"])
+        self.assertEqual(simulation["options"]["waldo"], "../simulation/fragments/waldo.json5")
+        robot = next(axis for axis in document["components"] if axis["name"] == "robot")
+        self.assertEqual(robot["cardinality"], "zero_or_more")
+        self.assertEqual(robot["options"], {"openarm_v2_sim": "../openarm/fragments/openarm_v2_sim.json5"})
+        self.assertEqual(combinations.option_entries(document, path), {"simulation": "waldo", "robot": "openarm_v2_sim"})
+        launcher = combinations.read_launcher(root, path)
+        self.assertEqual(launcher.copies, [combinations.Copy(
+            "alpha", "robot", "openarm_v2_sim",
+            {"robot_commander": "mcp_sim_commander", "camera_rig": "cameras_sim"})])
+        self.assertEqual(document["adjustments"], [{
+            "target": "simulation_inst", "when": {"simulation": "waldo"},
+            "set_arguments": {"world": "openarm_v2"}}])
+        # The copy's axes are in the planner's reach: every state of the
+        # commander, recorder, rig and brain, minus the one the file runs.
+        found = combinations.launcher_selections(launcher.axes, launcher.copies)
+        deployed = [combinations.render_words(c.words) for c in found
+                    if c.join_option is None and c.words[0] == ("simulation", "waldo")]
+        self.assertEqual(len(deployed), 2 * (1 + 4 * 2 * 2 * 2 - 1))
+        self.assertIn("simulation=waldo,alpha.robot_commander=xr_commander,alpha.camera_rig=cameras_sim", deployed)
+        self.assertNotIn("simulation=waldo,alpha.robot_commander=mcp_sim_commander,alpha.camera_rig=cameras_sim", deployed)
 
     def test_an_option_entry_may_carry_settings_shared_by_its_copies(self):
         with tempfile.TemporaryDirectory() as directory:

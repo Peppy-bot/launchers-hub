@@ -1,7 +1,7 @@
 // The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
 // default) with a self-signed certificate: the engine's 3D viewer of the
 // running world, streamed over WebTransport on UDP viewer_port, and the hand
-// teleop panel, both on from the first launch. Its scene_control and
+// teleop panel, both on from the first launch. Its scene_manipulation and
 // object_state contracts take a scene commander. The launcher sets the world
 // when it selects this simulation: hand_teleop reads the plugins.hand_teleop
 // block the openarm_v2 world carries.
@@ -23,7 +23,7 @@
         // the comma-separated list of engine plugins to run, and both run
         // whatever else the launch selects. sim_inspector serves the
         // engine's 3D viewer on the HTTPS page (without it the page is
-        // blank) and answers the scene_control and object_state calls of
+        // blank) and answers the scene_manipulation and object_state calls of
         // the scene commander; hand_teleop is the page's "Start camera"
         // panel, which tracks the operator's hands on the webcam and drives
         // the arm of the same name ahead of the robot's pairing while a
@@ -49,5 +49,13 @@
       name: "scene_commander", cardinality: "zero_or_one",
       options: { web_scene_commander: "web_scene_commander.json5" },
     },
+  ],
+
+  adjustments: [
+    // Waldo serves scene_lighting and scene_materials on the same instance
+    // as its scene, so the scene commander's two optional slots bind to it
+    // here; the adjustment is skipped when no scene commander is selected.
+    { target: "scene_commander_inst",
+      set_links: { lighting: "simulation_inst", materials: "simulation_inst" } },
   ],
 }

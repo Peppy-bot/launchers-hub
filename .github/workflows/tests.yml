@@ -38,23 +38,38 @@ name: Tests
 # use, boot an isolated daemon. Node and contract sources keep resolving
 # through the bundled hub repositories at their latest main, which is the
 # point: a launcher must keep launching against the nodes and contracts
-# actually published. The runners are ephemeral Blacksmith VMs, so the
-# rebuildable caches live on a sticky disk per launcher, mounted by every
-# launch job of that launcher: apptainer's pulled layers, uv's wheels and
-# interpreters, the daemon's container build cache (the crates.io registry
-# and sccache the Rust nodes compile through), and the daemon's build
-# artifact cache, where every built node image sits under the fingerprint
-# of the staged sources it was built from (the node's tree, its def, its
-# generated code and the peppy version). A launch reuses an image whose
-# fingerprint it finds and builds the rest, so a job rebuilds exactly the
-# nodes whose sources moved since the disk was last committed. Every job
-# mounts its own clone of the disk's last snapshot and a commit replaces
-# that snapshot whole, so one job per launcher commits: the planner names
-# the launchable combination deploying the most nodes as the launcher's
-# cache writer, and after its own launch that job builds the images its
-# siblings deploy and it does not, so the snapshot it commits holds every
-# image the launcher's matrix needs. It commits only when the disk changed
-# and only from this repository; a fork's pull request reads.
+# actually published. The runner is self-hosted and reused, so the
+# rebuildable caches simply outlive the job in one directory every launch
+# job shares: apptainer's pulled layers, uv's wheels and interpreters, the
+# daemon's container build cache (the crates.io registry and sccache the
+# Rust nodes compile through), and the daemon's build artifact cache, where
+# every built node image sits under the fingerprint of the staged sources it
+# was built from (the node's tree, its def, its generated code and the peppy
+# version). A launch reuses an image whose fingerprint it finds and builds
+# the rest, so a job rebuilds exactly the nodes whose sources moved since
+# some earlier job built them. Nothing mounts, clones or commits the
+# directory: it is live, so a job reads what the job before it left and
+# every job writes into what later runs build on. Nothing kept there may
+# therefore be state one run depends on another having written — only what
+# apptainer, uv and the daemon rebuild from scratch, all of it keyed by
+# content, so an entry is either a hit for the same bytes or a miss. The
+# runner executes one job at a time, so the matrix below queues rather than
+# running in parallel and concurrent writers are not a concern; a second
+# runner would make this directory shared mutable state and is a reason to
+# revisit it.
+#
+# Every job runs on that runner, except on a pull request from a fork: fork
+# code must not run on a box that persists between jobs and holds every
+# repository's build caches, so those runs go to a GitHub-hosted runner,
+# which neither reads nor writes the cache and so launches everything cold.
+# `github.event.pull_request.head.repo.fork` is null on push, which the
+# expression reads as false.
+#
+# The planner still names one combination per launcher its cache writer (the
+# launchable one deploying the most nodes): after its own launch that job
+# builds the images its siblings deploy and it does not, which concentrates
+# a cold launcher's image builds in one job instead of spreading them over
+# the siblings that happen to run first.
 #
 # A push to main runs only when its tree was never tested: a merge whose
 # result is exactly the pull request's tested tree (the branch was up to
@@ -87,7 +102,7 @@ jobs:
   tested-tree:
     name: Check whether this tree was already tested
     if: github.event_name == 'push'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -136,12 +151,12 @@ jobs:
     # Skipped only when the gate above found the tree tested; on a pull
     # request or the weekly run the gate itself is skipped and this runs.
     if: ${{ !cancelled() && needs.tested-tree.outputs.tested != 'true' }}
-    # x86 rather than the -arm label: the launch jobs' base images are
-    # published for both, and the sticky disk key below carries the
-    # architecture, so switching is a label change that starts from an
-    # empty disk rather than a wrong-arch one. No daemon and no container
-    # runs here, only the planner and `peppy repo index`.
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # The self-hosted runner is x86, and the cache directory below carries
+    # the architecture, so moving this repository onto an arm runner starts
+    # from an empty cache rather than a wrong-arch one. The launch jobs' base
+    # images are published for both. No daemon and no container runs here,
+    # only the planner and `peppy repo index`.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -363,11 +378,11 @@ jobs:
       fail-fast: false
       matrix:
         combo: ${{ fromJSON(needs.discover.outputs.matrix) }}
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     # A cold launch of the heaviest combination pulls the mujoco simulation
     # image, compiles the openarm Rust nodes, and resolves the lerobot
-    # recorder's tree (torch included) inside its image build; the sticky
-    # disk below keeps warm runs far under this.
+    # recorder's tree (torch included) inside its image build; the shared
+    # cache below keeps warm runs far under this.
     timeout-minutes: 90
     permissions:
       contents: read
@@ -381,35 +396,25 @@ jobs:
           # credential sitting in .git/config for every later step to inherit.
           persist-credentials: false
 
-      # The rebuildable caches outlive the run on a Blacksmith sticky disk:
-      # apptainer's pulled docker layers for every node base image, uv's
-      # wheels and interpreters, and the two caches the daemon keeps under
-      # its data root, handed to it below. Every run mounts a clone of the
-      # disk's last committed snapshot, so nothing stored here may be state
-      # one run depends on another having written — only caches apptainer,
-      # uv and the daemon rebuild from scratch. One key per launcher: the
-      # images its combinations launch are largely the same images, so one
-      # snapshot serves them all. A commit replaces the snapshot whole, so
-      # only the launcher's cache writer (named by the planner, see the
-      # step after the launch) commits, and only when it changed the disk
-      # and comes from this repository: what every later run builds on is
-      # written by one job of this repository at a time, never by a fork's
-      # pull request. The key carries the architecture because the layers
-      # and images are built for the host that built them.
-      - name: Mount the caches
-        uses: useblacksmith/stickydisk@35ba2e331a80056a42af053ee54968511de2b7c7 # v1.5.0
-        with:
-          key: ${{ github.repository }}-launch-${{ runner.arch }}-${{ matrix.combo.launcher }}
-          path: ~/.cache/launchers-hub-ci
-          commit: ${{ matrix.combo.cache_writer && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'on-change' || 'false' }}
-
-      # The path the disk is mounted at, and the apptainer cache on it: the
-      # daemon this job boots inherits the environment, so every node image
-      # it builds pulls its base layers through (and into) the cache.
+      # The rebuildable caches outlive the run in a directory on the
+      # self-hosted runner: apptainer's pulled docker layers for every node
+      # base image, uv's wheels and interpreters, and the two caches the
+      # daemon keeps under its data root, handed to it below. Nothing mounts
+      # or uploads it — the box is reused, so the directory is simply still
+      # there. Every launcher shares one directory rather than holding a key
+      # of its own, which the disk snapshots used to require: the images the
+      # combinations launch are largely the same images, and a live directory
+      # lets whichever job builds one first serve all the others. The name
+      # carries the architecture because the layers and images are built for
+      # the host that built them.
+      #
+      # The apptainer cache is named too: the daemon this job boots inherits
+      # the environment, so every node image it builds pulls its base layers
+      # through (and into) the cache.
       - name: Name the caches this run reuses
         run: |
-          echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci" >> "$GITHUB_ENV"
-          echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci/apptainer-cache" >> "$GITHUB_ENV"
+          echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH" >> "$GITHUB_ENV"
+          echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH/apptainer-cache" >> "$GITHUB_ENV"
 
       # Installed by extracting the release under RUNNER_TEMP rather than
       # through scripts/install.sh: nothing here wants a ~/.peppy, and the
@@ -465,7 +470,7 @@ jobs:
       # of that install's `starter` binary. The VM is fresh, so every run
       # readies the install it just extracted: `peppy container setup` applies
       # whatever its fix script needs through sudo when stdin is not a
-      # terminal, and rechecks before exiting 0. Today's Blacksmith image
+      # terminal, and rechecks before exiting 0. Today's self-hosted runner
       # mounts no AppArmor securityfs, so it needs nothing; the step is what
       # keeps that an observation rather than an assumption.
       #
@@ -495,7 +500,7 @@ jobs:
       # runner image ships none, so it lands here, on the PATH the daemon
       # is about to inherit, before the daemon boots. The standalone
       # installer needs no root and touches only ~/.local/bin; uv's cache
-      # and its downloaded interpreters go to the sticky disk so a warm run
+      # and its downloaded interpreters go to the shared cache so a warm run
       # resolves a wheel or a Python it already has instead of fetching it.
       - name: Install uv for the daemon's host-side build commands
         run: |
@@ -561,15 +566,15 @@ jobs:
       # daemon in one. The name carries the run id because core-node names
       # must be unique among daemons that can reach each other.
       #
-      # Two directories of the data root are the sticky disk's, linked in
+      # Two directories of the data root are the shared cache's, linked in
       # before the daemon creates them: `built_nodes`, the build artifact
       # cache where a launch finds the image of a node whose staged sources
       # it already built, and `cache/container_build`, the crates.io
       # registry and sccache the daemon bind mounts into every Rust node's
       # image build. Both are keyed by content (the artifact by the staged
-      # tree's fingerprint, sccache by the compiler invocation), so a
-      # snapshot another job committed is always either a hit for the same
-      # bytes or a miss.
+      # tree's fingerprint, sccache by the compiler invocation), so what
+      # another job left there is always either a hit for the same bytes or
+      # a miss.
       - name: Start an isolated peppy daemon
         run: |
           set -euo pipefail

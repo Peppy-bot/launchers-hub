@@ -15,12 +15,12 @@
           arguments: {
             hardware_version: "v2",
             command_rate_hz: 100,
-            // A squeeze to a fifth of the travel engages that arm, the depth
-            // enactic's follower waits for.
+            // An arm engages once its trigger is squeezed down to a fifth
+            // open, deep enough that a hand resting on the trigger cannot
+            // start motion.
             engage_opening: 0.2,
-            // OpenArm's released trigger rests at half travel, as under the
-            // headset (control_common.json5); fully opening splays the
-            // fingers nearly flat.
+            // A released trigger rests at half open; see control_common.json5,
+            // which sets the same travel for the headset.
             gripper_open_fraction: 0.5,
           },
           links: {

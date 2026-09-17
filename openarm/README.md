@@ -96,8 +96,8 @@ fixed and every target takes a link, so it requires the robot's rig,
 rig counts it among its consumers. No simulation renders a rig on v1 links,
 so a simulated v1 does not offer it; a physical v1 does, with `cameras`.
 
-The KER leader, v2 only, streams joint setpoints from enactic's motorless
-leader arm.
+The KER leader, on the v2 robots (physical or simulated), streams joint
+setpoints from enactic's motorless leader arm.
 
 The MCP endpoint defaults to
 `http://127.0.0.1:8900/openarm_v2/v1/mcp`; the launch prints every exposure's
@@ -139,13 +139,20 @@ B moves ready, and either grip cancels a posture move. With recording selected,
 X starts or saves an episode; holding Y for one second finishes the session.
 Set the demonstration task at `https://<host>:4443/task` before recording.
 
-For the KER, install the udev rule from the `openarm_ker` README and zero the
-KER on its calibration jig first. A released trigger holds its gripper half
-open and a full squeeze closes it. Squeeze an arm's trigger to engage that arm;
-from then on the arm and its gripper track the KER until the KER disconnects
-or its frames stop, which holds both arms until the next squeeze. The node
-reads firmware 2.x's fixed channel layout, so a unit needs no per-unit wiring
-arguments.
+For the KER, install [the KER udev rule](rules/60-openarm-ker.rules),
+following its header, and zero the KER on its calibration jig first (the
+`openarm_ker` README has that procedure). Squeeze an arm's trigger down to a
+fifth open, near shut, to engage that arm; from then on the arm and its
+gripper track the KER. The same lever drives the gripper, so a released
+trigger holds that gripper half open, a full squeeze closes it, and an arm
+engages with its gripper near shut. Unplugging the KER holds both arms; after
+that, release a trigger and squeeze it again to re-engage. The node reads
+firmware 2.x's fixed channel layout, so any 2.x unit runs on the arguments in
+the fragment.
+
+The KER replaces the browser panel, so a KER session has no alerts or
+motor-health readout and no recording, and the governor keeps the backbone's
+launch-time band and caps.
 
 For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:
@@ -201,7 +208,8 @@ The `robot` axis offers every simulated robot, so an SO-101
 peppy stack launch openarm_simulation --with isaac_sim
 peppy stack join openarm_v2_sim -i bravo --with xr_commander
 peppy stack join openarm_v1_sim -i charlie
-peppy stack join so101_sim -i charlo                  # an SO-101 beside the OpenArm alpha
+peppy stack join so101_sim -i charlo                           # an SO-101 beside the OpenArm alpha
+peppy stack join openarm_v2_sim -i delta --with ker_commander  # the KER against a simulated follower
 peppy stack remove bravo
 ```
 
@@ -299,6 +307,9 @@ Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and lau
 
 **The headset shows the page but "Enter VR" is missing**
 WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open one of the https URLs the launch printed under `Web pages:` (`peppy stack list` shows them again). Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
+
+**The KER is plugged in but neither arm moves**
+Squeeze a trigger down to a fifth open: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up and the squeeze was too shallow. A repeating "connection lost (open: ...)" names the cause: an attached-but-unopenable device needs the udev rule, and no device at all means the KER is unplugged or in its CDC mode, which `lsusb -d 303a:` tells apart. After a stall or a reconnect, a trigger that was never released stays disengaged by design: release it and squeeze again.
 
 **The headset is connected but neither arm moves**
 Hold a grip button: it is the deadman, per hand, and with it released the node publishes nothing at all so the arms hold. If holding it does nothing, check the backbone's startup log line for which upstream mode it is following: a `"joints"` backbone reads only the panel's joint slots and a `"pose"` backbone only the headset's pose slots. A leader wired to the off-mode slots never reaches launch, so what remains is a leader that is publishing nothing: check the headset link and the grip in the node's status panel.

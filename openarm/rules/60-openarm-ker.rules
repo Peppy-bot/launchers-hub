@@ -1,0 +1,23 @@
+# The OpenArm KER leader arm (enactic), an M5Stack CoreS3 on USB.
+#
+# Vendor mode is what openarm_ker reads by default; the CDC device is what
+# transport "serial" reads, and what flashing the firmware uses.
+#
+# Install:
+#   sudo cp 60-openarm-ker.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   then replug the KER
+#
+# Verify:
+#   lsusb -d 303a:            # the KER, in one mode or the other
+#   ls -l /dev/openarm/ker    # present only in serial mode
+#
+# Keep the 60- prefix and the TAG+="uaccess" on every matcher: the tag must
+# sort before systemd's 73-seat-late.rules to grant the seat user the ACL,
+# and without it the node cannot open the device it just found.
+
+# Vendor mode: openarm_ker claims the bulk interface directly.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", TAG+="uaccess"
+
+# CDC serial mode, under a stable name for the node's device_path argument.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", TAG+="uaccess", SYMLINK+="openarm/ker"

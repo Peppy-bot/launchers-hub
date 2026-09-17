@@ -41,7 +41,7 @@
   },
   {
     node: "openarm_ker",
-    reason: "reads the physical KER leader arm over USB (M5Stack CoreS3); the runner has none",
+    reason: "reads the real KER leader arm over USB (M5Stack CoreS3); the runner has none",
   },
   {
     node: "sim_isaac",

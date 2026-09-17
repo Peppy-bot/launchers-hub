@@ -24,23 +24,34 @@ def fleet_axes():
     ]
 
 
+def resolved_plan(*nodes):
+    """What `stack resolve` prints for a launcher deploying `nodes`, each a
+    `name:tag`."""
+    deployments = [
+        {"source": {"name": name, "tag": tag}} for name, tag in (node.split(":") for node in nodes)
+    ]
+    return combinations.subprocess.CompletedProcess([], 0, json.dumps({"deployments": deployments}), "")
+
+
 @contextlib.contextmanager
-def planned(combo_line):
-    """One combo line planned against a one-launcher repository, with
-    `stack resolve` answering an empty plan: the recorded subprocess call
-    and the matrix the plan wrote."""
+def planned(combo_lines, plans=None, launchers=("fleet",)):
+    """Combo lines planned against a repository of the named launchers, with
+    `stack resolve` answering `plans` in order (an empty plan for every
+    combination when none are given): the recorded subprocess call and the
+    matrix the plan wrote."""
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         (root / "peppy_repository.json5").write_text(json.dumps({
-            "launchers": {"fleet": {"path": "fleet.json5"}},
+            "launchers": {name: {"path": f"{name}.json5"} for name in launchers},
         }))
         combos = root / "combos.tsv"
-        combos.write_text(combo_line)
+        combos.write_text(combo_lines)
         skips = root / "skips.json5"
         skips.write_text("[]")
         matrix = root / "matrix.json"
-        response = combinations.subprocess.CompletedProcess([], 0, '{"deployments": []}', "")
-        with patch.object(combinations.subprocess, "run", return_value=response) as run:
+        if plans is None:
+            plans = [resolved_plan()] * combo_lines.count("\n")
+        with patch.object(combinations.subprocess, "run", side_effect=plans) as run:
             combinations.command_plan(root, combos, skips, matrix)
         yield run, json.loads(matrix.read_text())
 
@@ -267,6 +278,43 @@ class CombinationsTests(unittest.TestCase):
             self.assertEqual(entry["join_name"], combinations.COPY_NAME)
             self.assertEqual(entry["join_words"], "robot_commander=xr_commander")
             self.assertEqual(entry["label"], "fleet (simulation=mujoco) + join openarm_v2 (robot_commander=xr_commander)")
+
+    def test_the_launcher_deploying_the_most_nodes_commits_its_cache_and_builds_the_rest(self):
+        lines = (
+            "combo\tfleet\tsimulation=mujoco\t\t\t-\n"
+            "combo\tfleet\tsimulation=waldo\topenarm_v2\trecorder=lerobot_recorder\t-\n"
+            "combo\tfleet\tsimulation=waldo\topenarm_v2\tbrain=ai_brain\t-\n"
+        )
+        plans = [
+            resolved_plan("openarm_sim_mujoco:v1", "openarm_backbone:v1"),
+            resolved_plan("waldo:v1", "openarm_backbone:v1", "lerobot_recorder:v1"),
+            resolved_plan("waldo:v1", "openarm_backbone:v1", "openarm_ai_brain:v1"),
+        ]
+        with planned(lines, plans) as (_, matrix):
+            self.assertEqual([entry["cache_writer"] for entry in matrix], [False, True, False])
+            # The writer deploys three nodes, as does the third combination;
+            # the first of the two wins, and builds what its siblings deploy
+            # and it does not, sorted by name.
+            self.assertEqual(matrix[1]["extra_nodes"], "openarm_ai_brain:v1 openarm_sim_mujoco:v1")
+            self.assertEqual([entry["extra_nodes"] for entry in matrix if not entry["cache_writer"]], ["", ""])
+
+    def test_every_launcher_names_a_cache_writer_of_its_own(self):
+        lines = (
+            "combo\tfleet\tsimulation=mujoco\t\t\t-\n"
+            "combo\trust_robot\t\t\t\t-\n"
+        )
+        plans = [
+            resolved_plan("openarm_sim_mujoco:v1"),
+            resolved_plan("my_rust_robot_arm:v1", "my_rust_robot_brain:v1"),
+        ]
+        with planned(lines, plans, launchers=("fleet", "rust_robot")) as (_, matrix):
+            self.assertEqual([(entry["launcher"], entry["cache_writer"]) for entry in matrix],
+                             [("fleet", True), ("rust_robot", True)])
+            self.assertEqual([entry["extra_nodes"] for entry in matrix], ["", ""])
+
+    def test_an_untagged_node_is_named_bare(self):
+        self.assertEqual(combinations.node_item("waldo", "v1"), "waldo:v1")
+        self.assertEqual(combinations.node_item("waldo", ""), "waldo")
 
     def test_plan_previews_a_deployed_copys_launch_words_without_a_join(self):
         words = "simulation=mujoco,alpha.camera_rig=cameras_sim,alpha.recorder=lerobot_recorder"

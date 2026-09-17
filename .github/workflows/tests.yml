@@ -39,19 +39,22 @@ name: Tests
 # through the bundled hub repositories at their latest main, which is the
 # point: a launcher must keep launching against the nodes and contracts
 # actually published. The runners are ephemeral Blacksmith VMs, so the
-# rebuildable caches live on one sticky disk shared by every launch job:
-# apptainer's pulled layers, uv's wheels and interpreters, the daemon's
-# container build cache (the crates.io registry and sccache the Rust
-# nodes compile through), and the daemon's build artifact cache, where
-# every built node image sits under the fingerprint of the staged sources
-# it was built from (the node's tree, its def, its generated code and the
-# peppy version). A launch reuses an image whose fingerprint it finds and
-# builds the rest, so a job rebuilds exactly the nodes whose sources moved
-# since the last commit of the disk. Every job mounts its own clone of the
-# disk's last snapshot; a job that built something commits its clone when
-# it comes from this repository (a fork's pull request only reads), and the
-# last committer of concurrent jobs wins, so the snapshot grows by one
-# job's builds at a time until it holds every image the matrix launches.
+# rebuildable caches live on a sticky disk per launcher, mounted by every
+# launch job of that launcher: apptainer's pulled layers, uv's wheels and
+# interpreters, the daemon's container build cache (the crates.io registry
+# and sccache the Rust nodes compile through), and the daemon's build
+# artifact cache, where every built node image sits under the fingerprint
+# of the staged sources it was built from (the node's tree, its def, its
+# generated code and the peppy version). A launch reuses an image whose
+# fingerprint it finds and builds the rest, so a job rebuilds exactly the
+# nodes whose sources moved since the disk was last committed. Every job
+# mounts its own clone of the disk's last snapshot and a commit replaces
+# that snapshot whole, so one job per launcher commits: the planner names
+# the launchable combination deploying the most nodes as the launcher's
+# cache writer, and after its own launch that job builds the images its
+# siblings deploy and it does not, so the snapshot it commits holds every
+# image the launcher's matrix needs. It commits only when the disk changed
+# and only from this repository; a fork's pull request reads.
 #
 # A push to main runs only when its tree was never tested: a merge whose
 # result is exactly the pull request's tested tree (the branch was up to
@@ -384,21 +387,21 @@ jobs:
       # its data root, handed to it below. Every run mounts a clone of the
       # disk's last committed snapshot, so nothing stored here may be state
       # one run depends on another having written — only caches apptainer,
-      # uv and the daemon rebuild from scratch. One key for every
-      # combination: the images a combination launches are the images its
-      # siblings launch, so one snapshot serves them all, and concurrent
-      # commits of one key resolve to the last committer, whose clone holds
-      # the previous snapshot plus its own builds. The key carries the
-      # architecture because the layers and images are built for the host
-      # that built them. A job commits only when it changed the disk, and
-      # never from a fork's pull request: what every later run builds on is
-      # written by this repository alone.
+      # uv and the daemon rebuild from scratch. One key per launcher: the
+      # images its combinations launch are largely the same images, so one
+      # snapshot serves them all. A commit replaces the snapshot whole, so
+      # only the launcher's cache writer (named by the planner, see the
+      # step after the launch) commits, and only when it changed the disk
+      # and comes from this repository: what every later run builds on is
+      # written by one job of this repository at a time, never by a fork's
+      # pull request. The key carries the architecture because the layers
+      # and images are built for the host that built them.
       - name: Mount the caches
         uses: useblacksmith/stickydisk@35ba2e331a80056a42af053ee54968511de2b7c7 # v1.5.0
         with:
-          key: ${{ github.repository }}-launch-${{ runner.arch }}
+          key: ${{ github.repository }}-launch-${{ runner.arch }}-${{ matrix.combo.launcher }}
           path: ~/.cache/launchers-hub-ci
-          commit: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'on-change' || 'false' }}
+          commit: ${{ matrix.combo.cache_writer && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'on-change' || 'false' }}
 
       # The path the disk is mounted at, and the apptainer cache on it: the
       # daemon this job boots inherits the environment, so every node image
@@ -669,3 +672,26 @@ jobs:
           fi
           peppy stack list
           peppy stack reset
+
+      # The launcher's cache writer alone reaches this step: it builds the
+      # images of the nodes its siblings deploy and it did not launch, so
+      # the snapshot it commits holds every image the launcher's matrix
+      # needs. `node add` stages each node from the registered repositories
+      # and `node build` builds it, or reuses the artifact the disk already
+      # holds for that node's fingerprint; nothing is run. The weekly run
+      # passes `--rebuild` here as the launch does. The list comes from the
+      # planner through the environment, data the shell reads.
+      - name: Build the images the launcher's other combinations deploy
+        if: matrix.combo.cache_writer && matrix.combo.extra_nodes != ''
+        env:
+          EXTRA_NODES: ${{ matrix.combo.extra_nodes }}
+          REBUILD: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -euo pipefail
+          for node in $EXTRA_NODES; do
+            build=("$node")
+            [ "$REBUILD" = "true" ] && build+=("--rebuild")
+            echo "Building $node: peppy node add $node && peppy node build ${build[*]}"
+            peppy node add "$node"
+            peppy node build "${build[@]}"
+          done

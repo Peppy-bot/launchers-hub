@@ -66,7 +66,7 @@ discovery and host setup.
 | Axis | Declared by | Options |
 |---|---|---|
 | `simulation` | `openarm_simulation.json5` (`one`) and `fleet.json5` (`zero_or_one`) | `waldo` (deployed by `openarm_simulation.json5`), `mujoco`, `isaac_sim` |
-| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also serves the engine's 3D viewer |
+| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects |
 | `robot` | both launchers | `openarm_v1_sim`, `openarm_v2_sim` in `openarm_simulation.json5`; those, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
 | `control` | the robot | `control_common` (deployed): the shared initializer and backbone |
 | `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, `mcp_commander` |

@@ -168,15 +168,17 @@ Isaac Sim and Waldo declare a scene commander, selected at launch with
 `--with web_scene_commander`. It drives the simulation's `scene_control`
 contract and reads its `object_state` for the list of spawned objects.
 Waldo serves its HTTPS page on `viewer_port` (8080; accept the self-signed
-certificate once). The page's "Start camera" panel is the engine's
+certificate once). The page carries the engine's 3D viewer of the running
+world, its `sim_inspector` plugin, and the "Start camera" panel, its
 `hand_teleop` plugin: webcam hand tracking drives the arm of the same
-name, ahead of the robot's pairing while a hand is tracked. The engine's
-3D viewer belongs to its `sim_inspector` plugin, which the scene commander
-selection turns on (`--with web_scene_commander` sets `plugins:
-"hand_teleop,sim_inspector"`); without it the page carries the hand teleop
-panel only and its centre overlay says the viewer is off. The viewer
-streams over WebTransport on UDP `viewer_port` beside the HTTPS port, so
-both must reach the simulation's machine.
+name, ahead of the robot's pairing while a hand is tracked. The fragment
+runs both plugins whatever the launch selects (`plugins:
+"hand_teleop,sim_inspector"`), so the viewer is on from the first launch
+of every launcher deploying Waldo, and the inspector answers the scene
+commander's `scene_control` and `object_state` calls. The viewer needs a
+browser with WebGPU and WebTransport (Chrome or Edge 119+) and streams
+over WebTransport on UDP `viewer_port` beside the HTTPS port, so both must
+reach the simulation's machine.
 
 ## Inspection and builds
 

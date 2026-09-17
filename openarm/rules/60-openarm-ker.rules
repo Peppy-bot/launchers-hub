@@ -14,11 +14,15 @@
 #   getfacl /dev/bus/usb/001/027                   # names the user it granted
 #
 # Verify, a firmware that streams over the serial device:
-#   ls -lL /dev/openarm/ker                        # a trailing + is the ACL
+#   getfacl /dev/openarm/ker
 #
 # uaccess grants the ACL to the user of an active local seat, so on a headless
 # host (a placed copy on a Jetson, reached over SSH) it grants nobody. There,
-# uncomment the group matchers below and add your user to the group.
+# uncomment the group matchers below, which run alongside the uaccess ones,
+# then put the user the peppy daemon runs as into plugdev and log in again:
+#   getent group plugdev || sudo groupadd plugdev
+#   sudo usermod -aG plugdev "$USER"
+#   ls -l /dev/bus/usb/001/027                     # group plugdev, mode crw-rw----
 #
 # Keep the 60- prefix and the TAG+="uaccess" on every matcher: the tag must
 # sort before systemd's 73-seat-late.rules to grant the seat user the ACL,
@@ -33,8 +37,8 @@
 
 # Vendor mode: openarm_ker claims the bulk interface directly.
 SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", TAG+="uaccess"
-#SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", GROUP="plugdev", MODE="0660"
+#SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", TAG+="uaccess", GROUP="plugdev", MODE="0660"
 
 # The ESP32 serial device, under a stable name for device_path.
 SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", TAG+="uaccess", SYMLINK+="openarm/ker"
-#SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", GROUP="plugdev", MODE="0660", SYMLINK+="openarm/ker"
+#SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", TAG+="uaccess", GROUP="plugdev", MODE="0660", SYMLINK+="openarm/ker"

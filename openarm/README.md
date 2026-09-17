@@ -139,8 +139,9 @@ B moves ready, and either grip cancels a posture move. With recording selected,
 X starts or saves an episode; holding Y for one second finishes the session.
 Set the demonstration task at `https://<host>:4443/task` before recording.
 
-For the KER, install [the KER udev rule](rules/60-openarm-ker.rules),
-following its header, and zero the KER on its calibration jig first (the
+For the KER, install [the KER udev rule](rules/60-openarm-ker.rules) on the
+machine the copy is placed on, following its header, and zero the KER on its
+calibration jig first (the
 `openarm_ker` README has that procedure). Plug the KER into the machine the
 copy is placed on, since the commander runs there. Squeeze an arm's trigger
 down to a fifth open, near shut, to engage that arm; from then on the arm and
@@ -313,7 +314,7 @@ Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and lau
 WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open one of the https URLs the launch printed under `Web pages:` (`peppy stack list` shows them again). Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
 
 **The KER is plugged in but neither arm moves**
-Squeeze a trigger down to a fifth open, near shut: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up; if no "KER left arm engaged, tracking the leader" line follows a squeeze, the squeeze never reached `engage_trigger_opening`. A "KER connection lost (open: ...)" line names the cause, and repeats when the cause changes or after the link streams again: an attached-but-unopenable device needs the udev rule, and no device at all means the KER is unplugged, switched off, or running a firmware that streams over its serial device; `lsusb -d 303a:` shows `303a:1001` for the last and nothing for the first two. A trigger held from before the node started, or across a stall or reconnect, stays disengaged by design: release it and squeeze again.
+Squeeze a trigger down to a fifth open, near shut: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up; if no "KER left arm engaged, tracking the leader" line follows a squeeze, the squeeze never reached `engage_trigger_opening`. A "KER connection lost (open: ...)" line names the cause, and repeats when the cause changes or after the link streams again: an attached-but-unopenable device needs the udev rule, and on a host reached over SSH its group matchers as well, since uaccess grants only a local seat; and no device at all means the KER is unplugged, switched off, or running a firmware that streams over its serial device; `lsusb -d 303a:` shows `303a:1001` for the last and nothing for the first two. A trigger held from before the node started, or across a stall or reconnect, stays disengaged by design: release it and squeeze again.
 
 **The headset is connected but neither arm moves**
 Hold a grip button: it is the deadman, per hand, and with it released the node publishes nothing at all so the arms hold. If holding it does nothing, check the backbone's startup log line for which upstream mode it is following: a `"joints"` backbone reads only the panel's joint slots and a `"pose"` backbone only the headset's pose slots. A leader wired to the off-mode slots never reaches launch, so what remains is a leader that is publishing nothing: check the headset link and the grip in the node's status panel.

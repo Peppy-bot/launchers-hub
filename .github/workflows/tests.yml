@@ -349,7 +349,10 @@ jobs:
     needs: discover
     # A documentation-only change plans nothing: no matrix entries, no
     # launch jobs, and the run is green without booting a single daemon.
-    if: needs.discover.outputs.matrix != '' && needs.discover.outputs.matrix != '[]'
+    # Spelled out with `!cancelled()` because the default condition also
+    # skips a job whose chain of needs holds a skipped job, and the gate
+    # ahead of discover is skipped on every pull request.
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.matrix != '' && needs.discover.outputs.matrix != '[]' }}
     strategy:
       # One combination's failure must not cancel its siblings: a red run
       # names every failing combination, exactly as the sequential loop

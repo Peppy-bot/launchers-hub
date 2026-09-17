@@ -561,13 +561,47 @@ def sanitize(text, limit=300):
 
 
 def deployed_nodes(resolved):
-    """The node names a flattened launcher deploys."""
-    nodes = set()
+    """The nodes a flattened launcher deploys, name to tag."""
+    nodes = {}
     for deployment in resolved.get("deployments", []):
         source = deployment.get("source", {}) if isinstance(deployment, dict) else {}
         if isinstance(source, dict) and "name" in source:
-            nodes.add(source["name"])
+            nodes[source["name"]] = source.get("tag", "")
     return nodes
+
+
+def node_item(name, tag):
+    """A node as `peppy node add` names it: `name:tag`, or the bare name of
+    an untagged one."""
+    return f"{name}:{tag}" if tag else name
+
+
+def assign_cache_writers(matrix, nodes_by_entry):
+    """Names, per launcher, the one launch job that commits the launcher's
+    sticky disk, and the images it builds on top of its own launch.
+
+    Every launch job of a launcher mounts the same disk, and a job's commit
+    replaces the snapshot outright, so one committer per disk is the only
+    arrangement in which nothing a sibling built is thrown away. The writer
+    is the launchable combination deploying the most nodes (the first one on
+    a tie), and `extra_nodes` are the nodes its siblings deploy that it does
+    not, built after its launch so the committed snapshot holds every image
+    the launcher's matrix needs.
+    """
+    by_launcher = {}
+    for index, entry in enumerate(matrix):
+        by_launcher.setdefault(entry["launcher"], []).append(index)
+    for indices in by_launcher.values():
+        writer = max(indices, key=lambda index: (len(nodes_by_entry[index]), -index))
+        union = {}
+        for index in indices:
+            union.update(nodes_by_entry[index])
+        own = nodes_by_entry[writer]
+        for index in indices:
+            matrix[index]["cache_writer"] = index == writer
+            matrix[index]["extra_nodes"] = " ".join(
+                node_item(name, tag) for name, tag in sorted(union.items()) if name not in own
+            ) if index == writer else ""
 
 
 def combination_label(name, words, join_option, join_words, placement):
@@ -581,17 +615,6 @@ def combination_label(name, words, join_option, join_words, placement):
     if placement == "local":
         label += " [--local]"
     return label
-
-
-def disk_key(name, words, join_option, join_words, placement):
-    """A slug naming this combination: the per-combination sticky-disk key.
-
-    Keyed on the combination itself rather than its position in the list, so
-    adding a launcher shifts nobody's disk and a warm run stays warm.
-    """
-    return re.sub(
-        r"[^A-Za-z0-9]+", "-", f"{name} {words} {join_option} {join_words} {placement}"
-    ).strip("-")
 
 
 def resolve_command(path, words, join_option, join_words):
@@ -622,6 +645,7 @@ def command_plan(root, combos_path, skips_path, matrix_path):
 
     planned = []
     matrix = []
+    nodes_by_entry = []
     with open(combos_path, encoding="utf-8") as handle:
         for line in handle:
             line = line.rstrip("\n")
@@ -659,9 +683,9 @@ def command_plan(root, combos_path, skips_path, matrix_path):
                             "join_name": COPY_NAME if join_option else "",
                             "join_words": join_words,
                             "local": placement == "local",
-                            "key": disk_key(*record),
                         }
                     )
+                    nodes_by_entry.append(nodes)
             else:
                 output = (resolve.stderr + resolve.stdout).strip()
                 if CONSTRAINT_REFUSAL_MARK in output:
@@ -676,6 +700,7 @@ def command_plan(root, combos_path, skips_path, matrix_path):
                         "and the launcher's constraints do not refuse it either"
                     )
 
+    assign_cache_writers(matrix, nodes_by_entry)
     with open(matrix_path, "w", encoding="utf-8") as handle:
         json.dump(matrix, handle, separators=(",", ":"))
 
@@ -710,7 +735,13 @@ def command_plan(root, combos_path, skips_path, matrix_path):
                 )
                 handle.write("```diff\n")
                 for entry in matrix:
-                    handle.write(f"+ {entry['label']}\n")
+                    handle.write(f"+ {entry['label']}")
+                    if entry["cache_writer"]:
+                        handle.write(" (commits the launcher's cache")
+                        if entry["extra_nodes"]:
+                            handle.write(f", also building {entry['extra_nodes']}")
+                        handle.write(")")
+                    handle.write("\n")
                 handle.write("```\n")
             else:
                 handle.write(

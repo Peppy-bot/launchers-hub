@@ -470,9 +470,12 @@ jobs:
       # of that install's `starter` binary. The VM is fresh, so every run
       # readies the install it just extracted: `peppy container setup` applies
       # whatever its fix script needs through sudo when stdin is not a
-      # terminal, and rechecks before exiting 0. Today's self-hosted runner
-      # mounts no AppArmor securityfs, so it needs nothing; the step is what
-      # keeps that an observation rather than an assumption.
+      # terminal, and rechecks before exiting 0. The Blacksmith image mounted
+      # no AppArmor securityfs, so the step had nothing to do there; the
+      # self-hosted runner does restrict userns through AppArmor, so this is
+      # what installs the profile the daemon's pre-flight check demands. The
+      # profile is keyed to the install's path under RUNNER_TEMP, so it grants
+      # nothing beyond this run's binary.
       #
       # `apptainer build` runs a def's %post as fakeroot, which needs a
       # subordinate id range for the runner user besides newuidmap. The

@@ -8,13 +8,22 @@
 #   sudo udevadm control --reload-rules && sudo udevadm trigger
 #   then replug the KER
 #
-# Verify:
-#   lsusb -d 303a:            # the KER, in one mode or the other
-#   ls -l /dev/openarm/ker    # present only in serial mode
+# Verify, vendor mode (what the node reads by default):
+#   lsusb -d 303a:4002                          # note its Bus and Device
+#   getfacl /dev/bus/usb/<bus>/<device> | grep $USER   # your user needs rw
+#
+# Verify, a firmware built to stream over CDC:
+#   ls -l /dev/openarm/ker
 #
 # Keep the 60- prefix and the TAG+="uaccess" on every matcher: the tag must
 # sort before systemd's 73-seat-late.rules to grant the seat user the ACL,
 # and without it the node cannot open the device it just found.
+#
+# Vendor 303a is Espressif, not enactic, so any Espressif board in CDC mode
+# matches the tty line below and udev leaves it undefined which one keeps the
+# symlink. On a host carrying other ESP32 boards, read the KER's serial with
+#   udevadm info -a -n /dev/ttyACM0 | grep '{serial}'
+# and add ATTRS{serial}=="..." to that matcher.
 
 # Vendor mode: openarm_ker claims the bulk interface directly.
 SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", TAG+="uaccess"

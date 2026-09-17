@@ -1,8 +1,9 @@
 // The KER leader: joint-led teleop from enactic's motorless bimanual leader
 // arm, v2 only (its joints mirror OpenArm v2 1:1). Each limb pairs into the
-// backbone's matching leader socket; an arm engages on its first trigger
-// squeeze and then tracks the KER. The KER produces no governor control, so
-// the backbone's launch-time band and caps stand for the whole session.
+// backbone's matching leader socket; an arm engages when its trigger is
+// squeezed to engage_trigger_opening, having first read back above it, and
+// then tracks the KER. The KER produces no governor control, so the
+// backbone's launch-time band and caps stand for the whole session.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -18,7 +19,7 @@
             // An arm engages once its trigger is squeezed down to a fifth
             // open, deep enough that a hand resting on the trigger cannot
             // start motion.
-            engage_opening: 0.2,
+            engage_trigger_opening: 0.2,
             // A released trigger rests at half open; see control_common.json5,
             // which sets the same travel for the headset.
             gripper_open_fraction: 0.5,

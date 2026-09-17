@@ -141,14 +141,15 @@ Set the demonstration task at `https://<host>:4443/task` before recording.
 
 For the KER, install [the KER udev rule](rules/60-openarm-ker.rules),
 following its header, and zero the KER on its calibration jig first (the
-`openarm_ker` README has that procedure). Squeeze an arm's trigger down to a
-fifth open, near shut, to engage that arm; from then on the arm and its
-gripper track the KER. The same lever drives the gripper, so a released
-trigger holds that gripper half open, a full squeeze closes it, and an arm
-engages with its gripper near shut. Unplugging the KER holds both arms; after
-that, release a trigger and squeeze it again to re-engage. The node reads
-firmware 2.x's fixed channel layout, so any 2.x unit runs on the arguments in
-the fragment.
+`openarm_ker` README has that procedure). Squeeze an arm's trigger to a fifth
+of its travel to engage that arm; from then on the arm and its gripper track
+the KER. Engagement latches: releasing the trigger opens that gripper and the
+arm keeps tracking. The same lever drives both, so a released trigger holds
+its gripper half open, a full squeeze closes it, and an arm engages with its
+gripper near shut. To stop, unplug the KER or run `peppy stack remove <copy>`;
+after that, release a trigger and squeeze it again to re-engage. The node
+reads the hardware 2.x channel layout, so any 2.x unit runs on the arguments
+in the fragment.
 
 The KER replaces the browser panel, so a KER session has no alerts or
 motor-health readout and no recording, and the governor keeps the backbone's
@@ -309,7 +310,7 @@ Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and lau
 WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open one of the https URLs the launch printed under `Web pages:` (`peppy stack list` shows them again). Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
 
 **The KER is plugged in but neither arm moves**
-Squeeze a trigger down to a fifth open: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up and the squeeze was too shallow. A repeating "connection lost (open: ...)" names the cause: an attached-but-unopenable device needs the udev rule, and no device at all means the KER is unplugged or in its CDC mode, which `lsusb -d 303a:` tells apart. After a stall or a reconnect, a trigger that was never released stays disengaged by design: release it and squeeze again.
+Squeeze a trigger to a fifth of its travel: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up; if no "KER left arm engaged, tracking the leader" line follows a squeeze, the squeeze never reached `engage_trigger_opening`. A "KER connection lost (open: ...)" line names the cause and repeats only when the cause changes: an attached-but-unopenable device needs the udev rule, and no device at all means the KER is unplugged or running a CDC firmware, which `lsusb -d 303a:` tells apart. After a stall or a reconnect, a trigger that was never released stays disengaged by design: release it and squeeze again.
 
 **The headset is connected but neither arm moves**
 Hold a grip button: it is the deadman, per hand, and with it released the node publishes nothing at all so the arms hold. If holding it does nothing, check the backbone's startup log line for which upstream mode it is following: a `"joints"` backbone reads only the panel's joint slots and a `"pose"` backbone only the headset's pose slots. A leader wired to the off-mode slots never reaches launch, so what remains is a leader that is publishing nothing: check the headset link and the grip in the node's status panel.

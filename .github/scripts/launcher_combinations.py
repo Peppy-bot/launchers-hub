@@ -577,16 +577,17 @@ def node_item(name, tag):
 
 
 def assign_cache_writers(matrix, nodes_by_entry):
-    """Names, per launcher, the one launch job that commits the launcher's
-    sticky disk, and the images it builds on top of its own launch.
+    """Names, per launcher, the one launch job that warms the shared build
+    cache, and the images it builds on top of its own launch.
 
-    Every launch job of a launcher mounts the same disk, and a job's commit
-    replaces the snapshot outright, so one committer per disk is the only
-    arrangement in which nothing a sibling built is thrown away. The writer
-    is the launchable combination deploying the most nodes (the first one on
-    a tie), and `extra_nodes` are the nodes its siblings deploy that it does
-    not, built after its launch so the committed snapshot holds every image
-    the launcher's matrix needs.
+    Every launch job shares one live cache directory on the self-hosted
+    runner, so naming a writer no longer decides what survives the run — it
+    concentrates a cold launcher's image builds in a single job instead of
+    spreading them over whichever siblings happen to run first. The writer is
+    the launchable combination deploying the most nodes (the first one on a
+    tie), and `extra_nodes` are the nodes its siblings deploy that it does
+    not, built after its launch so the cache holds every image the launcher's
+    matrix needs before the siblings reach it.
     """
     by_launcher = {}
     for index, entry in enumerate(matrix):

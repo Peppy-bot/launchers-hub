@@ -55,8 +55,6 @@ CONSTRAINT_REFUSAL_MARK = "which this selection"
 # carries this phrase. Such a copy runs only when the file deploys it at
 # launch, which the repository check covers; it is not a broken launcher.
 JOIN_CHANGE_MARK = "would change"
-#: The simulations pair one robot: a copy joining where the file's copy already pairs is launch-only too.
-PAIRING_MARK = "is already paired"
 
 # The name every previewed and launched copy joins under in CI. A copy name is
 # unique on the stack, and `openarm_simulation` deploys `alpha`.
@@ -903,7 +901,7 @@ def resolve_candidate(root, candidate, skips):
         output = (resolve.stderr + resolve.stdout).strip()
         if CONSTRAINT_REFUSAL_MARK in output:
             return Resolution(Verdict.REFUSED, output)
-        if candidate.join_option and (JOIN_CHANGE_MARK in output or PAIRING_MARK in output):
+        if candidate.join_option and JOIN_CHANGE_MARK in output:
             return Resolution(Verdict.LAUNCH_ONLY, output)
         return Resolution(Verdict.BROKEN, output)
     plan = _Parser(resolve.stdout, "resolved").parse_document()
@@ -912,8 +910,8 @@ def resolve_candidate(root, candidate, skips):
     if hits:
         detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
         return Resolution(Verdict.SKIPPED, detail, plan)
-    # The simulations pair one robot, so a join follows the removal of the
-    # copies the file deploys, and a copy the stack links to is not removed.
+    # MuJoCo stands one robot, so a join follows the removal of the copies
+    # the file deploys, and a copy the stack links to is not removed.
     held = links_holding_copies(plan, candidate.file_copies) if candidate.join_option else []
     if held:
         return Resolution(Verdict.COPY_HELD, ", ".join(held), plan)
@@ -1286,8 +1284,8 @@ def join_command(launch):
 
 def launch_start_to_end(launch, rebuild, run):
     """Launches one combination and returns once every node has signalled
-    ready, then joins its copy where it plans one. The simulations pair one
-    robot, so the copies the file deploys make way for the joined one."""
+    ready, then joins its copy where it plans one. MuJoCo stands one robot,
+    so the copies the file deploys make way for the joined one."""
     checked(run, launch_command(launch, rebuild))
     if launch.join_option:
         listing = checked(run, ["peppy", "stack", "list", "--json"], capture=True)

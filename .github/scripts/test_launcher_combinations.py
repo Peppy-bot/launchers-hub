@@ -395,19 +395,18 @@ class CombinationsTests(unittest.TestCase):
         # fragment runs it from the first launch of every launcher deploying
         # Waldo rather than behind the scene commander selection; no
         # adjustment of the fragment or of a launcher touches `plugins`.
+        # Every robot joins Waldo bringing its own model, so the world it
+        # opens, the stage, is the fragment's too, and no launcher sets one.
         root = Path(__file__).resolve().parents[2]
         for launcher in ["openarm/openarm_simulation.json5", "mcp/openarm_simulation_mcp.json5", "fleet.json5"]:
             document = combinations.load_json5(root / launcher, launcher)
-            waldo = [adjustment["set_arguments"] for adjustment in document["adjustments"]
-                     if adjustment.get("when") == {"simulation": "waldo"}]
-            self.assertEqual(waldo, [{"world": "openarm_v2"}], launcher)
-            for adjustment in document["adjustments"]:
-                self.assertNotIn("plugins", adjustment.get("set_arguments", {}), launcher)
+            for adjustment in document.get("adjustments", []):
+                self.assertFalse({"world", "plugins"} & set(adjustment.get("set_arguments", {})), launcher)
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
-        self.assertEqual(
-            waldo["deployments"][0]["instances"][0]["arguments"]["plugins"], "hand_teleop,sim_inspector")
+        arguments = waldo["deployments"][0]["instances"][0]["arguments"]
+        self.assertEqual((arguments["world"], arguments["plugins"]), ("stage", "hand_teleop,sim_inspector"))
         for adjustment in waldo.get("adjustments", []):
-            self.assertNotIn("plugins", adjustment.get("set_arguments", {}))
+            self.assertFalse({"world", "plugins"} & set(adjustment.get("set_arguments", {})))
 
     def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
         root = Path(__file__).resolve().parents[2]
@@ -427,29 +426,30 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["links"]["simulation"], "simulation_inst")
         self.assertEqual(instance["links"]["objects"], "simulation_inst")
 
-    def test_the_scene_commander_binds_lighting_and_materials_on_waldo_alone(self):
+    def test_the_scene_commander_binds_lighting_materials_and_cameras_on_waldo_alone(self):
         root = Path(__file__).resolve().parents[2]
         scene = combinations.load_json5(
             root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
         instance, = scene["deployments"][0]["instances"]
         self.assertEqual(instance["instance_id"], "scene_commander_inst")
-        # The two optional slots are written vacant, with a reason, and the
-        # camera slots (zero_or_more) are left to the rendered rig; the
+        # The three optional slots are written vacant, with a reason; the
         # panel's fragment binds nothing itself.
         self.assertEqual(
-            set(instance["links"]), {"simulation", "objects", "lighting", "materials"})
-        for slot in ["lighting", "materials"]:
+            set(instance["links"]), {"simulation", "objects", "lighting", "materials", "cameras"})
+        for slot in ["lighting", "materials", "cameras"]:
             with self.subTest(slot=slot):
                 self.assertEqual(set(instance["links"][slot]), {"vacant"})
                 self.assertTrue(instance["links"][slot]["vacant"].strip())
         self.assertNotIn("adjustments", scene)
-        # Waldo, the one simulation serving the two contracts, binds them from
-        # its own fragment without a guard: the adjustment runs exactly when
-        # Waldo is selected and is skipped when no scene commander is.
+        # Waldo, the one simulation serving the three contracts, binds them
+        # from its own fragment without a guard: the adjustment runs exactly
+        # when Waldo is selected and is skipped when no scene commander is.
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
         self.assertIn({
             "target": "scene_commander_inst",
-            "set_links": {"lighting": "simulation_inst", "materials": "simulation_inst"},
+            "set_links": {
+                "lighting": "simulation_inst", "materials": "simulation_inst", "cameras": "simulation_inst",
+            },
         }, waldo["adjustments"])
         for other in ["isaac_sim", "mujoco"]:
             with self.subTest(simulation=other):
@@ -537,7 +537,7 @@ class CombinationsTests(unittest.TestCase):
         self.assertNotIn("camera_rig", axes)
         self.assertEqual(list(axes["robot_commander"]["options"]), ["web_commander", "xr_commander"])
 
-    def test_the_rendered_rig_binds_camera_control_per_simulation_and_the_scene_panel(self):
+    def test_the_rendered_rig_binds_camera_control_per_simulation(self):
         root = Path(__file__).resolve().parents[2]
         rig = combinations.load_json5(root / "openarm/fragments/cameras_sim.json5", "cameras_sim")
         vacancy = {"vacant": "this simulation has no camera response model; every camera control refuses"}
@@ -555,14 +555,10 @@ class CombinationsTests(unittest.TestCase):
             {"target": target, "when": {"simulation": "waldo"}, "set_links": {"control": "simulation_inst"}}
             for target in ["wrist_left", "wrist_right", "chest"]
         ])
-        # The browser scene commander's camera panel: the relays on the
-        # stack instance, and their profiles matched by instance.
-        panel, = [a for a in rig["adjustments"] if a["target"] == "scene_commander_inst"]
-        self.assertEqual(panel, {"target": "scene_commander_inst", "add_links": {
-            "color_cameras": ["wrist_left", "wrist_right"],
-            "rgbd_cameras": ["chest"],
-            "camera_profiles": ["wrist_left", "wrist_right", "chest"],
-        }})
+        # The browser scene commander's camera panel reads the cameras from
+        # the simulation, so the rig links nothing into the stack and a copy
+        # with a rig joins and leaves beside a running panel.
+        self.assertNotIn("scene_commander_inst", [a["target"] for a in rig["adjustments"]])
 
     def test_the_mcp_launcher_deploys_waldo_the_world_endpoint_and_the_mcp_copy(self):
         root = Path(__file__).resolve().parents[2]
@@ -606,9 +602,8 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(launcher.copies, [combinations.Copy(
             "alpha", "robot", "openarm_v2_sim",
             {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"})])
-        self.assertEqual(document["adjustments"], [{
-            "target": "simulation_inst", "when": {"simulation": "waldo"},
-            "set_arguments": {"world": "openarm_v2"}}])
+        # Alpha joins the stage Waldo opens, so the file sets no world.
+        self.assertNotIn("adjustments", document)
         # The copy's axes are in the planner's reach: every state of the
         # commander, recorder, rig and brain, minus the one the file runs.
         found = combinations.launcher_selections(launcher.axes, launcher.copies)

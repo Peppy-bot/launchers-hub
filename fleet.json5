@@ -12,8 +12,13 @@
 //   peppy stack join openarm_v1 -i bravo --place jetson-2
 //   peppy stack remove alpha
 //
-// A simulated robot refuses to join without a simulation. The simulations
-// pair one robot per limb slot, so one simulated copy runs at a time.
+//   peppy stack launch fleet --with isaac_sim
+//   peppy stack join openarm_v2_sim -i alpha
+//   peppy stack join openarm_v1_sim -i bravo
+//
+// A simulated robot refuses to join without a simulation. Waldo and Isaac
+// Sim stand any number of robots at once, each joined copy bringing its own
+// model; MuJoCo stands one.
 {
   peppy_schema: "launcher/v1",
 
@@ -50,11 +55,5 @@
     { when: { robot: "openarm_v2_sim" },
       requires: [{ simulation: ["mujoco", "isaac_sim", "waldo"] }],
       reason: "a simulated robot needs a simulation; launch with mujoco, isaac_sim or waldo" },
-  ],
-
-  adjustments: [
-    // Waldo's world declares the robot it simulates.
-    { target: "simulation_inst", when: { simulation: "waldo" },
-      set_arguments: { world: "openarm_v2" } },
   ],
 }

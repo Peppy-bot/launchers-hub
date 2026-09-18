@@ -26,34 +26,106 @@ def fleet_axes():
 
 def resolved_plan(*nodes):
     """What `stack resolve` prints for a launcher deploying `nodes`, each a
-    `name:tag`."""
+    `name:tag` running as the one instance `name_inst`."""
     deployments = [
-        {"source": {"name": name, "tag": tag}} for name, tag in (node.split(":") for node in nodes)
+        {"source": {"name": name, "tag": tag}, "instances": [{"instance_id": f"{name}_inst"}]}
+        for name, tag in (node.split(":") for node in nodes)
     ]
-    return combinations.subprocess.CompletedProcess([], 0, json.dumps({"deployments": deployments}), "")
+    return completed(json.dumps({"deployments": deployments}))
+
+
+def completed(stdout="", returncode=0, stderr=""):
+    return combinations.subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+
+def simulation_axis(*simulations):
+    return {"name": "simulation", "options": {simulation: {} for simulation in simulations}}
+
+
+def simulation_launcher(*simulations):
+    """A launcher whose one axis picks a simulation, deploying the first."""
+    return {
+        "peppy_schema": "launcher/v1",
+        "components": [simulation_axis(*simulations)],
+        "deployments": [{"simulation": simulations[0]}],
+    }
+
+
+def fleet_launcher(file_copy=None):
+    """A MuJoCo simulation a robot joins as a copy, with or without a
+    recorder, the file deploying the copy `file_copy` where one is named."""
+    robot = {"components": [
+        {"name": "recorder", "cardinality": "zero_or_one", "options": {"lerobot_recorder": {}}},
+    ]}
+    deployments = [{"simulation": "mujoco"}]
+    if file_copy:
+        deployments.append({"robot": "openarm_v2", "instances": [{"instance_id": file_copy}]})
+    return {
+        "peppy_schema": "launcher/v1",
+        "components": [
+            simulation_axis("mujoco"),
+            {"name": "robot", "cardinality": "zero_or_more", "options": {"openarm_v2": robot}},
+        ],
+        "deployments": deployments,
+    }
+
+
+def write_repository(root, launchers):
+    root.mkdir()
+    (root / "peppy_repository.json5").write_text(json.dumps({
+        "launchers": {name: {"path": f"{name}.json5"} for name in launchers},
+    }))
+    for name, document in launchers.items():
+        text = document if isinstance(document, str) else json.dumps(document)
+        (root / f"{name}.json5").write_text(text)
+
+
+class FakeResolve:
+    """Stands in for `peppy stack resolve`: answers each tree's combinations
+    from `(launcher path, launch words, joined option, join words)`, an empty
+    plan where a tree names none, and keeps the calls it received."""
+
+    def __init__(self, **answers_by_tree):
+        self.answers_by_tree = answers_by_tree
+        self.calls = []
+
+    def __call__(self, argv, **kwargs):
+        self.calls.append((argv, kwargs))
+        options = dict(zip(argv[4::2], argv[5::2]))
+        key = (argv[3], options.get("--with", ""), options.get("--join", ""), options.get("--join-with", ""))
+        answers = self.answers_by_tree.get(Path(kwargs["cwd"]).name, {})
+        return answers.get(key, resolved_plan())
+
+
+EVERYTHING = combinations.Scope(combinations.ScopeKind.EVERYTHING, "a test of every combination")
+CHANGED = combinations.Scope(combinations.ScopeKind.CHANGED, "a test of a launcher change")
 
 
 @contextlib.contextmanager
-def planned(combo_lines, plans=None, launchers=("fleet",)):
-    """Combo lines planned against a repository of the named launchers, with
-    `stack resolve` answering `plans` in order (an empty plan for every
-    combination when none are given): the recorded subprocess call and the
-    matrix the plan wrote."""
+def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base_answers=None):
+    """The launchers planned in a repository of their own, `stack resolve`
+    answering `answers`, and `base_answers` for the base tree a changed scope
+    compares against: the fake resolve, the labels of the planned launches,
+    the plan and the run summary."""
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        (root / "peppy_repository.json5").write_text(json.dumps({
-            "launchers": {name: {"path": f"{name}.json5"} for name in launchers},
-        }))
-        combos = root / "combos.tsv"
-        combos.write_text(combo_lines)
-        skips = root / "skips.json5"
-        skips.write_text("[]")
-        matrix = root / "matrix.json"
-        if plans is None:
-            plans = [resolved_plan()] * combo_lines.count("\n")
-        with patch.object(combinations.subprocess, "run", side_effect=plans) as run:
-            combinations.command_plan(root, combos, skips, matrix)
-        yield run, json.loads(matrix.read_text())
+        head = Path(directory) / "head"
+        write_repository(head, launchers)
+        base = None
+        if base_launchers is not None:
+            base = Path(directory) / "base"
+            write_repository(base, base_launchers)
+        scope_path = Path(directory) / "scope.json"
+        combinations.write_scope(scope, scope_path)
+        skips = Path(directory) / "skips.json5"
+        skips.write_text('[{ node: "zed_camera", reason: "the runner has no ZED camera" }]')
+        plan_path = Path(directory) / "plan.json"
+        summary = Path(directory) / "summary.md"
+        resolve = FakeResolve(head=answers or {}, base=base_answers or {})
+        with patch.object(combinations.subprocess, "run", resolve), \
+                patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}):
+            combinations.command_plan(head, scope_path, base, skips, plan_path)
+        plan = combinations.read_plan(plan_path)
+        yield resolve, [launch.label for launch in plan], plan, summary.read_text()
 
 
 class CombinationsTests(unittest.TestCase):
@@ -270,71 +342,6 @@ class CombinationsTests(unittest.TestCase):
             for deployment in document["deployments"]:
                 for instance in deployment["instances"]:
                     self.assertTrue(robot_arguments.isdisjoint(instance.get("arguments", {})), path)
-
-    def test_plan_previews_the_launch_and_its_join_and_launches_the_same(self):
-        line = "combo\tfleet\tsimulation=mujoco\topenarm_v2\trobot_commander=xr_commander\t-\n"
-        with planned(line) as (run, matrix):
-            self.assertEqual(run.call_args.args[0], [
-                "peppy", "stack", "resolve", "fleet.json5", "--with", "simulation=mujoco",
-                "--join", "openarm_v2", "--join-name", combinations.COPY_NAME, "--join-with", "robot_commander=xr_commander",
-            ])
-            # The preview reads the plan as JSON5, so peppy logs errors only.
-            self.assertEqual(run.call_args.kwargs["env"]["RUST_LOG"], "error")
-            entry, = matrix
-            self.assertEqual(entry["words"], "simulation=mujoco")
-            self.assertEqual(entry["join_option"], "openarm_v2")
-            self.assertEqual(entry["join_name"], combinations.COPY_NAME)
-            self.assertEqual(entry["join_words"], "robot_commander=xr_commander")
-            self.assertEqual(entry["label"], "fleet (simulation=mujoco) + join openarm_v2 (robot_commander=xr_commander)")
-
-    def test_the_launcher_deploying_the_most_nodes_commits_its_cache_and_builds_the_rest(self):
-        lines = (
-            "combo\tfleet\tsimulation=mujoco\t\t\t-\n"
-            "combo\tfleet\tsimulation=waldo\topenarm_v2\trecorder=lerobot_recorder\t-\n"
-            "combo\tfleet\tsimulation=waldo\topenarm_v2\tbrain=ai_brain\t-\n"
-        )
-        plans = [
-            resolved_plan("openarm_sim_mujoco:v1", "openarm_backbone:v1"),
-            resolved_plan("waldo:v1", "openarm_backbone:v1", "lerobot_recorder:v1"),
-            resolved_plan("waldo:v1", "openarm_backbone:v1", "openarm_ai_brain:v1"),
-        ]
-        with planned(lines, plans) as (_, matrix):
-            self.assertEqual([entry["cache_writer"] for entry in matrix], [False, True, False])
-            # The writer deploys three nodes, as does the third combination;
-            # the first of the two wins, and builds what its siblings deploy
-            # and it does not, sorted by name.
-            self.assertEqual(matrix[1]["extra_nodes"], "openarm_ai_brain:v1 openarm_sim_mujoco:v1")
-            self.assertEqual([entry["extra_nodes"] for entry in matrix if not entry["cache_writer"]], ["", ""])
-
-    def test_every_launcher_names_a_cache_writer_of_its_own(self):
-        lines = (
-            "combo\tfleet\tsimulation=mujoco\t\t\t-\n"
-            "combo\trust_robot\t\t\t\t-\n"
-        )
-        plans = [
-            resolved_plan("openarm_sim_mujoco:v1"),
-            resolved_plan("my_rust_robot_arm:v1", "my_rust_robot_brain:v1"),
-        ]
-        with planned(lines, plans, launchers=("fleet", "rust_robot")) as (_, matrix):
-            self.assertEqual([(entry["launcher"], entry["cache_writer"]) for entry in matrix],
-                             [("fleet", True), ("rust_robot", True)])
-            self.assertEqual([entry["extra_nodes"] for entry in matrix], ["", ""])
-
-    def test_an_untagged_node_is_named_bare(self):
-        self.assertEqual(combinations.node_item("waldo", "v1"), "waldo:v1")
-        self.assertEqual(combinations.node_item("waldo", ""), "waldo")
-
-    def test_plan_previews_a_deployed_copys_launch_words_without_a_join(self):
-        words = "simulation=mujoco,alpha.camera_rig=cameras_sim,alpha.recorder=lerobot_recorder"
-        with planned(f"combo\tfleet\t{words}\t\t\t-\n") as (run, matrix):
-            self.assertEqual(run.call_args.args[0], [
-                "peppy", "stack", "resolve", "fleet.json5", "--with", words,
-            ])
-            entry, = matrix
-            self.assertEqual(entry["words"], words)
-            self.assertEqual(entry["join_option"], "")
-            self.assertEqual(entry["join_name"], "")
-            self.assertEqual(entry["label"], f"fleet ({words})")
 
     def test_a_deployed_copy_selects_its_own_axes_with_copy_scoped_launch_words(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -669,6 +676,453 @@ class CombinationsTests(unittest.TestCase):
             ]}))
             with self.assertRaises(combinations.Json5Error):
                 combinations.read_launcher(directory, "fleet.json5")
+
+
+REFUSAL = completed(returncode=1, stderr=(
+    "Error: camera_rig=cameras_sim requires recorder=lerobot_recorder, "
+    "which this selection (camera_rig=cameras_sim) does not satisfy"
+))
+JOIN_REFUSAL = completed(returncode=1, stderr=(
+    "Error: joining bravo would change simulation_inst, which already runs"
+))
+
+
+class ResolveTests(unittest.TestCase):
+    def test_plan_previews_the_launch_and_its_join_and_launches_the_same(self):
+        answers = {
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"):
+                resolved_plan("openarm_sim_mujoco:v1", "lerobot_recorder:v1"),
+        }
+        with planned({"fleet": fleet_launcher()}, answers) as (resolve, labels, plan, _):
+            self.assertIn([
+                "peppy", "stack", "resolve", "fleet.json5",
+                "--join", "openarm_v2", "--join-name", combinations.COPY_NAME,
+                "--join-with", "recorder=lerobot_recorder",
+            ], [argv for argv, _ in resolve.calls])
+            # The preview reads the plan as JSON5, so peppy logs errors only.
+            self.assertTrue(all(kwargs["env"]["RUST_LOG"] == "error" for _, kwargs in resolve.calls))
+            self.assertEqual(labels, ["fleet + join openarm_v2 (recorder=lerobot_recorder)"])
+            launch, = plan
+            self.assertEqual(launch.words, "")
+            self.assertEqual(launch.join_option, "openarm_v2")
+            self.assertEqual(launch.join_name, combinations.COPY_NAME)
+            self.assertEqual(launch.join_words, "recorder=lerobot_recorder")
+            self.assertFalse(launch.local)
+
+    def test_plan_previews_a_deployed_copys_launch_words_without_a_join(self):
+        words = "alpha.recorder=lerobot_recorder"
+        answers = {
+            ("fleet.json5", words, "", ""): resolved_plan("openarm_sim_mujoco:v1", "lerobot_recorder:v1"),
+        }
+        with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (resolve, labels, plan, _):
+            self.assertIn(
+                ["peppy", "stack", "resolve", "fleet.json5", "--with", words],
+                [argv for argv, _ in resolve.calls],
+            )
+            self.assertEqual(labels, [f"fleet ({words})"])
+            launch, = plan
+            self.assertEqual(launch.words, words)
+            self.assertEqual(launch.join_option, "")
+            self.assertEqual(launch.join_name, "")
+
+    def test_a_launcher_declaring_core_nodes_launches_locally(self):
+        launcher = {**simulation_launcher("mujoco"), "core_nodes": ["robot_onboard"]}
+        with planned({"split": launcher}) as (_, labels, plan, _summary):
+            self.assertEqual(labels, ["split [--local]"])
+            self.assertTrue(plan[0].local)
+
+    def test_a_selection_the_launchers_constraints_refuse_is_reported_not_launched(self):
+        answers = {("sim.json5", "simulation=waldo", "", ""): REFUSAL}
+        with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, ["sim (simulation=mujoco)"])
+            self.assertIn("Refused by the launcher's own constraints (1)", summary)
+            self.assertIn("| sim (simulation=waldo) | camera_rig=cameras_sim requires", summary)
+
+    def test_a_combination_deploying_a_node_the_runner_cannot_run_is_skipped(self):
+        answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1", "zed_camera:v1")}
+        with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, ["sim (simulation=mujoco)"])
+            self.assertIn("Skipped: hardware or rollout dependencies (1)", summary)
+            self.assertIn("| sim (simulation=waldo) | deploys zed_camera: the runner has no ZED camera |", summary)
+
+    def test_a_join_refused_for_changing_what_runs_is_launch_only(self):
+        answers = {("fleet.json5", "", "openarm_v2", ""): JOIN_REFUSAL}
+        with planned({"fleet": fleet_launcher()}, answers) as (_, labels, _plan, summary):
+            self.assertNotIn("fleet + join openarm_v2", labels)
+            self.assertIn("refused as a join (1)", summary)
+            self.assertIn("| fleet + join openarm_v2 | joining bravo would change simulation_inst", summary)
+
+    def test_a_run_reaching_only_refused_combinations_launches_nothing(self):
+        refusal_with_a_pipe = completed(returncode=1, stderr=REFUSAL.stderr + " (a|b)")
+        answers = {("sim.json5", "", "", ""): refusal_with_a_pipe}
+        with planned({"sim": simulation_launcher("mujoco")}, answers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, [])
+            self.assertIn("Launching nothing: every combination this change reaches is refused or skipped", summary)
+            # The refusal lands in a table cell, its pipe escaped once.
+            self.assertIn("does not satisfy (a\\|b) |", summary)
+
+    def test_a_combination_nothing_refuses_and_nothing_resolves_fails_the_plan(self):
+        answers = {("sim.json5", "simulation=waldo", "", ""): completed(returncode=1, stderr="Error: no such fragment")}
+        with self.assertRaises(SystemExit) as failure, contextlib.redirect_stderr(io.StringIO()):
+            with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
+                pass
+        self.assertIn("sim (simulation=waldo) does not resolve", str(failure.exception))
+
+    def test_a_refusal_that_is_no_join_is_not_mistaken_for_a_launch_only_copy(self):
+        answers = {("sim.json5", "simulation=waldo", "", ""): JOIN_REFUSAL}
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
+                pass
+
+
+class CoverageTests(unittest.TestCase):
+    def test_a_combination_whose_instances_all_run_in_another_launch_is_not_launched(self):
+        answers = {
+            ("fleet.json5", "", "", ""): resolved_plan("openarm_sim_mujoco:v1"),
+            ("fleet.json5", "", "openarm_v2", ""): resolved_plan("openarm_sim_mujoco:v1", "openarm_backbone:v1"),
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"):
+                resolved_plan("openarm_sim_mujoco:v1", "openarm_backbone:v1", "lerobot_recorder:v1"),
+        }
+        with planned({"fleet": fleet_launcher()}, answers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, ["fleet + join openarm_v2 (recorder=lerobot_recorder)"])
+            self.assertIn("Launching 1 of the 3 launchable combinations in scope", summary)
+            self.assertIn("| fleet + join openarm_v2 | fleet + join openarm_v2 (recorder=lerobot_recorder) |", summary)
+            self.assertIn("| fleet | fleet + join openarm_v2 (recorder=lerobot_recorder) |", summary)
+
+    def test_two_instances_are_launched_side_by_side_wherever_a_combination_runs_them_so(self):
+        # Two launches would run every instance once; the third is the only
+        # one running the camera beside the recorder.
+        answers = {
+            ("sim.json5", "simulation=a", "", ""): resolved_plan("backbone:v1", "camera:v1"),
+            ("sim.json5", "simulation=b", "", ""): resolved_plan("backbone:v1", "recorder:v1"),
+            ("sim.json5", "simulation=c", "", ""): resolved_plan("camera:v1", "recorder:v1"),
+        }
+        with planned({"sim": simulation_launcher("a", "b", "c")}, answers) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=a)", "sim (simulation=b)", "sim (simulation=c)"])
+
+    def test_the_same_node_configured_differently_is_launched_both_ways(self):
+        def simulation(world):
+            return completed(json.dumps({"deployments": [{
+                "source": {"name": "waldo", "tag": "v1"},
+                "instances": [{"instance_id": "simulation_inst", "arguments": {"world": world}}],
+            }]}))
+
+        answers = {
+            ("sim.json5", "simulation=a", "", ""): simulation("openarm_v1"),
+            ("sim.json5", "simulation=b", "", ""): simulation("openarm_v2"),
+            ("sim.json5", "simulation=c", "", ""): simulation("openarm_v2"),
+        }
+        with planned({"sim": simulation_launcher("a", "b", "c")}, answers) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=a)", "sim (simulation=b)"])
+
+    def test_every_launcher_is_launched_even_where_another_deploys_the_same_instances(self):
+        launchers = {"fleet": simulation_launcher("mujoco"), "openarm_simulation": simulation_launcher("mujoco")}
+        with planned(launchers) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["fleet", "openarm_simulation"])
+
+    def test_a_join_runs_beside_the_stack_once_the_files_copy_has_made_way(self):
+        def plan_of(*instance_ids):
+            return {"deployments": [{
+                "source": {"name": "node", "tag": "v1"},
+                "instances": [{"instance_id": instance_id} for instance_id in instance_ids],
+            }]}
+
+        launcher = combinations.read_launcher_inventory
+        with tempfile.TemporaryDirectory() as directory:
+            write_repository(Path(directory) / "head", {"fleet": fleet_launcher(file_copy="alpha")})
+            inventory = launcher(Path(directory) / "head", "fleet", "fleet.json5")
+        bare, joined = (
+            next(c for c in inventory.candidates if (c.words, c.join_option, c.join_words) == key)
+            for key in (("", "", ""), ("", "openarm_v2", ""))
+        )
+        resolutions = {
+            bare.key: combinations.Resolution(
+                combinations.Verdict.LAUNCH, "-", plan_of("simulation_inst", "alpha_backbone_inst")),
+            joined.key: combinations.Resolution(
+                combinations.Verdict.LAUNCH, "-",
+                plan_of("simulation_inst", "alpha_backbone_inst", "bravo_backbone_inst")),
+        }
+
+        def ids(state):
+            return sorted(json.loads(configuration)[1]["instance_id"] for configuration in state)
+
+        launch_state, join_state = combinations.running_states(joined, resolutions)
+        self.assertEqual(ids(launch_state), ["alpha_backbone_inst", "simulation_inst"])
+        self.assertEqual(ids(join_state), ["bravo_backbone_inst", "simulation_inst"])
+        # The copies never run together, so no launch is asked to prove the pair.
+        pairs = [unit for unit in combinations.coverage_units(joined, [launch_state, join_state]) if unit[0] == "pair"]
+        self.assertEqual(len(pairs), 2)
+        self.assertEqual(combinations.running_states(bare, resolutions), [launch_state])
+
+    def test_a_join_whose_own_launch_does_not_resolve_fails_the_plan(self):
+        answers = {("fleet.json5", "", "", ""): REFUSAL}
+        with self.assertRaises(SystemExit) as failure:
+            with planned({"fleet": fleet_launcher()}, answers):
+                pass
+        self.assertIn("the launch it joins, fleet, does not resolve", str(failure.exception))
+
+    def test_selection_is_greedy_and_takes_the_earliest_on_a_tie(self):
+        units = {"small": {1}, "first": {1, 2}, "second": {1, 2}, "other": {3}}
+        self.assertEqual(combinations.select_launches(units), ["first", "other"])
+        self.assertEqual(combinations.select_launches({}), [])
+
+    def test_a_combination_left_out_names_the_launches_that_prove_it(self):
+        units = {"a": {1, 2}, "b": {3}, "c": {4}}
+        self.assertEqual(combinations.covering_launches({2, 3}, ["a", "b", "c"], units), ["a", "b"])
+
+
+class ScopeTests(unittest.TestCase):
+    LAUNCHER_FILES = {"fleet.json5", "openarm/fragments/mujoco.json5"}
+
+    def kind(self, changed_files):
+        return combinations.classify_scope(changed_files, self.LAUNCHER_FILES).kind
+
+    def test_a_run_without_a_diff_covers_everything(self):
+        self.assertIs(self.kind(None), combinations.ScopeKind.EVERYTHING)
+        self.assertIs(self.kind([]), combinations.ScopeKind.EVERYTHING)
+
+    def test_a_change_to_launcher_files_alone_covers_what_it_changes(self):
+        self.assertIs(self.kind(["openarm/fragments/mujoco.json5"]), combinations.ScopeKind.CHANGED)
+        self.assertIs(self.kind(["fleet.json5", "Readme.md"]), combinations.ScopeKind.CHANGED)
+
+    def test_documentation_alone_covers_nothing(self):
+        self.assertIs(self.kind(["Readme.md", "openarm/README.MD"]), combinations.ScopeKind.NOTHING)
+
+    def test_a_file_outside_every_launcher_covers_everything_and_is_named(self):
+        scope = combinations.classify_scope(
+            ["fleet.json5", ".github/workflows/tests.yml"], self.LAUNCHER_FILES)
+        self.assertIs(scope.kind, combinations.ScopeKind.EVERYTHING)
+        self.assertIn("`.github/workflows/tests.yml` is outside every launcher", scope.reason)
+
+    def scoped(self, changed, launchers, base_launchers=None):
+        """The scope decided for a pull request changing `changed`, and what
+        the step reports to the workflow."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_repository(root / "head", launchers)
+            if base_launchers is not None:
+                write_repository(root / "base", base_launchers)
+            (root / "changed.txt").write_text("".join(f"{file}\n" for file in changed))
+            output = root / "output.txt"
+            with patch.dict(combinations.os.environ, {"GITHUB_OUTPUT": str(output)}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                combinations.command_scope(
+                    root / "head", root / "changed.txt",
+                    root / "base" if base_launchers is not None else None, root / "scope.json")
+            return combinations.read_scope(root / "scope.json").kind, output.read_text()
+
+    def test_the_step_reports_whether_anything_is_planned(self):
+        launchers = {"fleet": simulation_launcher("mujoco")}
+        self.assertEqual(self.scoped(["fleet.json5"], launchers), (combinations.ScopeKind.CHANGED, "any=true\n"))
+        self.assertEqual(self.scoped(["Readme.md"], launchers), (combinations.ScopeKind.NOTHING, "any=false\n"))
+        self.assertEqual(self.scoped(["fleet.json5", "LICENSE"], launchers),
+                         (combinations.ScopeKind.EVERYTHING, "any=true\n"))
+
+    def test_a_launcher_the_pull_request_deletes_is_still_a_launcher_file(self):
+        kind, _ = self.scoped(
+            ["retired.json5"],
+            {"fleet": simulation_launcher("mujoco")},
+            base_launchers={"fleet": simulation_launcher("mujoco"), "retired": simulation_launcher("mujoco")},
+        )
+        self.assertIs(kind, combinations.ScopeKind.CHANGED)
+
+    def test_only_the_combinations_the_change_moves_are_launched(self):
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v2")}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1")}
+        with planned(launchers, answers, CHANGED, launchers, base_answers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, ["sim (simulation=waldo)"])
+            self.assertIn("1 launchable combinations resolve to the plan the base tree gives them", summary)
+            self.assertIn("- sim (simulation=mujoco)", summary)
+
+    def test_a_combination_the_base_tree_lacks_is_launched(self):
+        with planned({"sim": simulation_launcher("mujoco", "isaac_sim", "waldo")}, scope=CHANGED,
+                     base_launchers={"sim": simulation_launcher("mujoco", "isaac_sim")}) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=waldo)"])
+
+    def test_a_combination_the_change_makes_launchable_is_launched(self):
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): REFUSAL}
+        with planned(launchers, scope=CHANGED, base_launchers=launchers,
+                     base_answers=base_answers) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=waldo)"])
+
+    def test_a_base_launcher_this_reader_refuses_counts_every_combination_as_changed(self):
+        with planned({"sim": simulation_launcher("mujoco")}, scope=CHANGED,
+                     base_launchers={"sim": "{ components: 'not a list' }"}) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim"])
+
+    def test_a_change_that_moves_no_plan_launches_nothing(self):
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        with planned(launchers, scope=CHANGED, base_launchers=launchers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, [])
+            self.assertIn("Launching nothing: this change moves no combination's resolved plan", summary)
+
+    def test_a_changed_scope_without_a_base_tree_fails_the_plan(self):
+        with self.assertRaises(SystemExit) as failure:
+            with planned({"sim": simulation_launcher("mujoco")}, scope=CHANGED):
+                pass
+        self.assertIn("--base-root", str(failure.exception))
+
+
+class FakePeppy:
+    """Stands in for the `peppy` commands of a launch: every command exits 0
+    unless `failing` holds its first words, `stack list --json` answers
+    `copies`, and the commands are kept in order."""
+
+    def __init__(self, failing=(), copies=()):
+        self.failing = [list(words) for words in failing]
+        self.copies = list(copies)
+        self.commands = []
+
+    def __call__(self, argv, capture=False):
+        self.commands.append(argv)
+        failed = any(argv[: len(words)] == words for words in self.failing)
+        listing = json.dumps({"core_nodes": [{"copies": [{"name": name} for name in self.copies]}]})
+        return completed(listing if capture else "", returncode=1 if failed else 0)
+
+
+def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False):
+    label = combinations.combination_label(launcher, words, join_option, join_words, local)
+    join_name = combinations.COPY_NAME if join_option else ""
+    return combinations.Launch(label, launcher, words, join_option, join_name, join_words, local)
+
+
+def launched(launches, peppy, rebuild=False):
+    with contextlib.redirect_stdout(io.StringIO()) as log:
+        outcomes = combinations.launch_all(launches, rebuild, peppy)
+    return outcomes, log.getvalue()
+
+
+IDLE = ["--node-build-idle-timeout-secs", "900"]
+
+
+class LaunchTests(unittest.TestCase):
+    def test_a_launch_comes_up_is_listed_and_is_reset(self):
+        peppy = FakePeppy()
+        outcomes, log = launched([a_launch(words="simulation=mujoco", local=True)], peppy, rebuild=True)
+        self.assertEqual(peppy.commands, [
+            ["peppy", "stack", "launch", "fleet", "--with", "simulation=mujoco", "--local", "--rebuild", *IDLE],
+            ["peppy", "stack", "list"],
+            ["peppy", "stack", "reset"],
+        ])
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
+        self.assertIn("::group::fleet (simulation=mujoco) [--local]\n", log)
+        self.assertIn("::endgroup::\n", log)
+
+    def test_a_flat_launcher_launches_by_name_alone(self):
+        peppy = FakePeppy()
+        launched([a_launch("rust_robot")], peppy)
+        self.assertEqual(peppy.commands[0], ["peppy", "stack", "launch", "rust_robot", *IDLE])
+
+    def test_a_join_follows_the_launch_once_the_files_copies_have_made_way(self):
+        peppy = FakePeppy(copies=["alpha", "charlie"])
+        launched([a_launch(join_option="openarm_v2", join_words="recorder=lerobot_recorder")], peppy)
+        self.assertEqual(peppy.commands, [
+            ["peppy", "stack", "launch", "fleet", *IDLE],
+            ["peppy", "stack", "list", "--json"],
+            ["peppy", "stack", "remove", "alpha"],
+            ["peppy", "stack", "remove", "charlie"],
+            ["peppy", "stack", "join", "openarm_v2", "-i", "bravo", "--with", "recorder=lerobot_recorder", *IDLE],
+            ["peppy", "stack", "list"],
+            ["peppy", "stack", "remove", "bravo"],
+            ["peppy", "stack", "list"],
+            ["peppy", "stack", "reset"],
+        ])
+
+    def test_a_join_without_words_passes_none(self):
+        peppy = FakePeppy()
+        launched([a_launch(join_option="openarm_v2")], peppy)
+        self.assertIn(["peppy", "stack", "join", "openarm_v2", "-i", "bravo", *IDLE], peppy.commands)
+
+    def test_a_failed_launch_is_named_reset_and_followed_by_the_next(self):
+        peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]])
+        outcomes, log = launched([a_launch("fleet"), a_launch("rust_robot")], peppy)
+        self.assertEqual(peppy.commands, [
+            ["peppy", "stack", "launch", "fleet", *IDLE],
+            ["peppy", "stack", "reset"],
+            ["peppy", "stack", "launch", "rust_robot", *IDLE],
+            ["peppy", "stack", "list"],
+            ["peppy", "stack", "reset"],
+        ])
+        self.assertEqual([outcome.status for outcome in outcomes],
+                         [combinations.Status.FAILED, combinations.Status.PASSED])
+        self.assertIn("`peppy stack launch fleet", outcomes[0].detail)
+        self.assertIn("::error title=fleet::`peppy stack launch fleet", log)
+
+    def test_a_failed_join_stops_that_launch_at_the_join(self):
+        peppy = FakePeppy(failing=[["peppy", "stack", "join"]])
+        outcomes, _ = launched([a_launch(join_option="openarm_v2")], peppy)
+        self.assertEqual(peppy.commands[-2:], [
+            ["peppy", "stack", "join", "openarm_v2", "-i", "bravo", *IDLE],
+            ["peppy", "stack", "reset"],
+        ])
+        self.assertIn("`peppy stack join openarm_v2", outcomes[0].detail)
+
+    def test_a_stack_that_does_not_reset_ends_the_run_and_names_what_never_launched(self):
+        peppy = FakePeppy(failing=[["peppy", "stack", "reset"]])
+        outcomes, _ = launched([a_launch("fleet"), a_launch("rust_robot"), a_launch("python_robot")], peppy)
+        self.assertEqual(peppy.commands[-1], ["peppy", "stack", "reset"])
+        self.assertNotIn(["peppy", "stack", "launch", "rust_robot", *IDLE], peppy.commands)
+        self.assertEqual([outcome.status for outcome in outcomes], [
+            combinations.Status.FAILED, combinations.Status.NOT_LAUNCHED, combinations.Status.NOT_LAUNCHED,
+        ])
+        self.assertIn("`peppy stack reset` exited 1", outcomes[0].detail)
+        self.assertEqual(outcomes[1].detail, "the stack did not reset after fleet")
+
+    def test_a_failed_launch_and_a_failed_reset_are_both_named(self):
+        peppy = FakePeppy(failing=[["peppy", "stack", "launch"], ["peppy", "stack", "reset"]])
+        outcomes, _ = launched([a_launch("fleet")], peppy)
+        self.assertIn("`peppy stack launch fleet", outcomes[0].detail)
+        self.assertIn("then `peppy stack reset` exited 1", outcomes[0].detail)
+
+    def run_command(self, peppy, launches):
+        with tempfile.TemporaryDirectory() as directory:
+            plan, summary = Path(directory) / "plan.json", Path(directory) / "summary.md"
+            combinations.write_plan(launches, plan)
+            with patch.object(combinations, "run_peppy", peppy), \
+                    patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    combinations.command_launch(plan, rebuild=False)
+                    code = 0
+                except SystemExit as exit:
+                    code = exit.code
+            return code, summary.read_text()
+
+    def test_the_job_passes_when_every_launch_comes_up(self):
+        code, summary = self.run_command(FakePeppy(), [a_launch("fleet"), a_launch("rust_robot")])
+        self.assertEqual(code, 0)
+        self.assertIn("2 of 2 launches came up start to end.", summary)
+        self.assertIn("| rust_robot | ✅ launched |", summary)
+
+    def test_the_job_fails_when_any_launch_does_not(self):
+        peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]])
+        code, summary = self.run_command(peppy, [a_launch("fleet"), a_launch("rust_robot")])
+        self.assertEqual(code, 1)
+        self.assertIn("1 of 2 launches came up start to end.", summary)
+        self.assertIn("| fleet | ❌ failed `peppy stack launch fleet", summary)
+
+    def test_a_captured_command_holds_peppys_logging_to_errors(self):
+        with patch.object(combinations.subprocess, "run", return_value=completed("{}")) as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            combinations.run_peppy(["peppy", "stack", "list", "--json"], capture=True)
+            self.assertEqual(run.call_args.kwargs["env"]["RUST_LOG"], "error")
+            self.assertEqual(run.call_args.kwargs["stdout"], combinations.subprocess.PIPE)
+            combinations.run_peppy(["peppy", "stack", "list"])
+            self.assertIsNone(run.call_args.kwargs["env"])
+            self.assertIsNone(run.call_args.kwargs["stdout"])
+
+    def test_a_label_can_only_ever_be_text_in_a_workflow_command(self):
+        with contextlib.redirect_stdout(io.StringIO()) as log:
+            combinations.workflow_command("error", "100%\n::group::x", title="a,b:c\n")
+        self.assertEqual(log.getvalue(), "::error title=a%2Cb%3Ac%0A::100%25%0A::group::x\n")
+
+    def test_the_plan_reaches_the_launch_job_whole(self):
+        launches = [a_launch(words="simulation=mujoco", join_option="openarm_v2", local=True)]
+        with tempfile.TemporaryDirectory() as directory:
+            combinations.write_plan(launches, Path(directory) / "plan.json")
+            self.assertEqual(combinations.read_plan(Path(directory) / "plan.json"), launches)
 
 
 if __name__ == "__main__":

@@ -1,30 +1,40 @@
 #!/usr/bin/env python3
-"""Enumerate and plan the repository's launcher combinations.
+"""Enumerate, scope, plan and launch the repository's launcher combinations.
 
-enumerate prints launcher paths and fragment references for diff scoping,
-followed by six-column combo records: kind, launcher, launch words, joined
-option, join words, placement. It covers every state of every axis the
-launcher and its fragments declare, every copy a `zero_or_more` axis can add
-with `stack join`, and every state of the axes of each copy the file
-deploys, written as the `NAME.axis=option` launch words that select them. A
-declared core_nodes list requests local placement in CI.
+enumerate prints launcher paths and fragment references, followed by
+six-column combo records: kind, launcher, launch words, joined option, join
+words, placement. It covers every state of every axis the launcher and its
+fragments declare, every copy a `zero_or_more` axis can add with
+`stack join`, and every state of the axes of each copy the file deploys,
+written as the `NAME.axis=option` launch words that select them. A declared
+core_nodes list requests local placement in CI.
 
-plan previews each combination through peppy stack resolve, its join
+scope decides what a change can reach from the files it touches: every
+combination, the combinations whose resolved plan the change moves, or
+nothing.
+
+plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
-classifies unavailable hardware and rollout dependencies. Successful plans
-produce a matrix with the complete launch and join.
+classifies unavailable hardware and rollout dependencies. Of the launchable
+combinations in scope it keeps the launches that, between them, run every
+configured node instance and every pair of instances that run side by side.
+
+launch runs the planned launches one after the other on the running daemon,
+resetting the stack between them, and reports each one's outcome.
 
 The JSON5 subset reader reports unsupported syntax with its file and line.
 """
 
 import argparse
+import enum
+import itertools
 import json
 import os
 import posixpath
 import re
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 # peppy's own cross-combination check refuses to enumerate a selection space
 # larger than this (daemon-config-internal, COMBINATION_CEILING); the CI holds
@@ -514,41 +524,284 @@ def render_words(selection):
     return ",".join(f"{axis}={option}" for axis, option in selection if option)
 
 
-def command_enumerate(root):
-    index = load_json5(
-        os.path.join(root, "peppy_repository.json5"), "peppy_repository.json5"
-    )
+# ---------------------------------------------------------------------------
+# The inventory: every launcher and every combination it admits
+# ---------------------------------------------------------------------------
+
+
+def combination_label(name, words, join_option, join_words, local):
+    """A combination's display name: the launcher, its selection, its join,
+    its placement."""
+    label = f"{name} ({words})" if words else name
+    if join_option:
+        label += f" + join {join_option}"
+        if join_words:
+            label += f" ({join_words})"
+    if local:
+        label += " [--local]"
+    return label
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """One combination of one launcher, spelled the way `peppy` takes it:
+    launch words, the option joined afterwards, the join's own words."""
+
+    launcher: str
+    path: str
+    words: str
+    join_option: str
+    join_words: str
+    #: The launcher declares `core_nodes`, which CI places on the one daemon.
+    local: bool
+    #: The copies the launcher's file deploys, which a join makes way for.
+    file_copies: tuple
+
+    @property
+    def key(self):
+        return (self.launcher, self.words, self.join_option, self.join_words)
+
+    @property
+    def launch_key(self):
+        """The combination `stack launch` alone brings up: this one without
+        its join."""
+        return (self.launcher, self.words, "", "")
+
+    @property
+    def label(self):
+        return combination_label(
+            self.launcher, self.words, self.join_option, self.join_words, self.local
+        )
+
+
+@dataclass(frozen=True)
+class LauncherInventory:
+    """One launcher of the repository index: its file, the fragment files
+    its options compose, and every combination of its axes."""
+
+    name: str
+    path: str
+    references: list
+    candidates: list
+
+    @property
+    def files(self):
+        return {self.path, *self.references}
+
+
+def read_index(root):
+    """The launchers `peppy_repository.json5` lists, name to path."""
+    index = load_json5(os.path.join(root, "peppy_repository.json5"), "peppy_repository.json5")
     launchers = index.get("launchers") if isinstance(index, dict) else None
     if not isinstance(launchers, dict) or not launchers:
         raise Json5Error("peppy_repository.json5: lists no `launchers`")
+    paths = {}
     for name, entry in launchers.items():
         if not isinstance(entry, dict) or "path" not in entry:
             raise Json5Error(f"peppy_repository.json5: launcher `{name}` has no `path`")
-        path = entry["path"]
-        launcher = read_launcher(root, path)
-        combinations = launcher_selections(launcher.axes, launcher.copies)
-        if len(combinations) > COMBINATION_CEILING:
-            raise Json5Error(
-                f"{path}: the selection space has {len(combinations)} combinations, "
-                f"more than the {COMBINATION_CEILING} this check enumerates"
-            )
-        print(f"launcher\t{name}\t{path}\t{','.join(launcher.references)}")
-        placement = "local" if launcher.declares_core_nodes else "-"
-        for combination in combinations:
+        paths[name] = entry["path"]
+    return paths
+
+
+def read_launcher_inventory(root, name, path):
+    launcher = read_launcher(root, path)
+    combinations = launcher_selections(launcher.axes, launcher.copies)
+    if len(combinations) > COMBINATION_CEILING:
+        raise Json5Error(
+            f"{path}: the selection space has {len(combinations)} combinations, "
+            f"more than the {COMBINATION_CEILING} this check enumerates"
+        )
+    file_copies = tuple(copy.name for copy in launcher.copies)
+    candidates = [
+        Candidate(
+            name,
+            path,
+            render_words(combination.words),
+            combination.join_option or "",
+            render_words(combination.join_words),
+            launcher.declares_core_nodes,
+            file_copies,
+        )
+        for combination in combinations
+    ]
+    return LauncherInventory(name, path, launcher.references, candidates)
+
+
+def read_inventory(root):
+    """Every launcher the index lists, in its order."""
+    return [
+        read_launcher_inventory(root, name, path) for name, path in read_index(root).items()
+    ]
+
+
+def read_base_inventory(root):
+    """The inventory of the tree a pull request branched from. That tree is
+    read as a reference, not as the thing under test: a launcher of it this
+    reader refuses is left out, so every combination of the launcher's
+    current file counts as changed."""
+    try:
+        index = read_index(root)
+    except Json5Error:
+        return []
+    inventory = []
+    for name, path in index.items():
+        try:
+            inventory.append(read_launcher_inventory(root, name, path))
+        except Json5Error:
+            continue
+    return inventory
+
+
+def command_enumerate(root):
+    for launcher in read_inventory(root):
+        print(f"launcher\t{launcher.name}\t{launcher.path}\t{','.join(launcher.references)}")
+        for candidate in launcher.candidates:
             print(
                 "combo\t{}\t{}\t{}\t{}\t{}".format(
-                    name,
-                    render_words(combination.words),
-                    combination.join_option or "",
-                    render_words(combination.join_words),
-                    placement,
+                    candidate.launcher,
+                    candidate.words,
+                    candidate.join_option,
+                    candidate.join_words,
+                    "local" if candidate.local else "-",
                 )
             )
 
 
 # ---------------------------------------------------------------------------
-# plan
+# scope: what a change can reach
 # ---------------------------------------------------------------------------
+
+
+class ScopeKind(enum.Enum):
+    #: Every combination of every launcher.
+    EVERYTHING = "everything"
+    #: The combinations whose resolved plan differs from the base tree's.
+    CHANGED = "changed"
+    #: No combination: the change touches documentation alone.
+    NOTHING = "nothing"
+
+
+@dataclass(frozen=True)
+class Scope:
+    kind: ScopeKind
+    reason: str
+
+
+def classify_scope(changed_files, launcher_files):
+    """What a run covers, from the files a pull request changes (`None`
+    outside a pull request) and the files the launchers are made of, in the
+    pull request's tree and in its base.
+
+    A launcher's whole behaviour is the plan its combinations resolve to, so
+    a change confined to launcher files reaches exactly the combinations
+    whose plan it moves. Nothing narrower can be proven safe for a file
+    outside every launcher, so it selects every combination, except a
+    Markdown file, which nothing launches.
+    """
+    if changed_files is None:
+        return Scope(ScopeKind.EVERYTHING, "no pull request diff narrows this run")
+    if not changed_files:
+        return Scope(ScopeKind.EVERYTHING, "the pull request's diff names no file")
+    outside = [file for file in changed_files if file not in launcher_files]
+    unknown = [file for file in outside if not file.lower().endswith(".md")]
+    if unknown:
+        return Scope(ScopeKind.EVERYTHING, f"`{unknown[0]}` is outside every launcher")
+    if len(outside) == len(changed_files):
+        return Scope(
+            ScopeKind.NOTHING,
+            "this pull request changes only documentation outside every launcher",
+        )
+    return Scope(
+        ScopeKind.CHANGED,
+        "this pull request changes launcher files alone, so only the combinations "
+        "whose resolved plan differs from the base tree's can behave differently",
+    )
+
+
+def read_changed_files(path):
+    if path is None:
+        return None
+    with open(path, encoding="utf-8") as handle:
+        return [line.rstrip("\n") for line in handle if line.strip()]
+
+
+def write_scope(scope, path):
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump({"kind": scope.kind.value, "reason": scope.reason}, handle)
+
+
+def read_scope(path):
+    with open(path, encoding="utf-8") as handle:
+        document = json.load(handle)
+    return Scope(ScopeKind(document["kind"]), document["reason"])
+
+
+SCOPE_HEADLINES = {
+    ScopeKind.EVERYTHING: "Running every combination",
+    ScopeKind.CHANGED: "Running the combinations this pull request changes",
+    ScopeKind.NOTHING: "Running nothing",
+}
+
+
+def command_scope(root, changed_files_path, base_root, scope_path):
+    launcher_files = set()
+    for launcher in read_inventory(root):
+        launcher_files |= launcher.files
+    if base_root is not None:
+        for launcher in read_base_inventory(base_root):
+            launcher_files |= launcher.files
+    scope = classify_scope(read_changed_files(changed_files_path), launcher_files)
+    write_scope(scope, scope_path)
+
+    headline = f"{SCOPE_HEADLINES[scope.kind]}: {scope.reason}."
+    print(headline)
+    append_to_env_file("GITHUB_STEP_SUMMARY", f"\n{headline}\n")
+    planned = "false" if scope.kind is ScopeKind.NOTHING else "true"
+    append_to_env_file("GITHUB_OUTPUT", f"any={planned}\n")
+
+
+def append_to_env_file(variable, text):
+    """Appends to the file a GitHub Actions variable names, where there is
+    one: the step summary, the step outputs."""
+    path = os.environ.get(variable)
+    if not path:
+        return
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(text)
+
+
+# ---------------------------------------------------------------------------
+# resolve: what each combination would run
+# ---------------------------------------------------------------------------
+
+
+class Verdict(enum.Enum):
+    LAUNCH = "launch"
+    #: The launcher's own constraints refuse the selection.
+    REFUSED = "refused"
+    #: A deployed node needs what the runner lacks, per the skip file.
+    SKIPPED = "skipped"
+    #: The copy runs only where the file deploys it at launch.
+    LAUNCH_ONLY = "launch-only"
+    #: It does not resolve and nothing above explains why.
+    BROKEN = "broken"
+
+
+@dataclass(frozen=True)
+class Resolution:
+    verdict: Verdict
+    detail: str
+    #: The flattened launcher, where the combination resolves.
+    plan: dict | None = None
+
+    def fingerprint(self, candidate):
+        """Everything a launch of the combination depends on: two trees
+        giving a combination the same fingerprint launch the same thing."""
+        return canonical([self.verdict.value, self.detail, self.plan, candidate.local])
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
 def sanitize(text, limit=300):
@@ -570,52 +823,13 @@ def deployed_nodes(resolved):
     return nodes
 
 
-def node_item(name, tag):
-    """A node as `peppy node add` names it: `name:tag`, or the bare name of
-    an untagged one."""
-    return f"{name}:{tag}" if tag else name
-
-
-def assign_cache_writers(matrix, nodes_by_entry):
-    """Names, per launcher, the one launch job that warms the shared build
-    cache, and the images it builds on top of its own launch.
-
-    Every launch job shares one live cache directory on the self-hosted
-    runner, so naming a writer no longer decides what survives the run — it
-    concentrates a cold launcher's image builds in a single job instead of
-    spreading them over whichever siblings happen to run first. The writer is
-    the launchable combination deploying the most nodes (the first one on a
-    tie), and `extra_nodes` are the nodes its siblings deploy that it does
-    not, built after its launch so the cache holds every image the launcher's
-    matrix needs before the siblings reach it.
-    """
-    by_launcher = {}
-    for index, entry in enumerate(matrix):
-        by_launcher.setdefault(entry["launcher"], []).append(index)
-    for indices in by_launcher.values():
-        writer = max(indices, key=lambda index: (len(nodes_by_entry[index]), -index))
-        union = {}
-        for index in indices:
-            union.update(nodes_by_entry[index])
-        own = nodes_by_entry[writer]
-        for index in indices:
-            matrix[index]["cache_writer"] = index == writer
-            matrix[index]["extra_nodes"] = " ".join(
-                node_item(name, tag) for name, tag in sorted(union.items()) if name not in own
-            ) if index == writer else ""
-
-
-def combination_label(name, words, join_option, join_words, placement):
-    """The launch job's display name: the launcher, its selection, its join,
-    its placement."""
-    label = f"{name} ({words})" if words else name
-    if join_option:
-        label += f" + join {join_option}"
-        if join_words:
-            label += f" ({join_words})"
-    if placement == "local":
-        label += " [--local]"
-    return label
+def read_skips(path):
+    skips = {}
+    for entry in load_json5(path, path) or []:
+        if not isinstance(entry, dict) or "node" not in entry:
+            raise Json5Error(f"{path}: an entry has no `node`")
+        skips[entry["node"]] = entry.get("reason", "no reason given")
+    return skips
 
 
 def resolve_command(path, words, join_option, join_words):
@@ -630,156 +844,502 @@ def resolve_command(path, words, join_option, join_words):
     return argv
 
 
-def command_plan(root, combos_path, skips_path, matrix_path):
-    skips = {}
-    for entry in load_json5(skips_path, skips_path) or []:
-        if not isinstance(entry, dict) or "node" not in entry:
-            raise Json5Error(f"{skips_path}: an entry has no `node`")
-        skips[entry["node"]] = entry.get("reason", "no reason given")
+def resolve_candidate(root, candidate, skips):
+    """Previews one combination through `peppy stack resolve` and says what
+    a runner can do with it."""
+    argv = resolve_command(
+        candidate.path, candidate.words, candidate.join_option, candidate.join_words
+    )
+    # peppy's own logging is held to errors, so stdout carries the resolved
+    # plan alone and the JSON5 reader below takes it whole.
+    resolve = subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        cwd=root,
+        env={**os.environ, "RUST_LOG": "error"},
+    )
+    if resolve.returncode != 0:
+        output = (resolve.stderr + resolve.stdout).strip()
+        if CONSTRAINT_REFUSAL_MARK in output:
+            return Resolution(Verdict.REFUSED, output)
+        if candidate.join_option and (JOIN_CHANGE_MARK in output or PAIRING_MARK in output):
+            return Resolution(Verdict.LAUNCH_ONLY, output)
+        return Resolution(Verdict.BROKEN, output)
+    plan = _Parser(resolve.stdout, "resolved").parse_document()
+    nodes = deployed_nodes(plan)
+    hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
+    if hits:
+        detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
+        return Resolution(Verdict.SKIPPED, detail, plan)
+    return Resolution(Verdict.LAUNCH, "-", plan)
 
-    inventory = load_json5(os.path.join(root, "peppy_repository.json5"),
-                           "peppy_repository.json5")
-    paths = {
-        name: entry["path"]
-        for name, entry in inventory["launchers"].items()
+
+def resolve_inventory(root, inventory, skips):
+    """Every combination of `inventory` resolved, keyed like its candidate."""
+    return {
+        candidate.key: resolve_candidate(root, candidate, skips)
+        for launcher in inventory
+        for candidate in launcher.candidates
     }
 
-    planned = []
-    matrix = []
-    nodes_by_entry = []
-    with open(combos_path, encoding="utf-8") as handle:
-        for line in handle:
-            line = line.rstrip("\n")
-            if not line:
+
+def changed_candidates(candidates, resolutions, base_candidates, base_resolutions):
+    """The combinations whose launch the change can move: the ones the base
+    tree lacks, and the ones it resolves to another fingerprint."""
+    base_fingerprints = {
+        candidate.key: base_resolutions[candidate.key].fingerprint(candidate)
+        for candidate in base_candidates
+    }
+    return [
+        candidate
+        for candidate in candidates
+        if resolutions[candidate.key].fingerprint(candidate)
+        != base_fingerprints.get(candidate.key)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# coverage: the launches that stand for every launchable combination
+# ---------------------------------------------------------------------------
+#
+# A launch proves that each node instance it deploys builds, starts and
+# signals ready as configured, beside the instances it runs with. Two
+# combinations deploying the same configured instances side by side prove
+# the same thing, so the run launches a subset: every configuration of a
+# node instance any selected combination deploys, and every pair of
+# configurations any of them runs side by side, runs in at least one launch,
+# and every launcher is launched at least once. What separates two
+# combinations a launch cannot tell apart is already held by
+# `peppy repo index --check` and by the resolve of every combination.
+
+
+def instance_configurations(plan, without_copies=()):
+    """Every node instance a flattened launcher deploys, as the canonical
+    text of its source and its whole configuration. A copy's instances carry
+    ids minted under the copy's name (`alpha_backbone_inst`), which is how
+    `without_copies` leaves them out."""
+    prefixes = tuple(f"{name}_" for name in without_copies)
+    configurations = set()
+    for deployment in plan.get("deployments", []):
+        for instance in deployment.get("instances", []):
+            if prefixes and str(instance.get("instance_id", "")).startswith(prefixes):
                 continue
-            fields = line.split("\t")
-            if len(fields) != 6 or fields[0] != "combo" or fields[1] not in paths:
-                raise SystemExit(f"{combos_path}: not a combo line of this repository: {line!r}")
-            _, name, words, join_option, join_words, placement = fields
-            argv = resolve_command(paths[name], words, join_option, join_words)
-            # peppy's own logging is held to errors, so stdout carries the
-            # resolved plan alone and the JSON5 reader below takes it whole.
-            resolve = subprocess.run(
-                argv,
-                capture_output=True,
-                text=True,
-                cwd=root,
-                env={**os.environ, "RUST_LOG": "error"},
+            configurations.add(canonical([deployment.get("source"), instance]))
+    return configurations
+
+
+def running_states(candidate, resolutions):
+    """The sets of instances a combination's launch has running together,
+    one after the other. A launch without a join has one: the resolved plan.
+    A launch with a join has two: the launch itself, which is the same
+    combination without its join, then the stack once the file's copies have
+    made way for the joined one."""
+    plan = resolutions[candidate.key].plan
+    if not candidate.join_option:
+        return [instance_configurations(plan)]
+    launched = resolutions.get(candidate.launch_key)
+    if launched is None or launched.plan is None:
+        raise SystemExit(
+            f"{candidate.label} resolves with its join, but the launch it joins, "
+            f"{combination_label(candidate.launcher, candidate.words, '', '', candidate.local)}, "
+            "does not resolve"
+        )
+    return [
+        instance_configurations(launched.plan),
+        instance_configurations(plan, without_copies=candidate.file_copies),
+    ]
+
+
+def coverage_units(candidate, states):
+    """What a launch of the combination proves: its launcher launches, each
+    configured instance comes up, each two of them come up side by side."""
+    units = {("launcher", candidate.launcher)}
+    for state in states:
+        units.update(("configuration", configuration) for configuration in state)
+        units.update(("pair", *pair) for pair in itertools.combinations(sorted(state), 2))
+    return units
+
+
+def select_launches(units_by_key):
+    """The keys of a small set of combinations whose units are those of all
+    of them, in the order given. Greedy: the combination proving the most
+    that nothing selected proves yet goes next, the earliest on a tie, so the
+    same inventory always selects the same launches."""
+    everything = set().union(*units_by_key.values()) if units_by_key else set()
+    covered = set()
+    selected = set()
+    while covered != everything:
+        key = max(units_by_key, key=lambda key: len(units_by_key[key] - covered))
+        selected.add(key)
+        covered |= units_by_key[key]
+    return [key for key in units_by_key if key in selected]
+
+
+def covering_launches(units, selected, units_by_key):
+    """The selected launches that, between them, prove what a combination
+    left out would have."""
+    remaining = set(units)
+    covering = []
+    for key in selected:
+        if remaining & units_by_key[key]:
+            covering.append(key)
+            remaining -= units_by_key[key]
+    return covering
+
+
+# ---------------------------------------------------------------------------
+# plan
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Launch:
+    """One entry of the plan the launch job runs."""
+
+    label: str
+    launcher: str
+    words: str
+    join_option: str
+    join_name: str
+    join_words: str
+    local: bool
+
+    @classmethod
+    def of(cls, candidate):
+        return cls(
+            candidate.label,
+            candidate.launcher,
+            candidate.words,
+            candidate.join_option,
+            COPY_NAME if candidate.join_option else "",
+            candidate.join_words,
+            candidate.local,
+        )
+
+
+def write_plan(launches, path):
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump([asdict(launch) for launch in launches], handle, separators=(",", ":"))
+
+
+def read_plan(path):
+    with open(path, encoding="utf-8") as handle:
+        return [Launch(**entry) for entry in json.load(handle)]
+
+
+def candidates_in_scope(scope, candidates, resolutions, base_root, skips):
+    """The combinations a run of this scope plans."""
+    if scope.kind is ScopeKind.EVERYTHING:
+        return candidates
+    if scope.kind is ScopeKind.NOTHING:
+        return []
+    if base_root is None:
+        raise SystemExit("a run scoped to what changed needs --base-root to compare against")
+    base_inventory = read_base_inventory(base_root)
+    return changed_candidates(
+        candidates,
+        resolutions,
+        [candidate for launcher in base_inventory for candidate in launcher.candidates],
+        resolve_inventory(base_root, base_inventory, skips),
+    )
+
+
+def command_plan(root, scope_path, base_root, skips_path, plan_path):
+    skips = read_skips(skips_path)
+    scope = read_scope(scope_path)
+    inventory = read_inventory(root)
+    candidates = [candidate for launcher in inventory for candidate in launcher.candidates]
+    resolutions = resolve_inventory(root, inventory, skips)
+    for candidate in candidates:
+        resolution = resolutions[candidate.key]
+        if resolution.verdict is Verdict.BROKEN:
+            print(resolution.detail, file=sys.stderr)
+            raise SystemExit(
+                f"{candidate.label} does not resolve and the launcher's constraints "
+                "do not refuse it either"
             )
-            record = (name, words, join_option, join_words, placement)
-            if resolve.returncode == 0:
-                nodes = deployed_nodes(_Parser(resolve.stdout, "resolved").parse_document())
-                hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
-                if hits:
-                    detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
-                    planned.append((*record, "skipped", detail))
-                else:
-                    planned.append((*record, "launch", "-"))
-                    matrix.append(
-                        {
-                            "label": combination_label(*record),
-                            "launcher": name,
-                            "words": words,
-                            "join_option": join_option,
-                            "join_name": COPY_NAME if join_option else "",
-                            "join_words": join_words,
-                            "local": placement == "local",
-                        }
-                    )
-                    nodes_by_entry.append(nodes)
-            else:
-                output = (resolve.stderr + resolve.stdout).strip()
-                if CONSTRAINT_REFUSAL_MARK in output:
-                    planned.append((*record, "refused", sanitize(output)))
-                elif join_option and (JOIN_CHANGE_MARK in output or PAIRING_MARK in output):
-                    planned.append((*record, "launch-only", sanitize(output)))
-                else:
-                    print(output, file=sys.stderr)
-                    raise SystemExit(
-                        f"{paths[name]} with `{words or 'defaults'}`"
-                        f"{f' joining {join_option}' if join_option else ''} does not resolve "
-                        "and the launcher's constraints do not refuse it either"
-                    )
 
-    assign_cache_writers(matrix, nodes_by_entry)
-    with open(matrix_path, "w", encoding="utf-8") as handle:
-        json.dump(matrix, handle, separators=(",", ":"))
+    in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)
 
-    summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary:
-        # The summary says, before anything launches, exactly which jobs the
-        # run is about to fan out to. A `diff` block is the one construct a
-        # step summary renders in color, so the launch list is green `+`
-        # lines; the refused and skipped tables follow with their reasons.
-        # The launch list names the launch jobs by their own labels, so what
-        # the summary promises is what the checks list shows, verbatim.
-        refused = [
-            (combination_label(name, words, join_option, join_words, "-"), detail)
-            for name, words, join_option, join_words, _, verdict, detail in planned
-            if verdict == "refused"
-        ]
-        skipped = [
-            (combination_label(name, words, join_option, join_words, "-"), detail)
-            for name, words, join_option, join_words, _, verdict, detail in planned
-            if verdict == "skipped"
-        ]
-        launch_only = [
-            (combination_label(name, words, join_option, join_words, "-"), detail)
-            for name, words, join_option, join_words, _, verdict, detail in planned
-            if verdict == "launch-only"
-        ]
-        with open(summary, "a", encoding="utf-8") as handle:
-            if matrix:
-                handle.write(
-                    f"\n### 🚀 Launching start to end, one job each "
-                    f"({len(matrix)} of {len(planned)} combinations)\n\n"
-                )
-                handle.write("```diff\n")
-                for entry in matrix:
-                    handle.write(f"+ {entry['label']}")
-                    if entry["cache_writer"]:
-                        handle.write(" (commits the launcher's cache")
-                        if entry["extra_nodes"]:
-                            handle.write(f", also building {entry['extra_nodes']}")
-                        handle.write(")")
-                    handle.write("\n")
-                handle.write("```\n")
-            else:
-                handle.write(
-                    "\n### 🚀 Launching nothing: every combination this change "
-                    "reaches is refused or skipped\n\n"
-                )
-            if refused:
-                handle.write(
-                    f"\n### ❌ Refused by the launcher's own constraints "
-                    f"({len(refused)})\n\n"
-                )
-                handle.write("| combination | refusal |\n")
-                handle.write("| --- | --- |\n")
-                for label, detail in refused:
-                    handle.write(f"| {label} | {detail} |\n")
-            if skipped:
-                handle.write(
-                    f"\n### ⏭️ Skipped: hardware or rollout dependencies ({len(skipped)})\n\n"
-                )
-                handle.write("| combination | deploys |\n")
-                handle.write("| --- | --- |\n")
-                for label, detail in skipped:
-                    handle.write(f"| {label} | {sanitize(detail)} |\n")
-            if launch_only:
-                handle.write(
-                    f"\n### 🧷 Copies the file deploys at launch, refused as a join "
-                    f"({len(launch_only)})\n\n"
-                )
-                handle.write("| combination | join refusal |\n")
-                handle.write("| --- | --- |\n")
-                for label, detail in launch_only:
-                    handle.write(f"| {label} | {detail} |\n")
+    launchable = [
+        candidate for candidate in in_scope if resolutions[candidate.key].verdict is Verdict.LAUNCH
+    ]
+    units_by_key = {
+        candidate.key: coverage_units(candidate, running_states(candidate, resolutions))
+        for candidate in launchable
+    }
+    selected = select_launches(units_by_key)
+    by_key = {candidate.key: candidate for candidate in launchable}
+    write_plan([Launch.of(by_key[key]) for key in selected], plan_path)
 
-    if os.environ.get("GITHUB_OUTPUT"):
-        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-            launchable = any(verdict == "launch" for *_, verdict, _ in planned)
-            handle.write(f"launchable={'true' if launchable else 'false'}\n")
+    append_to_env_file(
+        "GITHUB_STEP_SUMMARY",
+        plan_summary(candidates, in_scope, resolutions, by_key, selected, units_by_key),
+    )
+
+
+def markdown_table(title, headers, rows):
+    lines = [
+        f"\n### {title} ({len(rows)})\n",
+        f"| {' | '.join(headers)} |",
+        f"| {' | '.join('---' for _ in headers)} |",
+    ]
+    lines += [f"| {' | '.join(row)} |" for row in rows]
+    return "\n".join(lines) + "\n"
+
+
+def folded(summary, body):
+    return f"\n<details><summary>{summary}</summary>\n\n{body}\n</details>\n"
+
+
+def launches_headline(in_scope, launchable, selected):
+    if not in_scope:
+        return "\n### 🚀 Launching nothing: this change moves no combination's resolved plan\n"
+    if not selected:
+        return (
+            "\n### 🚀 Launching nothing: every combination this change reaches is "
+            "refused or skipped\n"
+        )
+    return (
+        f"\n### 🚀 Launching {len(selected)} of the {len(launchable)} launchable "
+        "combinations in scope\n\n"
+        "Every configured node instance those combinations deploy, and every pair of "
+        "them they run side by side, runs in one of these launches.\n\n```diff\n"
+        + "".join(f"+ {launchable[key].label}\n" for key in selected)
+        + "```\n"
+    )
+
+
+def plan_summary(candidates, in_scope, resolutions, launchable, selected, units_by_key):
+    """The run summary's account of the plan: what launches, what each
+    launch stands for, what is left out and why. A `diff` block is the one
+    construct a step summary renders in color, so the launches are green `+`
+    lines, spelled like the launch job's log groups."""
+    parts = [launches_headline(in_scope, launchable, selected)]
+
+    left_out = [key for key in launchable if key not in selected]
+    if left_out:
+        rows = [
+            (
+                launchable[key].label,
+                "<br>".join(
+                    launchable[cover].label
+                    for cover in covering_launches(units_by_key[key], selected, units_by_key)
+                ),
+            )
+            for key in left_out
+        ]
+        parts.append(
+            folded(
+                f"{len(left_out)} launchable combinations are proven by the launches above",
+                markdown_table("🧩 Proven by other launches", ("combination", "launched as part of"), rows),
+            )
+        )
+
+    in_scope_keys = {candidate.key for candidate in in_scope}
+    unchanged = [
+        candidate
+        for candidate in candidates
+        if candidate.key not in in_scope_keys
+        and resolutions[candidate.key].verdict is Verdict.LAUNCH
+    ]
+    if unchanged:
+        parts.append(
+            folded(
+                f"{len(unchanged)} launchable combinations resolve to the plan the base tree "
+                "gives them, and are not launched",
+                "\n".join(f"- {candidate.label}" for candidate in unchanged),
+            )
+        )
+
+    for verdict, title, column in (
+        (Verdict.REFUSED, "❌ Refused by the launcher's own constraints", "refusal"),
+        (Verdict.SKIPPED, "⏭️ Skipped: hardware or rollout dependencies", "deploys"),
+        (Verdict.LAUNCH_ONLY, "🧷 Copies the file deploys at launch, refused as a join", "join refusal"),
+    ):
+        rows = [
+            (
+                combination_label(
+                    candidate.launcher, candidate.words, candidate.join_option,
+                    candidate.join_words, False,
+                ),
+                sanitize(resolutions[candidate.key].detail),
+            )
+            for candidate in in_scope
+            if resolutions[candidate.key].verdict is verdict
+        ]
+        if rows:
+            parts.append(markdown_table(title, ("combination", column), rows))
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# launch
+# ---------------------------------------------------------------------------
+
+# Raised from peppy's 180s default: a release compile of a heavy dependency
+# can sit between cargo's progress lines for longer than that on a loaded
+# machine, and the fix for a genuinely stuck build is the job's own timeout,
+# not a mid-build abort that names no culprit.
+BUILD_IDLE_TIMEOUT = ["--node-build-idle-timeout-secs", "900"]
+
+STACK_RESET = ["peppy", "stack", "reset"]
+
+
+class CommandFailed(Exception):
+    """A `peppy` command of a launch exited non-zero."""
+
+    def __init__(self, argv, returncode):
+        super().__init__(f"`{' '.join(argv)}` exited {returncode}")
+
+
+def run_peppy(argv, capture=False):
+    """Runs one command of a launch, its output going to the job's log, or
+    returned where `capture` asks for it. A captured command is read as JSON,
+    so peppy's own logging is held to errors and stdout carries the document
+    alone."""
+    print(f"$ {' '.join(argv)}", flush=True)
+    env = {**os.environ, "RUST_LOG": "error"} if capture else None
+    return subprocess.run(
+        argv, text=True, stdout=subprocess.PIPE if capture else None, env=env
+    )
+
+
+def checked(run, argv, capture=False):
+    completed = run(argv, capture)
+    if completed.returncode != 0:
+        raise CommandFailed(argv, completed.returncode)
+    return completed
+
+
+def stack_copies(listing):
+    """The names of the copies on the stack, from `peppy stack list --json`."""
+    return [
+        copy["name"]
+        for core_node in json.loads(listing)["core_nodes"]
+        for copy in core_node["copies"]
+    ]
+
+
+def launch_command(launch, rebuild):
+    argv = ["peppy", "stack", "launch", launch.launcher]
+    if launch.words:
+        argv += ["--with", launch.words]
+    if launch.local:
+        argv.append("--local")
+    if rebuild:
+        argv.append("--rebuild")
+    return argv + BUILD_IDLE_TIMEOUT
+
+
+def join_command(launch):
+    argv = ["peppy", "stack", "join", launch.join_option, "-i", launch.join_name]
+    if launch.join_words:
+        argv += ["--with", launch.join_words]
+    return argv + BUILD_IDLE_TIMEOUT
+
+
+def launch_start_to_end(launch, rebuild, run):
+    """Launches one combination and returns once every node has signalled
+    ready, then joins its copy where it plans one. The simulations pair one
+    robot, so the copies the file deploys make way for the joined one."""
+    checked(run, launch_command(launch, rebuild))
+    if launch.join_option:
+        listing = checked(run, ["peppy", "stack", "list", "--json"], capture=True)
+        for copy in stack_copies(listing.stdout):
+            checked(run, ["peppy", "stack", "remove", copy])
+        checked(run, join_command(launch))
+        checked(run, ["peppy", "stack", "list"])
+        checked(run, ["peppy", "stack", "remove", launch.join_name])
+    checked(run, ["peppy", "stack", "list"])
+
+
+class Status(enum.Enum):
+    PASSED = "✅ launched"
+    FAILED = "❌ failed"
+    NOT_LAUNCHED = "⏸️ not launched"
+
+
+@dataclass(frozen=True)
+class Outcome:
+    label: str
+    status: Status
+    detail: str = ""
+
+
+def workflow_command(name, message, **properties):
+    """One GitHub Actions workflow command, its data escaped so a label can
+    only ever be text."""
+
+    def escaped(text, extra=()):
+        for char, code in (("%", "%25"), ("\r", "%0D"), ("\n", "%0A"), *extra):
+            text = text.replace(char, code)
+        return text
+
+    rendered = ",".join(
+        f"{key}={escaped(value, ((':', '%3A'), (',', '%2C')))}" for key, value in properties.items()
+    )
+    print(f"::{name}{' ' + rendered if rendered else ''}::{escaped(message)}", flush=True)
+
+
+def launch_and_reset(launch, rebuild, run):
+    """One launch inside its log group, and the reset that hands the next
+    launch an empty stack. Returns the outcome and whether the stack is
+    empty again."""
+    workflow_command("group", launch.label)
+    try:
+        launch_start_to_end(launch, rebuild, run)
+        failure = ""
+    except CommandFailed as error:
+        failure = str(error)
+    try:
+        checked(run, STACK_RESET)
+        stack_is_empty = True
+    except CommandFailed as error:
+        failure = f"{failure}; then {error}" if failure else str(error)
+        stack_is_empty = False
+    workflow_command("endgroup", "")
+    if not failure:
+        return Outcome(launch.label, Status.PASSED), stack_is_empty
+    workflow_command("error", failure, title=launch.label)
+    return Outcome(launch.label, Status.FAILED, failure), stack_is_empty
+
+
+def launch_all(launches, rebuild, run):
+    """Every planned launch, one after the other on the one daemon. A failed
+    launch does not stop the ones after it: the stack is reset and the run
+    goes on, so a red run names every failing combination. A stack that does
+    not reset is the exception: nothing launched onto it could be trusted,
+    so the remaining launches are reported as not launched."""
+    outcomes = []
+    for index, launch in enumerate(launches):
+        outcome, stack_is_empty = launch_and_reset(launch, rebuild, run)
+        outcomes.append(outcome)
+        if not stack_is_empty:
+            reason = f"the stack did not reset after {launch.label}"
+            outcomes += [
+                Outcome(later.label, Status.NOT_LAUNCHED, reason)
+                for later in launches[index + 1 :]
+            ]
+            break
+    return outcomes
+
+
+def command_launch(plan_path, rebuild):
+    outcomes = launch_all(read_plan(plan_path), rebuild, run_peppy)
+    rows = [
+        (outcome.label, f"{outcome.status.value} {sanitize(outcome.detail)}".strip())
+        for outcome in outcomes
+    ]
+    passed = sum(outcome.status is Status.PASSED for outcome in outcomes)
+    append_to_env_file(
+        "GITHUB_STEP_SUMMARY",
+        f"\n{passed} of {len(outcomes)} launches came up start to end.\n"
+        + markdown_table("Launches", ("combination", "result"), rows),
+    )
+    if passed != len(outcomes):
+        raise SystemExit(1)
 
 
 def main():
@@ -791,20 +1351,39 @@ def main():
     )
     enumerate_parser.add_argument("--root", default=".")
 
+    scope_parser = subcommands.add_parser(
+        "scope", help="decide what a change can reach, from the files it touches"
+    )
+    scope_parser.add_argument("--root", default=".")
+    scope_parser.add_argument("--changed-files", help="the pull request's changed files, one per line")
+    scope_parser.add_argument("--base-root", help="the tree the pull request branched from")
+    scope_parser.add_argument("--scope", required=True, help="where to write the decision")
+
     plan_parser = subcommands.add_parser(
-        "plan", help="classify selected combinations for this machine"
+        "plan", help="resolve the combinations in scope and pick the launches that cover them"
     )
     plan_parser.add_argument("--root", default=".")
-    plan_parser.add_argument("--combos", required=True)
+    plan_parser.add_argument("--scope", required=True, help="the decision `scope` wrote")
+    plan_parser.add_argument("--base-root", help="the tree the pull request branched from")
     plan_parser.add_argument("--skips", required=True)
-    plan_parser.add_argument("--matrix", required=True)
+    plan_parser.add_argument("--plan", required=True, help="where to write the launches")
+
+    launch_parser = subcommands.add_parser(
+        "launch", help="launch every planned combination start to end on the running daemon"
+    )
+    launch_parser.add_argument("--plan", required=True, help="the launches `plan` wrote")
+    launch_parser.add_argument("--rebuild", action="store_true")
 
     args = parser.parse_args()
     try:
         if args.command == "enumerate":
             command_enumerate(args.root)
+        elif args.command == "scope":
+            command_scope(args.root, args.changed_files, args.base_root, args.scope)
+        elif args.command == "plan":
+            command_plan(args.root, args.scope, args.base_root, args.skips, args.plan)
         else:
-            command_plan(args.root, args.combos, args.skips, args.matrix)
+            command_launch(args.plan, args.rebuild)
     except Json5Error as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1)

@@ -189,8 +189,15 @@ The [workflow](.github/workflows/tests.yml) enumerates every state of every
 axis, the fragments' own axes included: the launcher's own axes and each
 deployed copy's as launch words, `alpha.camera_rig=cameras_sim` among them,
 and every copy a fleet can add as a join, its axes as join words. It
-validates the admitted combinations and launches the ones its runner can
-run, joining and removing the planned copy. The
+validates every admitted combination and launches a subset of the ones its
+runner can run, joining and removing the planned copy: the launches that,
+between them, run every configured node instance those combinations deploy
+and every pair of instances any of them runs side by side, with every
+launcher launched at least once. The launches run one after the other in one
+job, on one daemon, the stack reset between them. A pull request that
+changes launcher files alone launches from the combinations whose resolved
+plan differs from the base tree's; the run summary names every combination
+left out and the launches that stand for it. The
 [skip file](.github/unlaunchable-nodes.json5) lists the hardware the runner
 lacks. Structural checks and runtime startup checks are separate results.
 

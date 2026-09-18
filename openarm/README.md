@@ -181,10 +181,11 @@ peppy stack join openarm_v1_sim -i charlie
 peppy stack remove bravo
 ```
 
-MuJoCo and Isaac Sim stand a v1 or a v2 from the generation the robot's
-fragment names; Waldo stands the v2, the model its catalogue (from
-private-nodes-hub) carries. For rendered wrist/chest streams and recording,
-the copy selects them in the file:
+Every simulation stands a v1 or a v2, the generation the robot's fragment
+names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
+(from private-nodes-hub), which carries both, so a v1 and a v2 share one
+Waldo world. For rendered wrist/chest streams and recording, the copy
+selects them in the file:
 
 ```json5
 { robot: "openarm_v2_sim", instances: [

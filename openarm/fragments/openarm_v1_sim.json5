@@ -3,10 +3,9 @@
 // simulation_inst; this robot's initializer joins it, naming the copy the
 // robot runs as and the v1 model to stand, and the backbone leads the
 // simulation's limb slots on the same pairings it leads a real robot's
-// drivers. Isaac Sim holds one pair per robot on those slots, so a stack
-// runs as many robots as its machines can; MuJoCo holds one, and loads the
-// generation this robot names. Waldo stands the v2 its catalogue carries,
-// so this robot joins MuJoCo or Isaac Sim.
+// drivers. Isaac Sim and Waldo hold one pair per robot on those slots, so a
+// stack runs as many robots as its machines can, of either generation;
+// MuJoCo holds one, and loads the generation this robot names.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -42,11 +41,6 @@
       name: "recorder", cardinality: "zero_or_one", provides: ["recorder_inst"],
       options: { lerobot_recorder: "../../recording/fragments/lerobot_recorder.json5" },
     },
-  ],
-
-  constraints: [
-    { requires: [{ simulation: ["mujoco", "isaac_sim"] }],
-      reason: "OpenArm v1 simulation runs on mujoco or isaac_sim; Waldo's catalogue carries the openarm_v2 model" },
   ],
 
   adjustments: [

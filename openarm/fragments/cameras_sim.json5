@@ -14,21 +14,20 @@
 // have no response model, so the slot is written vacant and every camera
 // control refuses on them.
 //
-// Beside the recorder and the XR headset, two more consumers read the rig.
-// The MCP commander publishes the three cameras on the robot's own
-// endpoint, its exposure's camera targets linked to these relays by the
-// ids written here, as they are to the uvc and zed nodes on hardware; that
-// link is the commander fragment's own, so nothing below attaches it. The
-// browser scene commander's camera panel lists the cameras whose relays are
-// linked in, each matched to its profile by the relay serving both. That
-// attach targets the stack's scene_commander_inst and is skipped when no
-// scene commander is selected.
+// Beside the recorder and the XR headset, the MCP commander reads the rig:
+// it publishes the three cameras on the robot's own endpoint, its
+// exposure's camera targets linked to these relays by the ids written
+// here, as they are to the uvc and zed nodes on hardware; that link is the
+// commander fragment's own, so nothing below attaches it. The browser scene
+// commander's camera panel reads the cameras from the simulation, which
+// lists every robot's, so the rig links nothing into the stack.
 //
 // Camera placement, intrinsics and rates live with the simulation (MuJoCo
 // and Isaac Sim read config/cameras.json5; Waldo's robot MJCF carries the
-// cameras and its world manifest the streams), taken from Enactic's
-// published v2 geometry and the head camera CAD assembly. The simulations
-// reject this camera rig on v1 links, so only openarm_v2_sim declares it.
+// cameras and the robot's catalogue entry the streams), taken from
+// Enactic's published v2 geometry and the head camera CAD assembly. The
+// simulations reject this camera rig on v1 links, so only openarm_v2_sim
+// declares it.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -72,11 +71,9 @@
 
   adjustments: [
     // Rendering costs a frame budget every frame, so the simulation ships
-    // with its camera slots idle and this selection is what turns them on;
-    // the relays above pair into the slots the simulation declared vacant.
+    // with its camera slots idle and this selection is what turns them on.
     { target: "simulation_inst",
-      set_arguments: { cameras_enabled: true },
-      unset_links: ["wrist_left", "wrist_right", "chest"] },
+      set_arguments: { cameras_enabled: true } },
     // Waldo models each rendered camera's response after the real device,
     // so the relays forward their controls to it.
     { target: "wrist_left",  when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
@@ -91,13 +88,5 @@
     { target: "commander_inst", when: { robot_commander: "xr_commander" },
       add_links: { color_cameras: ["wrist_left", "wrist_right"],
                    rgbd_cameras: ["chest"] } },
-    // The browser scene commander's camera panel: the relays and, matched
-    // by instance, their profiles. The relay ids take the copy's name on
-    // the stack instance (alpha_wrist_left); the target itself is the
-    // stack's.
-    { target: "scene_commander_inst",
-      add_links: { color_cameras: ["wrist_left", "wrist_right"],
-                   rgbd_cameras: ["chest"],
-                   camera_profiles: ["wrist_left", "wrist_right", "chest"] } },
   ],
 }

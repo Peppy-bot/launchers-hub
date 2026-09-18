@@ -1,5 +1,7 @@
-// The MuJoCo simulation of an OpenArm. It loads the v2 model; a v1 robot
-// the file deploys sets hardware_version at launch.
+// The MuJoCo simulation. The scene opens empty: one robot joins it through
+// its initializer, bringing its own model, and holds its pairs on the
+// simulation's limb and camera slots; a second robot is refused while it
+// stands.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -15,16 +17,7 @@
       instances: [{
         instance_id: "simulation_inst",
         // Rendering is enabled by a robot's rendered camera rig.
-        arguments: { cameras_enabled: false, hardware_version: "v2", state_rate_hz: 100 },
-        links: {
-          left_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          right_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          left_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          right_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          wrist_left: { vacant: "select cameras_sim to render this camera" },
-          wrist_right: { vacant: "select cameras_sim to render this camera" },
-          chest: { vacant: "select cameras_sim to render this camera" },
-        },
+        arguments: { cameras_enabled: false, state_rate_hz: 100 },
       }],
     },
   ],

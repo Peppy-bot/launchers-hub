@@ -52,13 +52,15 @@ name: Tests
 # every job writes into what later runs build on. Nothing kept there may
 # therefore be state one run depends on another having written — only what
 # apptainer, uv and the daemon rebuild from scratch, all of it keyed by
-# content, so an entry is either a hit for the same bytes or a miss. The
-# runner executes one job at a time, so the matrix below queues rather than
-# running in parallel and concurrent writers are not a concern; a second
-# runner would make this directory shared mutable state and is a reason to
-# revisit it.
+# content, so an entry is either a hit for the same bytes or a miss. Each
+# self-hosted runner is its own machine with its own $HOME, so the directory
+# is per-box rather than one the whole matrix shares: as many jobs run in
+# parallel as there are boxes, each box warms its own copy, and a launcher is
+# warm or cold depending on which one it lands on. A box runs one job at a
+# time, so nothing races inside the directory; two runner agents on a single
+# box would, and is the thing to revisit.
 #
-# Every job runs on that runner; no job uses a GitHub-hosted one. A pull
+# Every job runs on those runners; no job uses a GitHub-hosted one. A pull
 # request from a fork lands there too, so what keeps fork code off the box is
 # the repository's fork-PR approval gate, not the runner it is scheduled on.
 #
@@ -413,6 +415,40 @@ jobs:
           echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH" >> "$GITHUB_ENV"
           echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH/apptainer-cache" >> "$GITHUB_ENV"
 
+      # Every node image bootstraps from a base on Docker Hub, and an
+      # anonymous pull is charged against a quota tied to the address it comes
+      # from. On Blacksmith each job pulled from its own short-lived address,
+      # so the quota was never close. The self-hosted boxes are few and every
+      # repository's jobs share their addresses, so a run that has to build
+      # images the cache does not hold yet exhausts it partway through — and
+      # Docker Hub reports the overage by refusing a token with `unauthorized:
+      # incorrect username or password`, which reads like a credential fault
+      # but is a quota. Authenticating raises the ceiling and charges it to the
+      # account instead of the box.
+      #
+      # Apptainer reads these two variables for every `docker://` bootstrap,
+      # so the daemon this job boots inherits them and every node image it
+      # builds pulls its base layers authenticated. They are exported only
+      # when both secrets carry a value: a pull request from a fork is given
+      # no secrets, and an empty username would have apptainer send empty
+      # credentials and be refused outright, which is worse than the anonymous
+      # pull it would otherwise have made.
+      - name: Authenticate the base image pulls against Docker Hub
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DOCKER_USERNAME:-}" ] && [ -n "${DOCKER_TOKEN:-}" ]; then
+            {
+              echo "APPTAINER_DOCKER_USERNAME=$DOCKER_USERNAME"
+              echo "APPTAINER_DOCKER_PASSWORD=$DOCKER_TOKEN"
+            } >> "$GITHUB_ENV"
+            echo "Base image pulls authenticate as $DOCKER_USERNAME."
+          else
+            echo "No Docker Hub credentials in scope; pulls stay anonymous and share the box's quota."
+          fi
+
       # Installed by extracting the release under RUNNER_TEMP rather than
       # through scripts/install.sh: nothing here wants a ~/.peppy, and the
       # whole job lives in the checkout and its own temp dir. The whole
@@ -502,9 +538,9 @@ jobs:
       # installer needs no root and touches only ~/.local/bin; uv's cache
       # and its downloaded interpreters go to the shared cache so a warm run
       # resolves a wheel or a Python it already has instead of fetching it.
-      # Installed only when absent: the runner is reused, so every job after
-      # the first would otherwise re-download the installer for nothing, and
-      # the box takes one job at a time so that is queue time. The PATH export
+      # Installed only when absent: the runners are reused, so every job after
+      # the first on a box would otherwise re-download the installer for
+      # nothing. The PATH export
       # is unconditional — a uv already on the box still has to be reachable
       # from the daemon this job boots.
       - name: Install uv for the daemon's host-side build commands

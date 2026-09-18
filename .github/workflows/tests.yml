@@ -710,7 +710,20 @@ jobs:
           if [ -n "$JOIN_OPTION" ]; then
             # The simulations pair one robot, so the copies the file deploys
             # make way for the planned one.
-            for copy in $(RUST_LOG=error peppy stack list --json | jq -r '.core_nodes[].copies[]?.name'); do
+            #
+            # The names are read with python3, which this job already needs to
+            # pick the daemon's port, rather than with jq, which nothing else
+            # in these repositories' CI asks of a runner and which the
+            # self-hosted boxes are not provisioned with as a result. They are
+            # read into a variable first because a command substitution in a
+            # `for` word list has its exit status discarded: a reader that
+            # failed left the copies standing and the loop iterated over
+            # nothing, which surfaced one step later as the join colliding
+            # with the pairing slots they still held. Under `set -e` the
+            # assignment reports the failure as itself.
+            copies=$(RUST_LOG=error peppy stack list --json |
+              python3 -c 'import json, sys; print("\n".join(copy["name"] for core_node in json.load(sys.stdin)["core_nodes"] for copy in core_node["copies"]))')
+            for copy in $copies; do
               echo "Removing the file's copy: peppy stack remove $copy"
               peppy stack remove "$copy"
             done

@@ -200,10 +200,10 @@ Waldo's device models, and on MuJoCo and Isaac Sim, which have none, every
 camera control refuses.
 Waldo serves its HTTPS page on `viewer_port` (8080, at the URLs the launch
 prints under `Web pages:`; accept the self-signed certificate once). The page
-carries the engine's 3D viewer of the running
-world, its `sim_inspector` plugin, and the "Start camera" panel, its
-`hand_teleop` plugin: webcam hand tracking drives the arm of the same
-name, ahead of the robot's pairing while a hand is tracked. The fragment
+carries the engine's 3D viewer of the running world, its `sim_inspector`
+plugin, and the "Start camera" panel, its `hand_teleop` plugin: webcam hand
+tracking drives the arm of the same name, ahead of the robot's pairing while
+a hand is tracked. The fragment
 runs both plugins whatever the launch selects (`plugins:
 "hand_teleop,sim_inspector"`), so the viewer is on from the first launch
 of every launcher deploying Waldo, and the inspector answers the scene

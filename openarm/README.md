@@ -67,14 +67,23 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 
 ```sh
 peppy stack join openarm_v2 -i bravo --with xr_commander,lerobot_recorder,cameras
-peppy stack join openarm_v1 -i charlie --with mcp_commander --place jetson-2
+peppy stack join openarm_v1 -i charlie --with mcp_commander,cameras --place jetson-2
 peppy stack join openarm_v2 -i delta --with web_commander,ai_brain
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
-poses and selects the backbone's pose mode. MCP exposes the backbone's discrete
-motion actions through the built-in `openarm_v2:v1` exposure, for either
-hardware generation.
+poses and selects the backbone's pose mode. MCP publishes the robot's own
+surface through the built-in `openarm_v2:v1` exposure: the backbone's
+discrete motion actions and the three cameras of the copy's rig, their
+latest frames as resources and their stream info, exposure, gain and white
+balance as tools.
+
+`mcp_commander` ([fragments/mcp_commander.json5](fragments/mcp_commander.json5))
+is one option, the same on hardware and in simulation. Its exposure list is
+fixed and every target takes a link, so it requires the robot's rig,
+`cameras` on a physical robot and `cameras_sim` on a simulated v2, and the
+rig counts it among its consumers. No simulation renders a rig on v1 links,
+so a simulated v1 does not offer it; a physical v1 does, with `cameras`.
 
 The MCP endpoint defaults to
 `http://127.0.0.1:8900/openarm_v2/v1/mcp`; the launch prints every exposure's
@@ -82,22 +91,18 @@ URL under `MCP endpoints:`, labelled `<exposure>_<tag>`, and `stack list`
 reports them under `Instance endpoints`. Recording requires the web or XR
 commander.
 
-A simulated v2 has a second MCP option, `mcp_sim_commander`
-([fragments/mcp_sim_commander.json5](fragments/mcp_sim_commander.json5)):
-the same robot endpoint on the same port, beside four endpoints a model
-uses to set the world up, the scene's objects (`scene_manipulation:v1`),
-its lighting (`scene_lighting:v1`), the robot's materials
-(`scene_materials:v1`) and the rendered cameras
-(`openarm_v2_sim_cameras:v1`). It requires the rendered rig, whose relays
-fill the camera targets, and Waldo, the one simulation implementing the
-lighting and materials contracts. A copy runs one MCP option or the other;
-`mcp_commander` stays the real robot's surface. The endpoints, the client
+What exists only because the world is simulated, the scene's objects, its
+lighting and its materials, is a second endpoint a model uses to set the
+world up, `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
+not the robot's: the `openarm_simulation_mcp` launcher deploys it on an axis
+of its own, bound to the simulation alone, under Waldo, the one simulation
+implementing the lighting and materials contracts. The endpoints, the client
 setup and the move from simulation to the real robot are in the
 [MCP guide](../mcp/README.md):
 
 ```sh
 peppy stack launch openarm_simulation_mcp
-peppy stack launch openarm_simulation --with alpha.robot_commander=mcp_sim_commander,alpha.camera_rig=cameras_sim
+peppy stack launch openarm_simulation --with alpha.robot_commander=mcp_commander,alpha.camera_rig=cameras_sim
 ```
 
 A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
@@ -144,7 +149,7 @@ The backbone follows exactly one kind of upstream arm command, named by its requ
 
 - `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The commander every robot fragment deploys.
 - `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The robot fragment selects the mode and re-vacates the slots as part of being selected.
-- Nobody streams - `mcp_commander` drives the backbone through discrete actions only: the whole-robot posture moves and the per-limb arm and gripper moves it exposes as tools. `upstream_mode` stays `"joints"`, all six leader sockets are vacant with their reasons, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
+- Nobody streams - `mcp_commander` drives the backbone through discrete actions only: the whole-robot posture moves and the per-limb arm and gripper moves it exposes as tools, beside the cameras it publishes from the rig. `upstream_mode` stays `"joints"`, all six leader sockets are vacant with their reasons, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 

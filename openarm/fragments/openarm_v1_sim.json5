@@ -32,7 +32,10 @@
   // The robot's own axes, `one` or `zero_or_one`, filled per copy of this
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`. The simulations render
-  // the camera rig on v2 links only, so a v1 has no camera_rig axis.
+  // the camera rig on v2 links only, so a v1 has no camera_rig axis, and
+  // with it no mcp_commander: that option's exposure publishes the robot's
+  // cameras, its list is fixed and every target takes a link, so it runs
+  // only where a rig fills them.
   components: [
     // The initializer and backbone every OpenArm shares.
     {
@@ -44,7 +47,6 @@
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        mcp_commander: "mcp_commander.json5",
       },
     },
     {

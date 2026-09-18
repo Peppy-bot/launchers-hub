@@ -1,0 +1,36 @@
+// The simulated world over MCP: no node at all. The server built into
+// peppy serves the simulation:v1 exposure from the MCP hub, the scene, its
+// light sources and its materials as one endpoint,
+// http://127.0.0.1:8902/simulation/v1/mcp, a process of its own beside a
+// robot copy's MCP commander on port 8900. It binds the simulation only, so
+// it needs nothing from any robot copy and keeps running when the copy is
+// removed. Its instance id is its own, so the browser scene panel
+// (web_scene_commander) runs beside it; it reads the simulation's clock, as
+// that panel does. The exposure binds scene_lighting and scene_materials,
+// which Waldo alone implements, so the launcher declaring this option
+// requires Waldo beside it.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { exposures: ["simulation:v1"] },
+      instances: [
+        {
+          instance_id: "scene_mcp_inst",
+          // The derived node's only parameter: it binds 127.0.0.1:<port>
+          // and serves the exposure at /simulation/v1/mcp.
+          arguments: { port: 8902 },
+          // One entry per target of the exposure, all three the
+          // simulation's.
+          links: {
+            scene: "simulation_inst",
+            lighting: "simulation_inst",
+            materials: "simulation_inst",
+          },
+          framework: { clock: "simulation" },
+        },
+      ],
+    },
+  ],
+}

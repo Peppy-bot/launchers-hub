@@ -38,17 +38,16 @@
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
-    // mcp_sim_commander is the simulation's MCP surface: the robot's moves
-    // beside the scene, its lighting, its materials and the rendered
-    // cameras, five endpoints on one port. mcp_commander serves the robot's
-    // moves alone, the surface the real robot has.
+    // mcp_commander is the robot's own MCP surface, the one the real robot
+    // has: its moves beside its three cameras, which the rendered rig fills
+    // here. The simulated world's MCP endpoint is not this robot's: the
+    // launcher that serves it deploys it (mcp/openarm_simulation_mcp.json5).
     {
       name: "robot_commander", provides: ["commander_inst"],
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
         mcp_commander: "mcp_commander.json5",
-        mcp_sim_commander: "mcp_sim_commander.json5",
       },
     },
     {
@@ -74,30 +73,26 @@
 
   constraints: [
     // The camera streams need a consumer: the recorder films them, the XR
-    // headset shows them in its panels, and the MCP simulation commander
-    // publishes them as resources and tools. The rig must feed at least
-    // one of them. The browser scene commander lists them in its camera
-    // panel too, but its axis belongs to the simulation's fragment, not to
-    // this robot's or the launcher's, so a constraint here cannot name it:
-    // the resolver refuses `scene_commander` as not in reach. A rig meant
-    // for that panel alone selects one of the consumers above beside it.
+    // headset shows them in its panels, and the MCP commander publishes
+    // them as resources and tools, the model its consumer. The rig must
+    // feed at least one of them. The browser scene commander lists them in
+    // its camera panel too, but its axis belongs to the simulation's
+    // fragment, not to this robot's or the launcher's, so a constraint here
+    // cannot name it: the resolver refuses `scene_commander` as not in
+    // reach. A rig meant for that panel alone selects one of the consumers
+    // above beside it.
     { when: { camera_rig: "cameras_sim" },
       requires: [
         { recorder: "lerobot_recorder" },
-        { robot_commander: ["xr_commander", "mcp_sim_commander"] },
+        { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
-      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_sim_commander" },
-    // The MCP simulation commander's exposure list is fixed and every
-    // target takes a link, so its camera targets cannot be optional: the
-    // rendered rig must run beside it.
-    { when: { robot_commander: "mcp_sim_commander" },
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+    // The MCP commander's exposure list is fixed and every target takes a
+    // link, so its camera targets cannot be optional: the rendered rig
+    // must run beside it.
+    { when: { robot_commander: "mcp_commander" },
       requires: [{ camera_rig: "cameras_sim" }],
-      reason: "mcp_sim_commander serves the rendered cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras_sim" },
-    // Its lighting and materials targets bind the simulation, and Waldo is
-    // the one simulation implementing those contracts.
-    { when: { robot_commander: "mcp_sim_commander" },
-      requires: [{ simulation: "waldo" }],
-      reason: "mcp_sim_commander binds scene_lighting and scene_materials, which only waldo implements; launch with waldo" },
+      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras_sim" },
   ],
 
   adjustments: [

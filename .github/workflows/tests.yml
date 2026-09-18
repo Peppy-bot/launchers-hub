@@ -67,16 +67,17 @@ name: Tests
 # built from (the node's tree, its def, its generated code and the peppy
 # version). A launch reuses an image whose fingerprint it finds and builds
 # the rest, so a run rebuilds exactly the nodes whose sources moved since
-# some earlier launch built them. Nothing mounts, clones or commits the directory: it is live, so a
-# run reads what the run before it left and writes into what later runs
-# build on. Nothing kept there may therefore be state one run depends on
-# another having written, only what apptainer, uv and the daemon rebuild
-# from scratch, all of it keyed by content, so an entry is either a hit for
-# the same bytes or a miss. Each box runs one runner, which executes one job
-# at a time, so concurrent writers are not a concern; a second runner on a
-# box would make its directory shared mutable state and is a reason to
-# revisit it. A run's launches all land on the box its launch job is
-# scheduled on, and find the images earlier runs built on that box.
+# some earlier launch built them. Nothing mounts, clones or commits the
+# directory: it is live, so a run reads what the run before it left and
+# writes into what later runs build on. Nothing kept there may therefore be
+# state one run depends on another having written, only what apptainer, uv
+# and the daemon rebuild from scratch, all of it keyed by content, so an
+# entry is either a hit for the same bytes or a miss. Each box runs one
+# runner, which executes one job at a time, so concurrent writers are not a
+# concern; a second runner on a box would make its directory shared mutable
+# state and is a reason to revisit it. A run's launches all land on the box
+# its launch job is scheduled on, and find the images earlier runs built on
+# that box.
 #
 # Every job runs on those runners; no job uses a GitHub-hosted one. A pull
 # request from a fork lands there too, so what keeps fork code off the box is

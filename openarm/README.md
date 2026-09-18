@@ -41,7 +41,9 @@ peppy stack remove alpha
 peppy stack reset --federated
 ```
 
-The browser panel defaults to `http://<robot-host>:8765`. Launch returns
+The browser panel is served on port 8765 by default; the launch prints its
+URLs under `Web pages:`, one per address of the host running it, and
+`peppy stack list` shows them again under `Instance endpoints`. Launch returns
 after startup. `stack remove alpha` stops every instance owned by alpha;
 `stack reset --federated` tears down the fleet.
 
@@ -75,8 +77,10 @@ motion actions through the built-in `openarm_v2:v1` exposure, for either
 hardware generation.
 
 The MCP endpoint defaults to
-`http://127.0.0.1:8900/openarm_v2/v1/mcp`; `stack list` reports its endpoints.
-Recording requires the web or XR commander.
+`http://127.0.0.1:8900/openarm_v2/v1/mcp`; the launch prints every exposure's
+URL under `MCP endpoints:`, labelled `<exposure>_<tag>`, and `stack list`
+reports them under `Instance endpoints`. Recording requires the web or XR
+commander.
 
 A simulated v2 has a second MCP option, `mcp_sim_commander`
 ([fragments/mcp_sim_commander.json5](fragments/mcp_sim_commander.json5)):
@@ -106,8 +110,8 @@ Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras
 and the chest camera and attaches them to the recorder or headset.
 
-For XR, open the HTTPS URL printed in the commander's log and accept its
-self-signed certificate. Over USB, enable developer mode and run
+For XR, open one of the HTTPS URLs the launch prints under `Web pages:` and
+accept its self-signed certificate. Over USB, enable developer mode and run
 `adb reverse tcp:4443 tcp:4443`, then open `https://localhost:4443`.
 
 Hold a grip button to move the matching arm; release it to hold position.
@@ -194,11 +198,12 @@ rig running (`alpha.camera_rig=cameras_sim`, which needs a consumer such as
 with their device profiles; the relays forward their camera controls to
 Waldo's device models, and on MuJoCo and Isaac Sim, which have none, every
 camera control refuses.
-Waldo serves its HTTPS page on `viewer_port` (8080; accept the self-signed
-certificate once). The page carries the engine's 3D viewer of the running
-world, its `sim_inspector` plugin, and the "Start camera" panel, its
-`hand_teleop` plugin: webcam hand tracking drives the arm of the same
-name, ahead of the robot's pairing while a hand is tracked. The fragment
+Waldo serves its HTTPS page on `viewer_port` (8080, at the URLs the launch
+prints under `Web pages:`; accept the self-signed certificate once). The page
+carries the engine's 3D viewer of the running world, its `sim_inspector`
+plugin, and the "Start camera" panel, its `hand_teleop` plugin: webcam hand
+tracking drives the arm of the same name, ahead of the robot's pairing while
+a hand is tracked. The fragment
 runs both plugins whatever the launch selects (`plugins:
 "hand_teleop,sim_inspector"`), so the viewer is on from the first launch
 of every launcher deploying Waldo, and the inspector answers the scene
@@ -243,7 +248,7 @@ The simulation keeps loading after `Launch complete`, and Isaac can take a minut
 Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and launch again.
 
 **The headset shows the page but "Enter VR" is missing**
-WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open the https URL from the startup log. Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
+WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open one of the https URLs the launch printed under `Web pages:` (`peppy stack list` shows them again). Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
 
 **The headset is connected but neither arm moves**
 Hold a grip button: it is the deadman, per hand, and with it released the node publishes nothing at all so the arms hold. If holding it does nothing, check the backbone's startup log line for which upstream mode it is following: a `"joints"` backbone reads only the panel's joint slots and a `"pose"` backbone only the headset's pose slots. A leader wired to the off-mode slots never reaches launch, so what remains is a leader that is publishing nothing: check the headset link and the grip in the node's status panel.

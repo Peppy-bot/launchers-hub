@@ -49,10 +49,9 @@
   deployments: [],
 
   constraints: [
-    // A simulated v2 runs in any simulation, so its need for one is stated
-    // here, where the simulation axis may be unfilled; the v1 states its
-    // own, MuJoCo or Isaac Sim, in its fragment.
-    { when: { robot: "openarm_v2_sim" },
+    // A simulated robot of either generation runs in any simulation, so its
+    // need for one is stated here, where the simulation axis may be unfilled.
+    { when: { robot: ["openarm_v1_sim", "openarm_v2_sim"] },
       requires: [{ simulation: ["mujoco", "isaac_sim", "waldo"] }],
       reason: "a simulated robot needs a simulation; launch with mujoco, isaac_sim or waldo" },
   ],

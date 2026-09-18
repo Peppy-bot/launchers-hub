@@ -14,8 +14,12 @@
 // have no response model, so the slot is written vacant and every camera
 // control refuses on them.
 //
-// Beside the recorder and the XR headset, the browser scene commander
-// consumes the rig: its camera panel lists the cameras whose relays are
+// Beside the recorder and the XR headset, two more consumers read the rig.
+// The MCP commander publishes the three cameras on the robot's own
+// endpoint, its exposure's camera targets linked to these relays by the
+// ids written here, as they are to the uvc and zed nodes on hardware; that
+// link is the commander fragment's own, so nothing below attaches it. The
+// browser scene commander's camera panel lists the cameras whose relays are
 // linked in, each matched to its profile by the relay serving both. That
 // attach targets the stack's scene_commander_inst and is skipped when no
 // scene commander is selected.

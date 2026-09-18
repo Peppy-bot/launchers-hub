@@ -1,10 +1,14 @@
 // The MCP command surface: no leader node at all. The server built into
-// peppy serves the openarm_v2:v1 exposure from the MCP hub, both of its
-// targets filled by the backbone, and its instance fills the commander_inst
-// role so everything keyed on the robot_commander axis keeps resolving.
-// Nothing streams: every move is a discrete action the backbone runs
-// itself, so the backbone's leader sockets and its governor-control slot go
-// vacant below.
+// peppy serves the openarm_v2:v1 exposure from the MCP hub, the robot's own
+// surface: its two move targets filled by the backbone and its three camera
+// targets by the copy's rig, the physical rig on hardware and the rendered
+// one in simulation, under the same ids. Its instance fills the
+// commander_inst role so everything keyed on the robot_commander axis keeps
+// resolving. The exposure list is fixed and every target takes a link, so
+// the camera targets cannot be optional: the robot fragment requires its
+// rig beside this option. Nothing streams: every move is a discrete action
+// the backbone runs itself, so the backbone's leader sockets and its
+// governor-control slot go vacant below.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -17,9 +21,18 @@
           // The derived node's only parameter: it binds 127.0.0.1:<port>
           // and serves the exposure at /openarm_v2/v1/mcp.
           arguments: { port: 8900 },
-          // One entry per target of the exposure. Both roles are the
-          // backbone's, the same instance under real, MuJoCo, or Isaac.
-          links: { postures: "backbone_inst", limb_motion: "backbone_inst" },
+          // One entry per target of the exposure. The two move roles are
+          // the backbone's, the same instance under the real robot and
+          // every simulation; the camera roles name the rig's instances,
+          // which the resolver mints under the copy's name
+          // (alpha_wrist_left) as it does the backbone.
+          links: {
+            postures: "backbone_inst",
+            limb_motion: "backbone_inst",
+            wrist_left: "wrist_left",
+            wrist_right: "wrist_right",
+            chest: "chest",
+          },
         },
       ],
     },

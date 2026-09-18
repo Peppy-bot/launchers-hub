@@ -1,83 +1,95 @@
 name: Tests
 
 # Launches the launchers this repository publishes, from start to end, with
-# the latest peppy release — one job per launchable combination. The
-# inventory is discovered from the repository on each run rather than
-# maintained by hand — `peppy_repository.json5` names the launchers, each
-# launcher's own `components` name its selections — so a launcher added
-# tomorrow, and every combination of its axes, runs in CI on the pull
-# request that adds it, and a pull request runs only the launchers its diff
-# touches (its own file, or a fragment any of its options references). A
-# change outside every launcher (this workflow, the skips file, the
-# repository index, ...) runs every combination, as does a push to main
-# whose tree no run has tested yet and the weekly run; a Markdown file
-# outside every launcher is the one exception, testing nothing.
+# the latest peppy release. The inventory is discovered from the repository
+# on each run rather than maintained by hand: `peppy_repository.json5` names
+# the launchers, each launcher's own `components` name its selections. A
+# launcher added tomorrow, and every combination of its axes, is planned in
+# CI on the pull request that adds it.
+#
+# Every combination is resolved on every run; a subset is launched. A launch
+# proves that each node instance it deploys builds, starts and signals ready
+# as configured, beside the instances it runs with, and most combinations
+# deploy instances some other combination runs the same way. The planner
+# keeps the launches that, between them, run every configured node instance
+# the launchable combinations deploy and every pair of instances any of them
+# runs side by side, and that launch every launcher at least once. The run
+# summary names, for each combination left out, the launches that stand for
+# it.
+#
+# A pull request narrows that to what it can reach. A launcher's whole
+# behaviour is the plan its combinations resolve to, so a change confined to
+# launcher files (a launcher, or a fragment any option references) reaches
+# exactly the combinations whose resolved plan differs from the one the base
+# tree gives them, and only those are planned. A change outside every
+# launcher (this workflow, the skips file, the repository index, ...) plans
+# every combination, as does a push to main whose tree no run has tested yet
+# and the weekly run; a Markdown file outside every launcher is the one
+# exception, planning nothing.
 #
 # Two jobs. `discover` enumerates the launchers and every combination of
 # their axes (printed to its log and the run summary), scopes them to the
 # diff, and plans: `peppy repo index --check` holds every launcher's whole
 # selection space to the structural checks a launch would run, and
-# `peppy stack resolve` splits the selected combinations into the
-# launchable, the refused (the launcher's own constraints, quoted), and the
-# skipped (a deployed node needs hardware the runner has none of, per
-# .github/unlaunchable-nodes.json5). The launchable ones become the second
-# job's matrix, one job per combination: each installs a peppy release of
-# its own, boots an isolated daemon, registers this checkout as the
-# launcher repository in its place (the bundled entry points at GitHub
-# main, which would resolve a pull request's launcher to the stale merged
-# copy), and launches its combination start to end — `peppy stack launch`
+# `peppy stack resolve` splits the combinations into the launchable, the
+# refused (the launcher's own constraints, quoted), and the skipped (a
+# deployed node needs hardware the runner has none of, per
+# .github/unlaunchable-nodes.json5). The launches picked among the
+# launchable ones are the plan the second job runs. `launch` installs a
+# peppy release, boots one isolated daemon, registers this checkout as the
+# launcher repository in its place (the bundled entry points at GitHub main,
+# which would resolve a pull request's launcher to the stale merged copy),
+# and runs the planned launches one after the other: `peppy stack launch`
 # resolves the launcher, adds each deployment's node, builds its container
 # image, and runs it, returning only once every node has signalled ready;
-# `peppy stack list` then records what came up and `peppy stack reset`
-# tears it down. Refused and skipped combinations are validated by
-# `discover` alone and named, with reasons, in the run summary.
+# `peppy stack list` then records what came up and `peppy stack reset` hands
+# the next launch an empty stack. A failed launch is named and the run goes
+# on, so a red run names every failing combination. Refused and skipped
+# combinations are validated by `discover` alone and named, with reasons, in
+# the run summary.
+#
+# The launches share one job because everything around a launch costs as
+# much as a warm launch itself: the release archive, the hub repositories
+# the daemon clones, the daemon's boot. One job pays for them once.
 #
 # A launch builds every deployed node's image through the daemon's bundled
-# apptainer, so the launch jobs follow the nodes-hub and openarm-nodes test
+# apptainer, so the launch job follows the nodes-hub and openarm-nodes test
 # workflows: install a peppy release, ready its apptainer for unprivileged
 # use, boot an isolated daemon. Node and contract sources keep resolving
 # through the bundled hub repositories at their latest main, which is the
 # point: a launcher must keep launching against the nodes and contracts
-# actually published. The runner is self-hosted and reused, so the
-# rebuildable caches simply outlive the job in one directory every launch
-# job shares: apptainer's pulled layers, uv's wheels and interpreters, the
-# daemon's container build cache (the crates.io registry and sccache the
-# Rust nodes compile through), and the daemon's build artifact cache, where
-# every built node image sits under the fingerprint of the staged sources it
-# was built from (the node's tree, its def, its generated code and the peppy
+# actually published. The runners are self-hosted and reused, so the
+# rebuildable caches simply outlive the job in one directory per box:
+# apptainer's pulled layers, uv's wheels and interpreters, the daemon's
+# container build cache (the crates.io registry and sccache the Rust nodes
+# compile through), and the daemon's build artifact cache, where every
+# built node image sits under the fingerprint of the staged sources it was
+# built from (the node's tree, its def, its generated code and the peppy
 # version). A launch reuses an image whose fingerprint it finds and builds
-# the rest, so a job rebuilds exactly the nodes whose sources moved since
-# some earlier job built them. Nothing mounts, clones or commits the
-# directory: it is live, so a job reads what the job before it left and
-# every job writes into what later runs build on. Nothing kept there may
-# therefore be state one run depends on another having written — only what
-# apptainer, uv and the daemon rebuild from scratch, all of it keyed by
-# content, so an entry is either a hit for the same bytes or a miss. Each
-# self-hosted runner is its own machine with its own $HOME, so the directory
-# is per-box rather than one the whole matrix shares: as many jobs run in
-# parallel as there are boxes, each box warms its own copy, and a launcher is
-# warm or cold depending on which one it lands on. A box runs one job at a
-# time, so nothing races inside the directory; two runner agents on a single
-# box would, and is the thing to revisit.
+# the rest, so a run rebuilds exactly the nodes whose sources moved since
+# some earlier launch built them. Nothing mounts, clones or commits the
+# directory: it is live, so a run reads what the run before it left and
+# writes into what later runs build on. Nothing kept there may therefore be
+# state one run depends on another having written, only what apptainer, uv
+# and the daemon rebuild from scratch, all of it keyed by content, so an
+# entry is either a hit for the same bytes or a miss. Each box runs one
+# runner, which executes one job at a time, so concurrent writers are not a
+# concern; a second runner on a box would make its directory shared mutable
+# state and is a reason to revisit it. A run's launches all land on the box
+# its launch job is scheduled on, and find the images earlier runs built on
+# that box.
 #
 # Every job runs on those runners; no job uses a GitHub-hosted one. A pull
 # request from a fork lands there too, so what keeps fork code off the box is
 # the repository's fork-PR approval gate, not the runner it is scheduled on.
 #
-# The planner still names one combination per launcher its cache writer (the
-# launchable one deploying the most nodes): after its own launch that job
-# builds the images its siblings deploy and it does not, which concentrates
-# a cold launcher's image builds in one job instead of spreading them over
-# the siblings that happen to run first.
-#
 # A push to main runs only when its tree was never tested: a merge whose
 # result is exactly the pull request's tested tree (the branch was up to
 # date with main) is skipped, since the pull request's run is the run of
-# that tree. The weekly run launches every combination with `--rebuild`,
-# ignoring the artifact cache: the fingerprint does not cover a def's
-# floating base image tag, so this is where a moved base image reaches
-# every node, and where a launcher drifting from the published nodes is
-# caught between pushes.
+# that tree. The weekly run launches its plan with `--rebuild`, ignoring the
+# artifact cache: the fingerprint does not cover a def's floating base image
+# tag, so this is where a moved base image reaches every node, and where a
+# launcher drifting from the published nodes is caught between pushes.
 on:
   push:
     branches: [main]
@@ -152,7 +164,7 @@ jobs:
     if: ${{ !cancelled() && needs.tested-tree.outputs.tested != 'true' }}
     # The self-hosted runner is x86, and the cache directory below carries
     # the architecture, so moving this repository onto an arm runner starts
-    # from an empty cache rather than a wrong-arch one. The launch jobs' base
+    # from an empty cache rather than a wrong-arch one. The launch job's base
     # images are published for both. No daemon and no container runs here,
     # only the planner and `peppy repo index`.
     runs-on: self-hosted
@@ -160,7 +172,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -185,10 +197,6 @@ jobs:
           python3 -m unittest discover -s .github/scripts -p 'test_*.py'
           python3 .github/scripts/launcher_combinations.py enumerate \
             > "$RUNNER_TEMP/inventory.tsv"
-          awk -F'\t' '$1 == "launcher"' "$RUNNER_TEMP/inventory.tsv" \
-            > "$RUNNER_TEMP/launchers.tsv"
-          awk -F'\t' '$1 == "combo"' "$RUNNER_TEMP/inventory.tsv" \
-            > "$RUNNER_TEMP/combos-all.tsv"
 
           listing=$(awk -F'\t' '
             $1 == "launcher" { printf "**%s** — %s\n", $2, $3; next }
@@ -207,82 +215,40 @@ jobs:
             printf '%s\n' "$listing"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # A launcher is selected by its own file or by a fragment one of its
-      # options references (the inventory line carries both, fragments as
-      # repository-relative paths), so editing a shared sim fragment selects
-      # every launcher composing it. A changed file outside every launcher
-      # falls back to every launcher, because nothing narrower can be proven
-      # safe for it — except a Markdown file, which nothing launches, so it
-      # selects nothing. Every skipped launcher is named in the run summary,
-      # so a scoped run never silently reads as full coverage.
-      - name: Discover the launchers this change reaches
-        id: discover
+      # What the change can reach, decided from the files it touches before
+      # anything is installed: every combination, the combinations whose
+      # resolved plan the change moves, or nothing. A pull request is
+      # compared with the commit it branched from, whose tree is extracted
+      # beside the checkout so the plan step can resolve the same
+      # combinations in both and keep the ones that differ. The launcher
+      # files of both trees count, so a fragment the pull request deletes is
+      # still a launcher file. The comparison fails open: a base that cannot
+      # be found or read scopes the run to every combination. The decision
+      # and its reason are written to the run summary, so a scoped run never
+      # silently reads as full coverage.
+      - name: Scope the run to what the change can reach
+        id: scope
         env:
-          LC_ALL: C
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          run_all=true
-          scope="every launcher"
-          : > "$RUNNER_TEMP/selected-launchers.txt"
+          scope_args=(--scope "$RUNNER_TEMP/scope.json")
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ -n "${BASE_SHA:-}" ]; then
-            if changed=$(git diff --name-only "$BASE_SHA...HEAD") && [ -n "$changed" ]; then
-              run_all=false
-              scope="the launchers this pull request touches"
-              while IFS= read -r file; do
-                hit=$(awk -F'\t' -v f="$file" \
-                  '$1 == "launcher" && ($3 == f || index("," $4 ",", "," f ",")) { print $2 }' \
-                  "$RUNNER_TEMP/launchers.tsv")
-                if [ -n "$hit" ]; then
-                  printf '%s\n' "$hit" >> "$RUNNER_TEMP/selected-launchers.txt"
-                elif [[ "${file,,}" == *.md ]]; then
-                  continue
-                else
-                  run_all=true
-                  scope="every launcher ($file is outside every launcher)"
-                  break
-                fi
-              done <<< "$changed"
-              if [ "$run_all" = false ] && [ ! -s "$RUNNER_TEMP/selected-launchers.txt" ]; then
-                scope="nothing: this pull request changes only documentation outside every launcher"
-              fi
+            mkdir -p "$RUNNER_TEMP/base"
+            if base=$(git merge-base "$BASE_SHA" HEAD) \
+              && git diff --name-only "$base" HEAD > "$RUNNER_TEMP/changed-files.txt" \
+              && git archive "$base" | tar -x -C "$RUNNER_TEMP/base"; then
+              scope_args+=(--changed-files "$RUNNER_TEMP/changed-files.txt" --base-root "$RUNNER_TEMP/base")
             else
-              echo "could not diff against the pull request base; running every launcher" >&2
+              echo "::warning::could not read the pull request's base; running every combination"
             fi
           fi
-
-          if [ "$run_all" = true ]; then
-            cut -f2 "$RUNNER_TEMP/launchers.tsv" > "$RUNNER_TEMP/selected-launchers.txt"
-          fi
-          sort -u -o "$RUNNER_TEMP/selected-launchers.txt" "$RUNNER_TEMP/selected-launchers.txt"
-          awk -F'\t' 'NR == FNR { sel[$1] = 1; next } $2 in sel' \
-            "$RUNNER_TEMP/selected-launchers.txt" "$RUNNER_TEMP/combos-all.tsv" \
-            > "$RUNNER_TEMP/combos.tsv"
-
-          any=false
-          [ -s "$RUNNER_TEMP/combos.tsv" ] && any=true
-          echo "any=$any" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "Running ${scope}."
-            echo
-            echo "### Launchers selected"
-            sed 's/^/- /' "$RUNNER_TEMP/selected-launchers.txt"
-            skipped=$(comm -23 <(cut -f2 "$RUNNER_TEMP/launchers.tsv" | sort) \
-              "$RUNNER_TEMP/selected-launchers.txt")
-            if [ -n "$skipped" ]; then
-              echo
-              echo "### Launchers skipped (untouched by this change)"
-              echo "$skipped" | sed 's/^/- /'
-            fi
-            echo
-            echo "$(wc -l < "$RUNNER_TEMP/combos.tsv") combination(s) to plan"
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 .github/scripts/launcher_combinations.py scope "${scope_args[@]}"
 
       # Installed by extracting the release under RUNNER_TEMP rather than
       # through scripts/install.sh: nothing here wants a ~/.peppy, and the
       # job lives in the checkout and its own temp dir. The whole archive is
-      # extracted, not just bin/peppy, because the launch jobs need the
+      # extracted, not just bin/peppy, because the launch job needs the
       # bundled layout around the binary — and this one needs the `peppy`
       # the plan step resolves launchers with. Set the PEPPY_VERSION
       # repository variable to pin a release; it defaults to the latest,
@@ -299,7 +265,7 @@ jobs:
       # release over time, so the log and the run summary both record which
       # release this run actually executed.
       - name: Install peppy
-        if: steps.discover.outputs.any == 'true'
+        if: steps.scope.outputs.any == 'true'
         env:
           PEPPY_VERSION: ${{ vars.PEPPY_VERSION }}
         run: |
@@ -338,51 +304,49 @@ jobs:
       # launcher's whole selection space: an unlisted launcher, a moved
       # fragment, an option whose shape contradicts an adjustment, a dead
       # constraint — each is this check's refusal, on the pull request that
-      # causes it, with no daemon and no containers. The launch jobs cover
+      # causes it, with no daemon and no containers. The launch job covers
       # only what a runner can actually run; this covers the rest.
       - name: Check the repository index and every selection it admits
-        if: steps.discover.outputs.any == 'true'
+        if: steps.scope.outputs.any == 'true'
         run: peppy repo index --check .
 
-      # Resolve every selected combination against the launcher file it
-      # comes from and split it into the launchable, the refused (the
-      # launcher's own constraints, quoted), and the skipped (a deployed
-      # node needs hardware the runner has none of, per
-      # .github/unlaunchable-nodes.json5). The launchable ones leave as the
-      # matrix the launch jobs fan out over. Needs no daemon; needs peppy.
+      # Resolve every combination against the launcher file it comes from
+      # and split it into the launchable, the refused (the launcher's own
+      # constraints, quoted), and the skipped (a deployed node needs hardware
+      # the runner has none of, per .github/unlaunchable-nodes.json5). Of the
+      # launchable ones in scope, the launches that between them run every
+      # configured node instance and every pair running side by side leave
+      # as the plan the launch job runs. Needs no daemon; needs peppy.
       - name: Plan the combinations this run launches
         id: plan
-        if: steps.discover.outputs.any == 'true'
+        if: steps.scope.outputs.any == 'true'
         run: |
           set -euo pipefail
           python3 .github/scripts/launcher_combinations.py plan \
-            --combos "$RUNNER_TEMP/combos.tsv" \
+            --scope "$RUNNER_TEMP/scope.json" \
+            --base-root "$RUNNER_TEMP/base" \
             --skips .github/unlaunchable-nodes.json5 \
-            --matrix "$RUNNER_TEMP/matrix.json"
-          echo "matrix=$(cat "$RUNNER_TEMP/matrix.json")" >> "$GITHUB_OUTPUT"
+            --plan "$RUNNER_TEMP/plan.json"
+          echo "plan=$(cat "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
 
   launch:
-    name: ${{ matrix.combo.label }}
+    name: Launch the planned combinations
     needs: discover
-    # A documentation-only change plans nothing: no matrix entries, no
-    # launch jobs, and the run is green without booting a single daemon.
-    # Spelled out with `!cancelled()` because the default condition also
-    # skips a job whose chain of needs holds a skipped job, and the gate
-    # ahead of discover is skipped on every pull request.
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.matrix != '' && needs.discover.outputs.matrix != '[]' }}
-    strategy:
-      # One combination's failure must not cancel its siblings: a red run
-      # names every failing combination, exactly as the sequential loop
-      # that preceded the matrix did.
-      fail-fast: false
-      matrix:
-        combo: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    # A documentation-only change plans nothing: no plan, no launch job, and
+    # the run is green without booting a daemon; so does a change that moves
+    # no launchable combination's plan. Spelled out with `!cancelled()`
+    # because the default condition also skips a job whose chain of needs
+    # holds a skipped job, and the gate ahead of discover is skipped on
+    # every pull request.
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]' }}
     runs-on: self-hosted
-    # A cold launch of the heaviest combination pulls the mujoco simulation
-    # image, compiles the openarm Rust nodes, and resolves the lerobot
-    # recorder's tree (torch included) inside its image build; the shared
-    # cache below keeps warm runs far under this.
-    timeout-minutes: 90
+    # One job runs every planned launch. A cold run pulls the mujoco
+    # simulation image, compiles the openarm Rust nodes, and resolves the
+    # lerobot recorder's tree (torch included) inside its image build, once
+    # each, since every launch after the first finds the image in the shared
+    # cache below; warm runs stay far under this. The weekly run rebuilds
+    # every image of every launch, so its budget is the larger one.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 720 || 180 }}
     permissions:
       contents: read
     steps:
@@ -400,10 +364,9 @@ jobs:
       # base image, uv's wheels and interpreters, and the two caches the
       # daemon keeps under its data root, handed to it below. Nothing mounts
       # or uploads it — the box is reused, so the directory is simply still
-      # there. Every launcher shares one directory rather than holding a key
-      # of its own, which the disk snapshots used to require: the images the
+      # there. Every launcher shares the one directory: the images the
       # combinations launch are largely the same images, and a live directory
-      # lets whichever job builds one first serve all the others. The name
+      # lets whichever launch builds one first serve all the others. The name
       # carries the architecture because the layers and images are built for
       # the host that built them.
       #
@@ -530,29 +493,42 @@ jobs:
           done
 
       # A node without an apptainer.def builds with the `build_cmd` its
-      # manifest declares — `uv sync --no-editable` for the scaffolded
-      # Python node — which the daemon executes on ITS OWN PATH, not inside
-      # a container; on a developer machine uv is simply installed. The
-      # runner image ships none, so it lands here, on the PATH the daemon
-      # is about to inherit, before the daemon boots. The standalone
-      # installer needs no root and touches only ~/.local/bin; uv's cache
-      # and its downloaded interpreters go to the shared cache so a warm run
-      # resolves a wheel or a Python it already has instead of fetching it.
-      # Installed only when absent: the runners are reused, so every job after
-      # the first on a box would otherwise re-download the installer for
-      # nothing. The PATH export
-      # is unconditional — a uv already on the box still has to be reachable
-      # from the daemon this job boots.
-      - name: Install uv for the daemon's host-side build commands
+      # manifest declares, `uv sync --no-editable` for the scaffolded Python
+      # node and `cargo build --release` for the scaffolded Rust one, which
+      # the daemon executes on ITS OWN PATH, not inside a container; on a
+      # developer machine both tools are simply installed. Here they have to
+      # be on the PATH the daemon is about to inherit, before the daemon
+      # boots. A runner's service PATH is fixed when the service is installed
+      # and need not hold ~/.local/bin or ~/.cargo/bin, where the standalone
+      # installers put uv and rustup's cargo, so both directories are added
+      # unconditionally: a tool already on the box still has to be reachable
+      # from the daemon this job boots. Each tool is installed only when
+      # absent: the boxes are reused, so every job after the first would
+      # otherwise re-download an installer for nothing. Neither installer
+      # needs root, and rustup is told to leave the shell profiles alone.
+      # uv's cache and its downloaded interpreters go to the shared cache so
+      # a warm run resolves a wheel or a Python it already has instead of
+      # fetching it; cargo's registry stays in ~/.cargo, which outlives the
+      # job on a reused box just the same.
+      - name: Install uv and cargo for the daemon's host-side build commands
         run: |
           set -euo pipefail
-          export PATH="$HOME/.local/bin:$PATH"
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           if command -v uv > /dev/null; then
             echo "uv already installed: $(uv --version)"
           else
             curl -LsSf https://astral.sh/uv/install.sh | sh
           fi
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          if command -v cargo > /dev/null; then
+            echo "cargo already installed: $(cargo --version)"
+          else
+            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+              | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
+          fi
+          {
+            echo "$HOME/.local/bin"
+            echo "$HOME/.cargo/bin"
+          } >> "$GITHUB_PATH"
           mkdir -p "$CI_CACHE_DIR/uv/cache" "$CI_CACHE_DIR/uv/python"
           {
             echo "UV_CACHE_DIR=$CI_CACHE_DIR/uv/cache"
@@ -672,90 +648,37 @@ jobs:
           fi
           peppy repo refresh
 
-      # Launch the combination, then join its copy, record the resulting
-      # stack, remove the copy, and reset the stack.
-      #
-      # The build idle budget is raised from the 180s default: a release
-      # compile of a heavy dependency can sit between cargo's progress lines
-      # for longer than that on a loaded VM, and the fix for a genuinely
-      # stuck build is the job's own timeout, not a mid-build abort that
-      # names no culprit.
+      # Every planned launch, one after the other on the daemon above: launch
+      # the combination, join its copy where it plans one (the copies the
+      # file deploys making way for it), record the resulting stack, and
+      # reset it for the next launch. Each launch has a log group of its own
+      # under its label; a failed one is annotated, the stack is reset, and
+      # the run goes on, so a red run names every failing combination. The
+      # run summary lists every launch with its outcome. The commands
+      # themselves, and the build idle budget they raise, are the planner's
+      # `launch` command.
       #
       # The weekly run passes `--rebuild`: every node builds from its staged
       # sources even when the artifact cache holds its fingerprint, which is
       # how a def's floating base image tag, outside the fingerprint, reaches
       # the images the cache serves for the week after.
       #
-      # The combination's fields reach the shell through the environment
-      # rather than `${{ }}` expansions: their values are data the shell
+      # The plan reaches the shell through the environment rather than a
+      # `${{ }}` expansion: its labels and launch words are data the shell
       # reads instead of source the shell parses.
-      - name: Launch the combination start to end
+      - name: Launch every planned combination start to end
         env:
-          LABEL: ${{ matrix.combo.label }}
-          LAUNCHER: ${{ matrix.combo.launcher }}
-          WORDS: ${{ matrix.combo.words }}
-          JOIN_OPTION: ${{ matrix.combo.join_option }}
-          JOIN_NAME: ${{ matrix.combo.join_name }}
-          JOIN_WORDS: ${{ matrix.combo.join_words }}
-          LOCAL: ${{ matrix.combo.local }}
+          PLAN: ${{ needs.discover.outputs.plan }}
           REBUILD: ${{ github.event_name == 'schedule' }}
         run: |
           set -euo pipefail
-          args=("$LAUNCHER")
-          [ -n "$WORDS" ] && args+=("--with" "$WORDS")
-          [ "$LOCAL" = "true" ] && args+=("--local")
-          [ "$REBUILD" = "true" ] && args+=("--rebuild")
-          echo "Launching $LABEL: peppy stack launch ${args[*]}"
-          peppy stack launch "${args[@]}" --node-build-idle-timeout-secs 900
-          if [ -n "$JOIN_OPTION" ]; then
-            # The simulations pair one robot, so the copies the file deploys
-            # make way for the planned one.
-            #
-            # The names are read with python3, which this job already needs to
-            # pick the daemon's port, rather than with jq, which nothing else
-            # in these repositories' CI asks of a runner and which the
-            # self-hosted boxes are not provisioned with as a result. They are
-            # read into a variable first because a command substitution in a
-            # `for` word list has its exit status discarded: a reader that
-            # failed left the copies standing and the loop iterated over
-            # nothing, which surfaced one step later as the join colliding
-            # with the pairing slots they still held. Under `set -e` the
-            # assignment reports the failure as itself.
-            copies=$(RUST_LOG=error peppy stack list --json |
-              python3 -c 'import json, sys; print("\n".join(copy["name"] for core_node in json.load(sys.stdin)["core_nodes"] for copy in core_node["copies"]))')
-            for copy in $copies; do
-              echo "Removing the file's copy: peppy stack remove $copy"
-              peppy stack remove "$copy"
-            done
-            join=("$JOIN_OPTION" -i "$JOIN_NAME")
-            [ -n "$JOIN_WORDS" ] && join+=("--with" "$JOIN_WORDS")
-            echo "Joining: peppy stack join ${join[*]}"
-            peppy stack join "${join[@]}" --node-build-idle-timeout-secs 900
-            peppy stack list
-            peppy stack remove "$JOIN_NAME"
-          fi
-          peppy stack list
-          peppy stack reset
+          printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
+          launch_args=(--plan "$RUNNER_TEMP/plan.json")
+          [ "$REBUILD" = "true" ] && launch_args+=(--rebuild)
+          python3 .github/scripts/launcher_combinations.py launch "${launch_args[@]}"
 
-      # The launcher's cache writer alone reaches this step: it builds the
-      # images of the nodes its siblings deploy and it did not launch, so
-      # the snapshot it commits holds every image the launcher's matrix
-      # needs. `node add` stages each node from the registered repositories
-      # and `node build` builds it, or reuses the artifact the disk already
-      # holds for that node's fingerprint; nothing is run. The weekly run
-      # passes `--rebuild` here as the launch does. The list comes from the
-      # planner through the environment, data the shell reads.
-      - name: Build the images the launcher's other combinations deploy
-        if: matrix.combo.cache_writer && matrix.combo.extra_nodes != ''
-        env:
-          EXTRA_NODES: ${{ matrix.combo.extra_nodes }}
-          REBUILD: ${{ github.event_name == 'schedule' }}
-        run: |
-          set -euo pipefail
-          for node in $EXTRA_NODES; do
-            build=("$node")
-            [ "$REBUILD" = "true" ] && build+=("--rebuild")
-            echo "Building $node: peppy node add $node && peppy node build ${build[*]}"
-            peppy node add "$node"
-            peppy node build "${build[@]}"
-          done
+      # Every launch ran on the one daemon, so when a launch failed its side
+      # of the story is here: the end of the daemon's own log.
+      - name: Show the end of the daemon's log
+        if: failure()
+        run: tail -n 300 "$RUNNER_TEMP/peppy-serve.log" || true

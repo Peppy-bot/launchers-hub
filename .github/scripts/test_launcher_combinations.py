@@ -752,6 +752,39 @@ class ResolveTests(unittest.TestCase):
             self.assertIn("refused as a join (1)", summary)
             self.assertIn("| fleet + join openarm_v2 | joining bravo would change simulation_inst", summary)
 
+    def test_a_join_the_files_copy_cannot_make_way_for_is_reported_not_launched(self):
+        def plan_with(scene_commander_links):
+            return completed(json.dumps({"deployments": [
+                {"source": {"name": "scene_commander", "tag": "v1"},
+                 "instances": [{"instance_id": "scene_commander_inst", "links": scene_commander_links}]},
+                {"source": {"name": "sim_rgb_camera", "tag": "v1"},
+                 "instances": [{"instance_id": "alpha_chest", "links": {"simulation": "simulation_inst/chest"}},
+                               {"instance_id": "alpha_wrist", "links": {}}]},
+            ]}))
+
+        held = plan_with({"rgbd_cameras": "alpha_chest/frames", "color_cameras": ["alpha_wrist", "studio_camera"],
+                          "lighting": {"vacant": "no light rig"}})
+        answers = {
+            ("fleet.json5", "", "", ""): held,
+            ("fleet.json5", "", "openarm_v2", ""): held,
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"): held,
+        }
+        with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (_, labels, _plan, summary):
+            # The launch itself keeps running; only its joins are held back.
+            self.assertEqual(labels, ["fleet"])
+            self.assertIn("Joins the file's copy cannot make way for (2)", summary)
+            self.assertIn(
+                "| fleet + join openarm_v2 | scene_commander_inst.rgbd_cameras -> alpha_chest/frames, "
+                "scene_commander_inst.color_cameras -> alpha_wrist |", summary)
+
+    def test_a_stack_linking_to_no_copy_lets_the_copy_make_way(self):
+        plan = {"deployments": [{"source": {"name": "node", "tag": "v1"}, "instances": [
+            {"instance_id": "scene_commander_inst", "links": {"simulation": "simulation_inst", "alphabet": "alphabet_inst"}},
+            {"instance_id": "alpha_recorder_inst", "links": {"cameras": ["alpha_chest"]}},
+        ]}]}
+        self.assertEqual(combinations.links_holding_copies(plan, ("alpha",)), [])
+        self.assertEqual(combinations.links_holding_copies(plan, ()), [])
+
     def test_a_run_reaching_only_refused_combinations_launches_nothing(self):
         refusal_with_a_pipe = completed(returncode=1, stderr=REFUSAL.stderr + " (a|b)")
         answers = {("sim.json5", "", "", ""): refusal_with_a_pipe}

@@ -15,9 +15,11 @@ nothing.
 
 plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
-classifies unavailable hardware and rollout dependencies. Of the launchable
-combinations in scope it keeps the launches that, between them, run every
-configured node instance and every pair of instances that run side by side.
+classifies unavailable hardware and rollout dependencies. A join onto a
+stack that links to the copy the file deploys is reported, since the copy
+cannot make way for it. Of the launchable combinations in scope it keeps the
+launches that, between them, run every configured node instance and every
+pair of instances that run side by side.
 
 launch runs the planned launches one after the other on the running daemon,
 resetting the stack between them, and reports each one's outcome.
@@ -783,6 +785,9 @@ class Verdict(enum.Enum):
     SKIPPED = "skipped"
     #: The copy runs only where the file deploys it at launch.
     LAUNCH_ONLY = "launch-only"
+    #: The stack links to the copy the file deploys, so `stack remove` keeps
+    #: it and the join it would make way for cannot run.
+    COPY_HELD = "copy-held"
     #: It does not resolve and nothing above explains why.
     BROKEN = "broken"
 
@@ -821,6 +826,41 @@ def deployed_nodes(resolved):
         if isinstance(source, dict) and "name" in source:
             nodes[source["name"]] = source.get("tag", "")
     return nodes
+
+
+def in_copies(instance_id, copies):
+    """Whether an instance is one of the named copies': a copy's instances
+    carry ids minted under its name (`alpha_backbone_inst`)."""
+    return str(instance_id).startswith(tuple(f"{name}_" for name in copies))
+
+
+def link_targets(value):
+    """The `instance` or `instance/slot` targets a flattened link holds: one,
+    a list of them, or none where the slot is declared vacant."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [target for target in value if isinstance(target, str)]
+    return []
+
+
+def links_holding_copies(plan, copies):
+    """The links from the stack into the named copies, spelled as peppy
+    spells them. `stack remove` keeps a copy the stack links to, so a copy
+    held this way cannot make way for a join."""
+    held = []
+    for deployment in plan.get("deployments", []):
+        for instance in deployment.get("instances", []):
+            instance_id = instance.get("instance_id", "")
+            if in_copies(instance_id, copies):
+                continue
+            for slot, value in (instance.get("links") or {}).items():
+                held += [
+                    f"{instance_id}.{slot} -> {target}"
+                    for target in link_targets(value)
+                    if in_copies(target.split("/")[0], copies)
+                ]
+    return held
 
 
 def read_skips(path):
@@ -872,6 +912,11 @@ def resolve_candidate(root, candidate, skips):
     if hits:
         detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
         return Resolution(Verdict.SKIPPED, detail, plan)
+    # The simulations pair one robot, so a join follows the removal of the
+    # copies the file deploys, and a copy the stack links to is not removed.
+    held = links_holding_copies(plan, candidate.file_copies) if candidate.join_option else []
+    if held:
+        return Resolution(Verdict.COPY_HELD, ", ".join(held), plan)
     return Resolution(Verdict.LAUNCH, "-", plan)
 
 
@@ -916,14 +961,12 @@ def changed_candidates(candidates, resolutions, base_candidates, base_resolution
 
 def instance_configurations(plan, without_copies=()):
     """Every node instance a flattened launcher deploys, as the canonical
-    text of its source and its whole configuration. A copy's instances carry
-    ids minted under the copy's name (`alpha_backbone_inst`), which is how
-    `without_copies` leaves them out."""
-    prefixes = tuple(f"{name}_" for name in without_copies)
+    text of its source and its whole configuration, the instances of
+    `without_copies` left out."""
     configurations = set()
     for deployment in plan.get("deployments", []):
         for instance in deployment.get("instances", []):
-            if prefixes and str(instance.get("instance_id", "")).startswith(prefixes):
+            if in_copies(instance.get("instance_id", ""), without_copies):
                 continue
             configurations.add(canonical([deployment.get("source"), instance]))
     return configurations
@@ -1157,6 +1200,7 @@ def plan_summary(candidates, in_scope, resolutions, launchable, selected, units_
         (Verdict.REFUSED, "❌ Refused by the launcher's own constraints", "refusal"),
         (Verdict.SKIPPED, "⏭️ Skipped: hardware or rollout dependencies", "deploys"),
         (Verdict.LAUNCH_ONLY, "🧷 Copies the file deploys at launch, refused as a join", "join refusal"),
+        (Verdict.COPY_HELD, "🔗 Joins the file's copy cannot make way for", "the stack links to the copy"),
     ):
         rows = [
             (

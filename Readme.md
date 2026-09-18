@@ -197,7 +197,11 @@ launcher launched at least once. The launches run one after the other in one
 job, on one daemon, the stack reset between them. A pull request that
 changes launcher files alone launches from the combinations whose resolved
 plan differs from the base tree's; the run summary names every combination
-left out and the launches that stand for it. The
+left out and the launches that stand for it. A join is planned only where
+the copy the file deploys can make way for it: `stack remove` keeps a copy
+the stack links to, as the browser scene commander does to the rendered
+cameras of `openarm_simulation_mcp`'s copy, and the summary lists those
+joins with the links that hold the copy. The
 [skip file](.github/unlaunchable-nodes.json5) lists the hardware the runner
 lacks. Structural checks and runtime startup checks are separate results.
 

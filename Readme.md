@@ -25,6 +25,14 @@ declares its scene commander, selected with `--with` at launch. A launcher
 that runs one robot, as `so101` does, reaches the robot's axes with `--with`
 at launch too.
 
+A launcher cannot pre-select an axis a fragment declares: an entry on a
+`one` axis takes no `with`, and a launch word is what selects a nested axis.
+What a file must serve by default and still let a launch switch off is
+therefore an axis of the launcher itself, `one`, deployed by the file, with
+a `none` option whose fragment deploys nothing:
+`openarm_simulation_mcp.json5` declares `simulation_mcp` that way, and
+`--with simulation_mcp=none` turns it off.
+
 ## Launchers
 
 Three launchers run robots as copies, each named, its ids minted under its
@@ -36,10 +44,11 @@ a physical one placed on its machine by that name.
 one simulation, Waldo unless a launch word selects another, and deploys the
 copy `alpha`, a simulated OpenArm v2 with the browser commander.
 [mcp/openarm_simulation_mcp.json5](mcp/openarm_simulation_mcp.json5) runs
-Waldo and deploys `alpha` with the MCP simulation commander and the
-rendered camera rig: five MCP endpoints on one port, the robot's moves
-beside the scene, its lighting, its materials and the rendered cameras,
-documented in the [MCP guide](mcp/README.md). The robot
+Waldo and serves two MCP endpoints, one per family: the robot's own
+surface, its moves and its three cameras, from the copy `alpha` with the
+MCP commander and the rendered camera rig, and the simulated world, its
+scene, lighting and materials, from the launcher's own `simulation_mcp`
+axis, documented in the [MCP guide](mcp/README.md). The robot
 options are the four OpenArm fragments, `openarm_v1`, `openarm_v2`
 (physical), `openarm_v1_sim`, `openarm_v2_sim` (simulated), sharing the
 OpenArm control in `control_common.json5`, and `so101`; the
@@ -72,12 +81,13 @@ discovery and host setup.
 | Axis | Declared by | Options |
 |---|---|---|
 | `simulation` | `openarm_simulation.json5` and `openarm_simulation_mcp.json5` (`one`), `fleet.json5` (`zero_or_one`) | `waldo` (deployed by both `one` launchers), `mujoco`, `isaac_sim` |
+| `simulation_mcp` | `openarm_simulation_mcp.json5` (`one`) | `mcp_scene_commander` (deployed): the simulated world's MCP endpoint on port 8902, bound to the simulation alone; requires `waldo`. `none` switches it off |
 | `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting and the robot's materials, and it shows a camera panel when a rendered rig runs |
 | `robot` | all three launchers | `openarm_v1_sim`, `openarm_v2_sim` in `openarm_simulation.json5`; `openarm_v2_sim` in `openarm_simulation_mcp.json5`; those, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
 | `control` | the robot | `control_common` (deployed): the shared initializer and backbone |
-| `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, `mcp_commander`; on a simulated v2 also `mcp_sim_commander`, which requires `cameras_sim` and `waldo` |
+| `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, and `mcp_commander`, the robot's MCP endpoint on port 8900, which requires the robot's camera rig; a simulated v1 has no rig and so no `mcp_commander` |
 | `recorder` | the robot | `lerobot_recorder`; requires web or XR |
-| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a consumer: a recorder, XR or, on the simulated v2, `mcp_sim_commander` |
+| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a consumer: a recorder, XR or `mcp_commander` |
 | `brain` | the v2 robots | `ai_brain`, with its MCP server on port 8901 |
 
 A copy selects one option per axis of its robot. `stack resolve` previews any
@@ -194,16 +204,19 @@ lacks. Structural checks and runtime startup checks are separate results.
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs |
 | `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, with its MCP server |
-| `openarm/fragments/mcp_commander.json5`, `mcp_sim_commander.json5` | The MCP command surfaces: the robot's moves alone, and the robot's moves beside the simulation's scene, lighting, materials and rendered cameras |
+| `openarm/fragments/mcp_commander.json5` | The robot's MCP surface, the same on hardware and in simulation: its moves on the backbone and its three cameras on the copy's rig |
 | `robot_commanders/fragments/` | Reusable robot commanders, with robot tuning supplied by the robot fragments |
 | `recording/fragments/` | Reusable recorder deployment and record-button attachment |
-| `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander, with the lighting and materials slots it binds on Waldo |
-| `mcp/` | The launchers whose command surface is MCP, and the guide to their endpoints and clients |
+| `simulation/fragments/` | The simulations, the Isaac viewer, the scene commander, with the lighting and materials slots it binds on Waldo, the simulated world's MCP endpoint (`mcp_scene_commander.json5`), and `none.json5`, the empty option of an axis a launch can switch off |
+| `mcp/` | The launchers whose command surface is MCP, the `simulation_mcp` axis that serves the simulated world, and the guide to their endpoints and clients |
 
-OpenArm's web commander and MCP exposures all reference OpenArm interfaces,
-so their fragments stay under `openarm/fragments/`. XR is shared by both
-robots. A launcher whose command surface is MCP lives under `mcp/` and
-composes the same robot and simulation fragments as the others.
+OpenArm's web commander and MCP commander both reference OpenArm
+interfaces, so their fragments stay under `openarm/fragments/`. XR is shared
+by both robots. The simulated world's MCP endpoint binds the simulation and
+nothing of a robot, so its fragment sits under `simulation/fragments/`
+beside the browser scene commander. A launcher whose command surface is MCP
+lives under `mcp/` and composes the same robot and simulation fragments as
+the others.
 
 Fragment paths are relative to the file that names them: the launcher's
 directory for its options, the fragment's for the options of its own axes.

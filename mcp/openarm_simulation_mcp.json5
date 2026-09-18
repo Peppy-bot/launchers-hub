@@ -1,31 +1,36 @@
-// An OpenArm v2 in Waldo, driven over MCP: the simulation is the stack and
-// the robot alpha, a v2 with the MCP simulation commander and the rendered
-// camera rig, is the copy the file deploys, its ids minted under its name:
-// alpha_backbone_inst, alpha_commander_inst, alpha_wrist_left. The
-// commander's server built into peppy serves five endpoints on one port:
+// An OpenArm v2 in Waldo, driven over MCP: two endpoints, one per family,
+// split by whether what a model does transfers to the physical robot.
 //
-//   http://127.0.0.1:8900/openarm_v2/v1/mcp               the robot's posture, arm and gripper moves
-//   http://127.0.0.1:8900/scene_manipulation/v1/mcp       the scene: assets, objects, the robot's placement
-//   http://127.0.0.1:8900/scene_lighting/v1/mcp           the scene's light sources
-//   http://127.0.0.1:8900/scene_materials/v1/mcp          the robot's materials
-//   http://127.0.0.1:8900/openarm_v2_sim_cameras/v1/mcp   the three rendered cameras and their profiles
+//   http://127.0.0.1:8900/openarm_v2/v1/mcp   the robot: its arm and gripper moves, its three cameras and their controls
+//   http://127.0.0.1:8902/simulation/v1/mcp   the simulated world: the scene, its light sources, its materials
+//
+// Each family is deployed by the part that owns what it publishes. The
+// robot's endpoint belongs to the copy alpha, a v2 with the MCP commander
+// and the rendered camera rig, its ids minted under its name:
+// alpha_backbone_inst, alpha_commander_inst, alpha_wrist_left. The
+// simulated world's endpoint belongs to this file: an axis of its own,
+// simulation_mcp, deployed here with a `none` option so a launch can
+// switch it off. It is not an option of Waldo's scene_commander axis: a
+// launcher cannot pre-select an axis a fragment declares, and an axis takes
+// one option, so sharing that one would stop the browser scene panel from
+// running beside it. It binds the simulation alone, so it keeps running
+// when alpha is removed.
 //
 // Waldo is the simulation the file deploys because it alone implements
-// scene_lighting and scene_materials, which the commander's exposure list
-// binds unconditionally; the robot fragment's own constraint refuses the
-// MCP simulation commander under any other. MuJoCo and Isaac Sim stay on
-// the axis all the same: the robot fragment's adjustments are guarded on
-// them, and the resolver refuses a fragment guard naming an option the
-// composing launcher's axis does not declare, so a launcher composing
-// openarm_v2_sim.json5 declares every simulation the fragment speaks
-// about. The stacks this file is meant for, and the same client on the
-// real robot, are in mcp/README.md:
+// scene_lighting and scene_materials, which the world's exposure binds
+// unconditionally; the constraint below refuses that option under any
+// other. The robot's endpoint has no such limit: the rendered rig runs
+// under every simulation, so `--with mujoco,simulation_mcp=none` serves it
+// alone, the camera setters refusing where the engine has no camera
+// response model. The stacks this file is meant for, and the same client
+// on the real robot, are in mcp/README.md:
 //
-//   peppy stack launch openarm_simulation_mcp                              # Waldo and alpha, the five endpoints
-//   peppy stack launch openarm_simulation_mcp --with web_scene_commander   # the browser scene panel beside them
-//   peppy stack launch openarm_simulation_mcp --with mujoco                # refused: the commander needs Waldo
-//   peppy stack remove alpha                                               # the simulation keeps running
-//   peppy stack join openarm_v2_sim -i bravo --with web_commander          # a copy with the browser panel instead
+//   peppy stack launch openarm_simulation_mcp                                     # Waldo and alpha, the two endpoints
+//   peppy stack launch openarm_simulation_mcp --with web_scene_commander          # the browser scene panel beside them
+//   peppy stack launch openarm_simulation_mcp --with mujoco,simulation_mcp=none   # the robot endpoint alone, under MuJoCo
+//   peppy stack launch openarm_simulation_mcp --with mujoco                       # refused: the world's endpoint needs Waldo
+//   peppy stack remove alpha                                                      # the world's endpoint keeps running
+//   peppy stack join openarm_v2_sim -i bravo --with web_commander                 # a copy with the browser panel instead
 //
 // The simulations pair one robot per limb slot, so this file ships one
 // copy.
@@ -43,6 +48,16 @@
         waldo: "../simulation/fragments/waldo.json5",
       },
     },
+    // The simulated world over MCP, on by default and switchable: a `one`
+    // axis the file deploys, whose `none` option deploys nothing.
+    {
+      name: "simulation_mcp",
+      cardinality: "one",
+      options: {
+        mcp_scene_commander: "../simulation/fragments/mcp_scene_commander.json5",
+        none: "../simulation/fragments/none.json5",
+      },
+    },
     {
       name: "robot",
       cardinality: "zero_or_more",
@@ -53,17 +68,27 @@
   ],
 
   // The entry names the component and its option. `with` selects the
-  // robot's own axes: the MCP simulation commander requires the rendered
-  // rig, whose relays fill the exposure's camera targets.
+  // robot's own axes: the MCP commander requires the rendered rig, whose
+  // relays fill the exposure's camera targets.
   deployments: [
     { simulation: "waldo" },
+    { simulation_mcp: "mcp_scene_commander" },
     {
       robot: "openarm_v2_sim",
       instances: [
         { instance_id: "alpha",
-          with: { robot_commander: "mcp_sim_commander", camera_rig: "cameras_sim" } },
+          with: { robot_commander: "mcp_commander", camera_rig: "cameras_sim" } },
       ],
     },
+  ],
+
+  constraints: [
+    // A property of the world's document, not of the robot: its lighting
+    // and materials targets bind the simulation, and Waldo is the one
+    // simulation implementing those contracts.
+    { when: { simulation_mcp: "mcp_scene_commander" },
+      requires: [{ simulation: "waldo" }],
+      reason: "the simulated world's endpoint binds scene_lighting and scene_materials, which only waldo implements; launch with waldo or with simulation_mcp=none" },
   ],
 
   adjustments: [

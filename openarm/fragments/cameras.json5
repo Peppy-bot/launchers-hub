@@ -2,7 +2,11 @@
 // headset selection retunes them for in-headset panels below). The
 // adjustments bind the cameras into whichever recorder was selected; only
 // the XR leader has camera slots of its own, so that attach is guarded on
-// the shape.
+// the shape. The MCP commander publishes the three cameras on the robot's
+// endpoint through its own links, by the instance ids written here. It
+// reads the rgb8 the recorder does: its server transcodes rgb8 to JPEG and
+// refuses yuyv, which only the headset selection below switches to, and a
+// copy runs one commander.
 {
   peppy_schema: "launcher_fragment/v1",
 

@@ -104,11 +104,22 @@
   ],
 
   constraints: [
-    // The recorder and XR headset consume camera streams; the rig must feed
-    // at least one of them.
+    // The camera streams need a consumer: the recorder films them, the XR
+    // headset shows them in its panels, and the MCP commander publishes
+    // them as resources and tools, the model its consumer. The rig must
+    // feed at least one of them.
     { when: { camera_rig: "cameras" },
-      requires: [{ recorder: "lerobot_recorder" }, { robot_commander: "xr_commander" }],
-      reason: "camera streams need a consumer; select lerobot_recorder or xr_commander" },
+      requires: [
+        { recorder: "lerobot_recorder" },
+        { robot_commander: ["xr_commander", "mcp_commander"] },
+      ],
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+    // The MCP commander's exposure list is fixed and every target takes a
+    // link, so its camera targets cannot be optional: the rig must run
+    // beside it.
+    { when: { robot_commander: "mcp_commander" },
+      requires: [{ camera_rig: "cameras" }],
+      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras" },
   ],
 
   adjustments: [

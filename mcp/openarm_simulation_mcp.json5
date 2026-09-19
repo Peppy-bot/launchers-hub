@@ -30,10 +30,10 @@
 //   peppy stack launch openarm_simulation_mcp --with mujoco,simulation_mcp=none   # the robot endpoint alone, under MuJoCo
 //   peppy stack launch openarm_simulation_mcp --with mujoco                       # refused: the world's endpoint needs Waldo
 //   peppy stack remove alpha                                                      # the world's endpoint keeps running
-//   peppy stack join openarm_v2_sim -i bravo --with web_commander                 # a copy with the browser panel instead
+//   peppy stack join openarm_v2_sim -i bravo --with web_commander                 # a second robot, with the browser panel
 //
-// The simulations pair one robot per limb slot, so this file ships one
-// copy.
+// Waldo stands any number of robots, each joined copy bringing its own
+// model; this file ships one copy.
 {
   peppy_schema: "launcher/v1",
 
@@ -89,11 +89,5 @@
     { when: { simulation_mcp: "mcp_scene_commander" },
       requires: [{ simulation: "waldo" }],
       reason: "the simulated world's endpoint binds scene_lighting and scene_materials, which only waldo implements; launch with waldo or with simulation_mcp=none" },
-  ],
-
-  adjustments: [
-    // Waldo's world declares the robot it simulates.
-    { target: "simulation_inst", when: { simulation: "waldo" },
-      set_arguments: { world: "openarm_v2" } },
   ],
 }

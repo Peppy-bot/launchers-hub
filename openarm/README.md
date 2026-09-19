@@ -1,10 +1,10 @@
 # OpenArm launchers and fragments
 
 Each OpenArm is one fragment: `openarm_v1` and `openarm_v2` drive the
-physical robot over CAN, `openarm_v1_sim` and `openarm_v2_sim` relay a
-simulation's limbs. Every fragment selects the shared OpenArm control
-([fragments/control_common.json5](fragments/control_common.json5)), the
-robot's initializer and backbone, and declares the robot's own axes: the
+physical robot over CAN, `openarm_v1_sim` and `openarm_v2_sim` join a
+simulation that runs their limbs. Every fragment selects the shared OpenArm
+control ([fragments/control_common.json5](fragments/control_common.json5)),
+the robot's initializer and backbone, and declares the robot's own axes: the
 robot commander, the recorder, and the camera rig. The repository's three
 launchers compose them: [fleet.json5](../fleet.json5) deploys nothing and
 takes any mix from the command line, physical robots placed on their
@@ -168,13 +168,23 @@ peppy stack launch openarm_simulation                 # Waldo and alpha
 peppy stack launch openarm_simulation --with mujoco   # the same copy in MuJoCo
 peppy stack launch openarm_simulation --with isaac_sim
 peppy stack remove alpha                              # the simulation keeps running
-peppy stack join openarm_v2_sim -i bravo --with xr_commander
-peppy stack remove bravo                              # one simulated robot at a time
-peppy stack join openarm_v2_sim -i charlie --with web_commander,ai_brain
 ```
 
-MuJoCo and Isaac Sim simulate v1 and v2; Waldo supplies the v2 world from
-private-nodes-hub. For rendered wrist/chest streams and recording, the copy
+Waldo and Isaac Sim stand as many robots as the machines can run, each
+joined copy bringing its own model, the simulation running throughout;
+MuJoCo stands one at a time, loading the scene of whichever robot joins:
+
+```sh
+peppy stack launch openarm_simulation --with isaac_sim
+peppy stack join openarm_v2_sim -i bravo --with xr_commander
+peppy stack join openarm_v1_sim -i charlie
+peppy stack remove bravo
+```
+
+Every simulation stands a v1 or a v2, the generation the robot's fragment
+names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
+(from private-nodes-hub), which carries both, so a v1 and a v2 share one
+Waldo world. For rendered wrist/chest streams and recording, the copy
 selects them in the file:
 
 ```json5
@@ -190,25 +200,28 @@ geometry lives in the simulation's OpenArm configuration and matches the v2
 link layout. Real camera devices remain configured in
 [fragments/cameras.json5](fragments/cameras.json5).
 
-What a copy may change on the running simulation, and the simulation
-limits, are in the [repository README](../Readme.md#what-a-copy-can-change).
+What a copy may change on the running simulation, and how a robot reaches
+a simulation, are in the
+[repository README](../Readme.md#what-a-copy-can-change).
 
 Isaac Sim and Waldo declare a scene commander, selected at launch with
 `--with web_scene_commander`. It drives the simulation's `scene_manipulation`
 contract and reads its `object_state` for the list of spawned objects. On
 Waldo its page also carries a lighting panel and a materials panel, bound
-to the engine's `scene_lighting` and `scene_materials`, and with a rendered
-rig running (`alpha.camera_rig=cameras_sim`, which needs a consumer such as
-`alpha.recorder=lerobot_recorder`) a camera panel listing the rig's relays
-with their device profiles; the relays forward their camera controls to
-Waldo's device models, and on MuJoCo and Isaac Sim, which have none, every
-camera control refuses.
+to the engine's `scene_lighting` and `scene_materials`, and with rendered
+rigs running (`alpha.camera_rig=cameras_sim`, which needs a consumer such as
+`alpha.recorder=lerobot_recorder`) a camera panel listing every robot's
+rendered cameras with their device profiles, read from Waldo's
+`sim_camera_control`; the relays forward their own camera controls to
+Waldo's device models too. MuJoCo and Isaac Sim model no camera response,
+so their page carries no camera panel and every camera control refuses.
 Waldo serves its HTTPS page on `viewer_port` (8080, at the URLs the launch
 prints under `Web pages:`; accept the self-signed certificate once). The page
 carries the engine's 3D viewer of the running world, its `sim_inspector`
 plugin, and the "Start camera" panel, its `hand_teleop` plugin: webcam hand
-tracking drives the arm of the same name, ahead of the robot's pairing while
-a hand is tracked. The fragment
+tracking drives an arm of the robot the panel chooses (the first standing
+when none is chosen), ahead of that robot's pairing while a hand is tracked.
+The fragment
 runs both plugins whatever the launch selects (`plugins:
 "hand_teleop,sim_inspector"`), so the viewer is on from the first launch
 of every launcher deploying Waldo, and the inspector answers the scene
@@ -225,8 +238,6 @@ peppy stack resolve fleet --join openarm_v1 --join-name bravo --join-with xr_com
 peppy stack resolve fleet --with isaac_sim,web_scene_commander --join openarm_v2_sim --join-name alpha --join-with xr_commander
 peppy stack resolve openarm_simulation_mcp --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/openarm/initializer -sb
-peppy node add /path/to/ws/nodes-hub/openarm/sim_arm -sb
-peppy node add /path/to/ws/nodes-hub/openarm/sim_gripper -sb
 ```
 
 Use `--node-build-idle-timeout-secs 18000` on launch or join for long first

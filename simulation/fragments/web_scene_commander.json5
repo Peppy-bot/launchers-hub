@@ -1,12 +1,11 @@
 // Runtime scene and object control: a browser panel driving the
 // scene_manipulation contract of the simulation that declares this option
 // and reading the object_state of that same simulation. The page shows a
-// lighting panel and a materials panel only when those slots are bound:
-// they are written vacant here, and a simulation implementing
-// scene_lighting and scene_materials binds them from its own fragment
-// (waldo does). It shows a camera panel when a rendered camera rig links
-// its relays into the camera slots, which the rig's own fragment
-// (cameras_sim) does for the copy that selects it.
+// lighting panel, a materials panel and a camera panel only when those
+// slots are bound: they are written vacant here, and a simulation
+// implementing scene_lighting, scene_materials and sim_camera_control binds
+// them from its own fragment (waldo does). The camera panel lists every
+// camera the simulation renders, of every robot standing in it.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -20,6 +19,7 @@
             objects: "simulation_inst",
             lighting: { vacant: "this simulation implements no scene_lighting; the page carries no lighting panel" },
             materials: { vacant: "this simulation implements no scene_materials; the page carries no materials panel" },
+            cameras: { vacant: "this simulation models no camera response; the page carries no camera panel" },
           },
           framework: { clock: "simulation" } },
       ],

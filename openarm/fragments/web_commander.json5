@@ -34,19 +34,15 @@
             right_arm: "backbone_inst/leader_right_arm",
             left_gripper: "backbone_inst/leader_left_gripper",
             right_gripper: "backbone_inst/leader_right_gripper",
-            // Live readouts: an observer link names the FOLLOWER instance of
-            // the pairing it watches, so these point at the arms and
-            // grippers themselves (the backbone<->follower loops), not at
-            // the backbone.
-            observed_left_arm: "left_arm_inst",
-            observed_right_arm: "right_arm_inst",
-            observed_left_gripper: "left_gripper_inst",
-            observed_right_gripper: "right_gripper_inst",
-            // Per-motor health telemetry from every limb, real and sim
-            // alike; the panel attributes each report to its producing
-            // instance. Operator alerts come only from real drivers, so
-            // the physical robots add that binding.
-            motor_health: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"],
+            // Live readouts: each limb's measured state, on the pair the
+            // backbone leads to that limb, named by the backbone's end so
+            // the panel hears this robot's limbs whatever holds the far end.
+            observed_left_arm: "backbone_inst/left_arm_link",
+            observed_right_arm: "backbone_inst/right_arm_link",
+            observed_left_gripper: "backbone_inst/left_gripper_link",
+            observed_right_gripper: "backbone_inst/right_gripper_link",
+            // Per-motor health and operator alerts come from real drivers,
+            // so the physical robots add those bindings.
           },
         },
       ],

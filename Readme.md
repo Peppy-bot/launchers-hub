@@ -66,8 +66,10 @@ peppy stack join so101 -i bravo
 peppy stack launch openarm_simulation_mcp              # Waldo and alpha, driven over MCP
 ```
 
-The simulations pair one robot at a time, so a second simulated copy
-replaces the first: remove it, then join.
+A simulation stands a robot when it holds the robot's model in its scene and
+drives that model's limbs for the robot's backbone. Waldo and Isaac Sim stand
+any number of robots at once, each joined copy bringing its own model; MuJoCo
+stands one.
 
 These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
@@ -101,33 +103,41 @@ peppy stack resolve openarm_simulation_mcp --with web_scene_commander
 
 ### What a copy can change
 
-A copy's fragment may write to a stack instance: a v1 copy sets the
-simulation's hardware generation, and the rendered camera rig turns its
-rendering on. Copies deployed together must agree on every field they both
-write, and a join may write to a stack instance only what already runs
-there, except that its relays may pair into the slots the instance declares
-vacant: the relay's own `links` name the slot, and the copy's fragment
-releases the vacancy with `unset_links` on the instance. A join that would
-change a running instance is refused, naming the
-instance and each field that differs, so a v1 simulation and rendered
-cameras are selected in the file at launch. The
+A copy's fragment may write to a stack instance: the rendered camera rig
+turns the simulation's rendering on. Copies deployed together must agree on
+every field they both write, and a join may write to a stack instance only
+what already runs there; its instances pair into the simulation's limb and
+camera slots, which take one pair per robot. A join that would change a
+running instance is refused, naming the instance and each field that
+differs, so rendered cameras are selected in the file at launch. The
 [planner](.github/scripts/launcher_combinations.py) reports such copies as
 launch-only.
 
-### Current simulation limits
+### How a robot reaches a simulation
 
-The simulations pair one robot per limb slot, so a stack runs **one
-simulated robot**, the copy `openarm_simulation.json5` deploys. A second simulated
-copy is refused where its relays reach for slots the first one paired. The
-simulation stays up when its robot is removed, its loaded model with it;
-`stack reset` stops everything. Physical robots can join beside the
-simulated one: they read wall time while the simulated robot reads the
-simulation's clock.
+A simulated robot is the same three nodes as a physical one, the initializer,
+the backbone and its commander, with the simulation standing its limbs. The
+initializer joins the simulation through the `simulation_robot` contract,
+naming the copy the robot runs as and the model to stand, and the backbone
+leads the simulation's limb slots on the same pairings it leads to a real
+robot's drivers. Isaac Sim and Waldo hold one pair per robot on each limb
+slot and tell the robots apart by the copy each pair belongs to, so a stack
+holds as many as its machines can run; MuJoCo admits one robot at a time,
+refusing a second attach while one stands. The simulation stays up when a
+robot is removed; `stack reset` stops everything. Physical robots can join
+beside the simulated ones: they read wall time while the simulated robots
+read the simulation's clock. A simulated robot has no motors to report on,
+so the web and XR panels show no motor health for it.
 
 | Robot | MuJoCo | Isaac Sim | Waldo | Rendered cameras |
 |---|---|---|---|---|
-| OpenArm v1 | Yes | Yes | No | No |
-| OpenArm v2 | Yes | Yes | Yes | Yes |
+| OpenArm v1 | One robot | Any number | Not in its catalogue | No |
+| OpenArm v2 | One robot | Any number | Any number | Yes |
+
+Waldo opens a world that stands no robot of its own (`stage`) and Isaac Sim
+an empty stage; every robot brings the model its fragment names. A rendered
+camera rig is one robot's: Isaac Sim and Waldo render one per robot that
+selects it, MuJoCo renders the one robot's.
 
 Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
 endpoint and a headset for operator control.
@@ -209,9 +219,9 @@ lacks. Structural checks and runtime startup checks are separate results.
 
 | Location | Owns |
 |---|---|
-| `fleet.json5`, `openarm/openarm_simulation.json5` | The simulation axis, the robot options, what the file deploys, and the simulation's world |
+| `fleet.json5`, `openarm/openarm_simulation.json5` | The simulation axis, the robot options, and what the file deploys |
 | `openarm/fragments/control_common.json5` | The initializer and backbone every OpenArm shares, with the commander and recorder wiring into both |
-| `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs or relays, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning and dataset labels |
+| `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs, or the simulation slots its control leads, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning, dataset labels, and the model the simulation stands for it |
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs |
 | `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, with its MCP server |
@@ -259,8 +269,7 @@ hardware models or per-simulation dataset labels, have separate adjustments.
 ## Release requirements
 
 Use a Peppy release whose launchers deploy options (`{ simulation: "waldo" }`
-in `deployments`) and the matching nodes-hub release with `openarm_initializer`,
-`openarm_sim_arm`, `openarm_sim_gripper`, and refreshed repository entries
-for the scene commander and Isaac viewer. Refresh repository caches after
-upgrading. Rebuild application nodes with the matching SDK. Set the CI
+in `deployments`) and the matching nodes-hub release with `openarm_initializer`
+and refreshed repository entries for the scene commander and Isaac viewer.
+Refresh repository caches after upgrading. Rebuild application nodes with the matching SDK. Set the CI
 `PEPPY_VERSION` variable to the compatible release.

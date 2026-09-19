@@ -2,9 +2,11 @@
 // default) with a self-signed certificate: the engine's 3D viewer of the
 // running world, streamed over WebTransport on UDP viewer_port, and the hand
 // teleop panel, both on from the first launch. Its scene_manipulation and
-// object_state contracts take a scene commander. The launcher sets the world
-// when it selects this simulation: hand_teleop reads the plugins.hand_teleop
-// block the openarm_v2 world carries.
+// object_state contracts take a scene commander. The world opens with no
+// robot: every robot joins it through its initializer, bringing its own
+// model, and any number stand in it at once, each holding its own pairs on
+// the simulation's limb and camera slots. hand_teleop reads the
+// plugins.hand_teleop block of each robot's model.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -26,18 +28,9 @@
         // blank) and answers the scene_manipulation and object_state calls of
         // the scene commander; hand_teleop is the page's "Start camera"
         // panel, which tracks the operator's hands on the webcam and drives
-        // the arm of the same name ahead of the robot's pairing while a
+        // the arm of the chosen robot ahead of that robot's pairing while a
         // hand is tracked.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop,sim_inspector" },
-        links: {
-          left_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          right_arm: { vacant: "a simulated robot binds this limb through its relays" },
-          left_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          right_gripper: { vacant: "a simulated robot binds this limb through its relays" },
-          wrist_left: { vacant: "select cameras_sim to render this camera" },
-          wrist_right: { vacant: "select cameras_sim to render this camera" },
-          chest: { vacant: "select cameras_sim to render this camera" },
-        },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "hand_teleop,sim_inspector", world: "stage" },
       }],
     },
   ],
@@ -52,10 +45,11 @@
   ],
 
   adjustments: [
-    // Waldo serves scene_lighting and scene_materials on the same instance
-    // as its scene, so the scene commander's two optional slots bind to it
-    // here; the adjustment is skipped when no scene commander is selected.
+    // Waldo serves scene_lighting, scene_materials and sim_camera_control on
+    // the same instance as its scene, so the scene commander's three
+    // optional slots bind to it here; the adjustment is skipped when no
+    // scene commander is selected.
     { target: "scene_commander_inst",
-      set_links: { lighting: "simulation_inst", materials: "simulation_inst" } },
+      set_links: { lighting: "simulation_inst", materials: "simulation_inst", cameras: "simulation_inst" } },
   ],
 }

@@ -31,9 +31,10 @@
     {
       // The brain's MCP surface: the server built into peppy serves the
       // ai_brain:v1 exposure from the MCP hub, both of its targets filled by
-      // the brain instance above, which implements the two contracts. Its
-      // own port, so it runs beside the mcp_commander option's server on
-      // 8900 when both are selected.
+      // the brain instance above, which implements the two contracts. The
+      // port is the one its server prefers, its own so it runs beside the
+      // mcp_commander option's server on 8900 when both are selected; a
+      // copy that finds it held takes another and announces it.
       source: { exposures: ["ai_brain:v1"] },
       instances: [
         {

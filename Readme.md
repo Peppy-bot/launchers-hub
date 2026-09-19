@@ -48,7 +48,10 @@ Waldo and serves two MCP endpoints, one per family: the robot's own
 surface, its moves and its three cameras, from the copy `alpha` with the
 MCP commander and the rendered camera rig, and the simulated world, its
 scene, lighting and materials, from the launcher's own `simulation_mcp`
-axis, documented in the [MCP guide](mcp/README.md). The robot
+axis, documented in the [MCP guide](mcp/README.md). It selects the MCP
+commander and the rig on the robot's entry, so every robot joined under it
+is an MCP robot with an endpoint of its own, whose URL the join prints. The
+robot
 options are the four OpenArm fragments, `openarm_v1`, `openarm_v2`
 (physical), `openarm_v1_sim`, `openarm_v2_sim` (simulated), sharing the
 OpenArm control in `control_common.json5`, and `so101`; the
@@ -64,6 +67,7 @@ peppy stack launch fleet                               # a new stack with no sim
 peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join so101 -i bravo
 peppy stack launch openarm_simulation_mcp              # Waldo and alpha, driven over MCP
+peppy stack join openarm_v2_sim -i bravo               # a second MCP robot, on its own endpoint
 ```
 
 A simulation stands a robot when it holds the robot's model in its scene and
@@ -151,17 +155,20 @@ domains a federation is running and what reads each one.
 
 ### Per-copy arguments
 
-Colocated copies need distinct server ports, hardware interfaces, and
-dataset directories. A copy's `arguments` in the file, or `--set-arguments`
-on join, override its instances' arguments by the id written in the
-fragment; `with` and `arguments` written on the entry itself apply to every
-copy it lists, each copy's own winning per axis and per argument, and an
-entry or a copy may carry `adjustments` with the fragment verbs, run after
-the launcher's adjustments and before the copy's arguments. At launch,
+Colocated copies need distinct hardware interfaces and dataset directories,
+and a copy whose URL must be known in advance needs a port of its own: the
+browser panel and the MCP servers prefer their port and take another when it
+is held, reporting the one they took. A copy's `arguments` in the file, or
+`--set-arguments` on join, override its instances' arguments by the id
+written in the fragment; `with` and `arguments` written on the entry itself
+apply to every copy of the option, the ones it lists and the ones a join
+adds, each copy's own winning per axis and per argument, and an entry or a
+copy may carry `adjustments` with the fragment verbs, run after the
+launcher's adjustments and before the copy's arguments. At launch,
 `--with alpha.xr_commander` selects a file copy's own axis. Values are
 JSON5; the order of application is fragment values and adjustments, launcher
-adjustments, the entry's then the copy's adjustments, then the copy's
-arguments. The [OpenArm guide](openarm/README.md#commanders-recording-and-cameras)
+adjustments, the entry's then the copy's adjustments, then the entry's
+arguments and the copy's over them. The [OpenArm guide](openarm/README.md#commanders-recording-and-cameras)
 shows a second physical v2 on one host taking its own CAN bindings,
 commander port and dataset directory. The launch
 snapshots its launcher and fragment files; edits take effect on the next

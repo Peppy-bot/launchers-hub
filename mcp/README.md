@@ -87,6 +87,74 @@ launched the stack, or reaches it through a tunnel. Each endpoint keeps its
 own catalog, subscriptions and task handles: a tool name or a resource on
 one is unknown to the other.
 
+### More than one robot
+
+The launcher states its robots once: the `with` of the `robot` entry
+selects the MCP commander and the rendered rig for every copy of
+`openarm_v2_sim`, `alpha` and the robots a join adds alike. A plain join is
+another MCP robot, serving the same `openarm_v2:v1` document on an endpoint
+of its own:
+
+```sh
+peppy stack launch openarm_simulation_mcp
+peppy stack join openarm_v2_sim -i bravo
+peppy stack join openarm_v2_sim -i charlie
+```
+
+Every robot's server prefers port 8900. The first to start holds it, and a
+server that finds it held takes a port from the operating system and
+announces that one, so each join ends with an `MCP endpoints:` block naming
+the new robot's URL, and `peppy stack list` reports all of them. The
+instance name says which robot an endpoint drives, `bravo_commander_inst`
+being `bravo`:
+
+| Node | Instance | Endpoint |
+|---|---|---|
+| `mcp_openarm_v2_v1:builtin` | `alpha_commander_inst` | `http://127.0.0.1:8900/openarm_v2/v1/mcp` |
+| `mcp_openarm_v2_v1:builtin` | `bravo_commander_inst` | `http://127.0.0.1:41873/openarm_v2/v1/mcp` |
+| `mcp_openarm_v2_v1:builtin` | `charlie_commander_inst` | `http://127.0.0.1:35291/openarm_v2/v1/mcp` |
+| `mcp_simulation_v1:builtin` | `scene_mcp_inst` | `http://127.0.0.1:8902/simulation/v1/mcp` |
+
+Register one server per robot, under a name that says which one it is, with
+the URL the join printed:
+
+```json
+{
+  "mcpServers": {
+    "openarm_alpha": { "type": "http", "url": "http://127.0.0.1:8900/openarm_v2/v1/mcp" },
+    "openarm_bravo": { "type": "http", "url": "http://127.0.0.1:41873/openarm_v2/v1/mcp" },
+    "simulation": { "type": "http", "url": "http://127.0.0.1:8902/simulation/v1/mcp" }
+  }
+}
+```
+
+A port the operating system picked lasts as long as the robot runs. A
+client configuration that outlives a relaunch fixes each robot's port on
+the join, which then holds that port or, when something else has it,
+another one it reports the same way:
+
+```sh
+peppy stack join openarm_v2_sim -i bravo --set-arguments commander_inst.port=8910
+```
+
+`peppy stack remove alpha` followed by `peppy stack join openarm_v2_sim -i
+alpha` brings `alpha` back as the file deployed it, on 8900 again once the
+port is free. The AI brain's server follows the same rule from its own
+port, 8901, when a join selects it with `--with ai_brain`.
+
+A `--with` word on a join wins on its own axis and the entry's other axes
+stay selected, so the rendered rig runs for every robot and the robot's
+fragment asks for a consumer of its streams. `--with xr_commander` is a
+headset robot with the rig feeding its panels, `--with
+web_commander,lerobot_recorder` is the browser panel with the recorder
+filming, and `--with web_commander` alone is refused with the fragment's
+reason. Each MCP robot adds three rendered cameras to the simulation.
+
+The simulated world's endpoint binds the simulation, not a robot, so it
+lists and places every robot whatever its commander:
+`scene.get_robots_list` names `alpha`, `bravo` and `charlie`, and
+`scene.move_robot` moves the base of any of them.
+
 ### The same client on the real robot
 
 The robot endpoint is the same document, `openarm_v2:v1`, whether the

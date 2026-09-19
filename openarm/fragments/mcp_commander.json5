@@ -1,8 +1,9 @@
 // The MCP command surface: no leader node at all. The server built into
 // peppy serves the openarm_v2:v1 exposure from the MCP hub, the robot's own
-// surface: its two move targets filled by the backbone and its three camera
-// targets by the copy's rig, the physical rig on hardware and the rendered
-// one in simulation, under the same ids. Its instance fills the
+// surface: its identity target filled by the robot's initializer, its two
+// move targets by the backbone and its three camera targets by the copy's
+// rig, the physical rig on hardware and the rendered one in simulation,
+// under the same ids. Its instance fills the
 // commander_inst role so everything keyed on the robot_commander axis keeps
 // resolving. The exposure list is fixed and every target takes a link, so
 // the camera targets cannot be optional: the robot fragment requires its
@@ -23,12 +24,14 @@
           // /openarm_v2/v1/mcp. A copy that finds the port held takes
           // another and announces it.
           arguments: { port: 8900 },
-          // One entry per target of the exposure. The two move roles are
-          // the backbone's, the same instance under the real robot and
-          // every simulation; the camera roles name the rig's instances,
-          // which the resolver mints under the copy's name
-          // (alpha_wrist_left) as it does the backbone.
+          // One entry per target of the exposure. The identity role is
+          // the initializer's and the two move roles are the backbone's,
+          // the same instances under the real robot and every simulation;
+          // the camera roles name the rig's instances, which the resolver
+          // mints under the copy's name (alpha_wrist_left) as it does the
+          // initializer and the backbone.
           links: {
+            identity: "init_inst",
             postures: "backbone_inst",
             limb_motion: "backbone_inst",
             wrist_left: "wrist_left",

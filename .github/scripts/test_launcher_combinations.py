@@ -465,10 +465,11 @@ class CombinationsTests(unittest.TestCase):
         instance, = deployment["instances"]
         self.assertEqual(instance["instance_id"], "commander_inst")
         self.assertEqual(instance["arguments"], {"port": 8900})
-        # One link per target of the robot document: the two move roles on
-        # the backbone, the three cameras on the copy's rig, physical or
-        # rendered, under the same ids.
+        # One link per target of the robot document: the identity role on
+        # the initializer, the two move roles on the backbone, the three
+        # cameras on the copy's rig, physical or rendered, under the same ids.
         self.assertEqual(instance["links"], {
+            "identity": "init_inst",
             "postures": "backbone_inst", "limb_motion": "backbone_inst",
             "wrist_left": "wrist_left", "wrist_right": "wrist_right", "chest": "chest",
         })

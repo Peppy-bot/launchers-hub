@@ -22,7 +22,7 @@ what a model does transfers to the physical robot:
 
 | Family | Endpoint | Exposure | Bound to | On the physical robot |
 |---|---|---|---|---|
-| Robot | `http://127.0.0.1:8900/openarm_v2/v1/mcp` | `openarm_v2:v1`: the posture, arm and gripper moves, the three cameras and their controls | the copy's backbone and camera rig | yes |
+| Robot | `http://127.0.0.1:8900/openarm_v2/v1/mcp` | `openarm_v2:v1`: who the robot is, the posture, arm and gripper moves, the three cameras and their controls | the copy's initializer, backbone and camera rig | yes |
 | Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, its light sources, its materials | the simulation | no |
 
 A model reads two `instructions` blocks. The robot's says it is the robot's
@@ -87,6 +87,21 @@ launched the stack, or reaches it through a tunnel. Each endpoint keeps its
 own catalog, subscriptions and task handles: a tool name or a resource on
 one is unknown to the other.
 
+### A second robot's endpoint
+
+A robot endpoint speaks for one robot, the copy it was launched in, and the
+`mcp_commander` fragment serves it on port 8900. A second copy joined on the
+same machine with that option serves its own endpoint, so it takes a port of
+its own, clear of 8900 and of the simulated world's 8902:
+
+```sh
+peppy stack join openarm_v2_sim -i bravo --with mcp_commander,cameras_sim \
+  --set-arguments 'commander_inst.port=8910'
+```
+
+`http://127.0.0.1:8910/openarm_v2/v1/mcp` then drives `bravo`, and
+`openarm.get_identity` on each endpoint says which robot it drives.
+
 ### The same client on the real robot
 
 The robot endpoint is the same document, `openarm_v2:v1`, whether the
@@ -107,24 +122,35 @@ The tool names are the exposures' public names, `<target>.<verb>`, as the
 documents under `openarm/` and `simulation/` of the MCP hub write them.
 With the stack up:
 
-1. Discover the lights: call `lighting.get_lighting` on the simulation
+1. Find the robot: call `openarm.get_identity` on the robot endpoint. It
+   reports `robot`, the name this endpoint's robot stands under, its
+   `model` and the `core_node` hosting it. Then call
+   `scene.get_robots_list` on the simulation endpoint: the entry whose
+   `robot` matches is the robot this endpoint drives, with `position`, where
+   its base stands in the simulated world, and `yaw`, which way it faces in
+   radians about +Z. A point `p` in the robot's own frame, the frame
+   `openarm.move_arm` poses are written in, stands in the simulated world at
+   `position + Rz(yaw) * p`, which is how something is placed where the
+   robot can reach it: `scene.spawn_object` takes a `yaw` of its own to
+   turn what it places, and `scene.move_robot` takes the robot's.
+2. Discover the lights: call `lighting.get_lighting` on the simulation
    endpoint. It lists every light with its id, kind, the properties it
    supports and each property's unit, bounds, authored default and current
    value; every `light_id` the setters take comes from this list.
-2. Dim the key light: call `lighting.set_light_intensity` with the
+3. Dim the key light: call `lighting.set_light_intensity` with the
    directional light's `light_id` and a lower illuminance in lux. The
    setter validates the whole request first, refuses out-of-bounds values
    without changing anything, and answers with the effective value after
    the call, so read the response rather than assuming the request took.
    The change shows in every view the engine renders, the robot's cameras
    included.
-3. Look through a wrist camera: read the resource `wrist_left.latest_frame`
+4. Look through a wrist camera: read the resource `wrist_left.latest_frame`
    on the robot endpoint, the latest frame as a JPEG, published at no more
    than 2 Hz. `wrist_left.info` reports the stream's resolution, frame rate
    and encoding; `wrist_left.set_exposure` and `wrist_left.set_gain` carry
    their bounds in their schemas and their modes and units in their
    descriptions.
-4. Move the robot: call `openarm.move_to_ready` on the same endpoint, with
+5. Move the robot: call `openarm.move_to_ready` on the same endpoint, with
    `duration_s` 0 for as fast as the joint limits allow. It is a
    task-backed tool: the call returns a task handle, `tasks/get` reports
    its progress, and it completes when both arms reach the working

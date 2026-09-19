@@ -598,6 +598,12 @@ class CombinationsTests(unittest.TestCase):
             "reason": "the simulated world's endpoint binds scene_lighting and scene_materials, which "
                       "only waldo implements; launch with waldo or with simulation_mcp=none",
         }])
+        # The robot's selection sits on the entry, which every copy of the
+        # option starts from, so a robot joined later is an MCP robot with
+        # an endpoint of its own; alpha carries its name alone.
+        robots = next(entry for entry in document["deployments"] if "robot" in entry)
+        self.assertEqual(robots["with"], {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"})
+        self.assertEqual(robots["instances"], [{"instance_id": "alpha"}])
         launcher = combinations.read_launcher(root, path)
         self.assertEqual(launcher.copies, [combinations.Copy(
             "alpha", "robot", "openarm_v2_sim",

@@ -4,10 +4,16 @@
 //   http://127.0.0.1:8900/openarm_v2/v1/mcp   the robot: its arm and gripper moves, its three cameras and their controls
 //   http://127.0.0.1:8902/simulation/v1/mcp   the simulated world: the scene, its light sources, its materials
 //
-// Each family is deployed by the part that owns what it publishes. The
-// robot's endpoint belongs to the copy alpha, a v2 with the MCP commander
-// and the rendered camera rig, its ids minted under its name:
-// alpha_backbone_inst, alpha_commander_inst, alpha_wrist_left. The
+// Each family is deployed by the part that owns what it publishes. A
+// robot's endpoint belongs to its copy, a v2 with the MCP commander and the
+// rendered camera rig, its ids minted under its name: alpha_backbone_inst,
+// alpha_commander_inst, alpha_wrist_left. The robot entry below states that
+// selection once, for every copy of the option, so a joined robot is an MCP
+// robot with an endpoint of its own, as alpha is. Each robot's server
+// prefers port 8900: alpha holds it, a robot that finds it held takes
+// another, and the join prints the URL it serves under `MCP endpoints:`,
+// as `peppy stack list` does afterwards. `--set-arguments
+// commander_inst.port=<n>` on the join fixes the URL instead. The
 // simulated world's endpoint belongs to this file: an axis of its own,
 // simulation_mcp, deployed here with a `none` option so a launch can
 // switch it off. It is not an option of Waldo's scene_commander axis: a
@@ -30,10 +36,15 @@
 //   peppy stack launch openarm_simulation_mcp --with mujoco,simulation_mcp=none   # the robot endpoint alone, under MuJoCo
 //   peppy stack launch openarm_simulation_mcp --with mujoco                       # refused: the world's endpoint needs Waldo
 //   peppy stack remove alpha                                                      # the world's endpoint keeps running
-//   peppy stack join openarm_v2_sim -i bravo --with web_commander                 # a second robot, with the browser panel
+//   peppy stack join openarm_v2_sim -i bravo                                      # a second MCP robot, its URL printed by the join
+//   peppy stack join openarm_v2_sim -i charlie --set-arguments commander_inst.port=8910   # a third, on a port of the operator's choosing
+//   peppy stack join openarm_v2_sim -i delta --with xr_commander                  # a robot under the headset, its cameras streamed to it
 //
 // Waldo stands any number of robots, each joined copy bringing its own
-// model; this file ships one copy.
+// model; this file ships one copy. A join word wins on its own axis and
+// the entry's rig stays selected, so a commander that consumes no camera
+// (`--with web_commander`) is refused by the robot fragment's constraint,
+// which names the ones that do.
 {
   peppy_schema: "launcher/v1",
 
@@ -67,17 +78,18 @@
     },
   ],
 
-  // The entry names the component and its option. `with` selects the
-  // robot's own axes: the MCP commander requires the rendered rig, whose
-  // relays fill the exposure's camera targets.
+  // The entry names the component and its option. Its `with` selects the
+  // robot's own axes for every copy of the option, alpha and each robot a
+  // join adds: the MCP commander requires the rendered rig, whose relays
+  // fill the exposure's camera targets.
   deployments: [
     { simulation: "waldo" },
     { simulation_mcp: "mcp_scene_commander" },
     {
       robot: "openarm_v2_sim",
+      with: { robot_commander: "mcp_commander", camera_rig: "cameras_sim" },
       instances: [
-        { instance_id: "alpha",
-          with: { robot_commander: "mcp_commander", camera_rig: "cameras_sim" } },
+        { instance_id: "alpha" },
       ],
     },
   ],

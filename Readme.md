@@ -48,7 +48,9 @@ Waldo and serves two MCP endpoints, one per family: the robot's own
 surface, its moves and its three cameras, from the copy `alpha` with the
 MCP commander and the rendered camera rig, and the simulated world, its
 scene, lighting and materials, from the launcher's own `simulation_mcp`
-axis, documented in the [MCP guide](mcp/README.md). The robot
+axis, documented in the [MCP guide](mcp/README.md). Its robot entry
+carries that selection, so every robot joined later is an MCP robot with
+an endpoint of its own, its URL printed by the join. The robot
 options are the four OpenArm fragments, `openarm_v1`, `openarm_v2`
 (physical), `openarm_v1_sim`, `openarm_v2_sim` (simulated), sharing the
 OpenArm control in `control_common.json5`, and `so101`; the
@@ -151,13 +153,16 @@ domains a federation is running and what reads each one.
 
 ### Per-copy arguments
 
-Colocated copies need distinct server ports, hardware interfaces, and
-dataset directories. A copy's `arguments` in the file, or `--set-arguments`
-on join, override its instances' arguments by the id written in the
-fragment; `with` and `arguments` written on the entry itself apply to every
-copy it lists, each copy's own winning per axis and per argument, and an
-entry or a copy may carry `adjustments` with the fragment verbs, run after
-the launcher's adjustments and before the copy's arguments. At launch,
+Colocated copies need distinct hardware interfaces and dataset
+directories, and a server port each: the browser panel and the MCP servers
+prefer the port their fragment names and take another when it is held,
+announcing the one they hold. A copy's `arguments` in the file, or
+`--set-arguments` on join, override its instances' arguments by the id
+written in the fragment; `with` and `arguments` written on the entry itself
+apply to every copy of the option, the ones it lists and the ones a join
+adds, each copy's own winning per axis and per argument, and an entry or a
+copy may carry `adjustments` with the fragment verbs, run after the
+launcher's adjustments and before the copy's arguments. At launch,
 `--with alpha.xr_commander` selects a file copy's own axis. Values are
 JSON5; the order of application is fragment values and adjustments, launcher
 adjustments, the entry's then the copy's adjustments, then the copy's

@@ -38,6 +38,8 @@
       instances: [
         {
           instance_id: "brain_mcp_inst",
+          // The port the server prefers; a copy that finds it held takes
+          // another and announces it.
           arguments: { port: 8901 },
           links: { item_perception: "brain_inst", item_manipulation: "brain_inst" },
         },

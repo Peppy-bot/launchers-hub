@@ -378,6 +378,40 @@ jobs:
           echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH" >> "$GITHUB_ENV"
           echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH/apptainer-cache" >> "$GITHUB_ENV"
 
+      # Every node image bootstraps from a base on Docker Hub, and an
+      # anonymous pull is charged against a quota tied to the address it comes
+      # from. On Blacksmith each job pulled from its own short-lived address,
+      # so the quota was never close. The self-hosted boxes are few and every
+      # repository's jobs share their addresses, so a run that has to build
+      # images the cache does not hold yet exhausts it partway through — and
+      # Docker Hub reports the overage by refusing a token with `unauthorized:
+      # incorrect username or password`, which reads like a credential fault
+      # but is a quota. Authenticating raises the ceiling and charges it to the
+      # account instead of the box.
+      #
+      # Apptainer reads these two variables for every `docker://` bootstrap,
+      # so the daemon this job boots inherits them and every node image it
+      # builds pulls its base layers authenticated. They are exported only
+      # when both secrets carry a value: a pull request from a fork is given
+      # no secrets, and an empty username would have apptainer send empty
+      # credentials and be refused outright, which is worse than the anonymous
+      # pull it would otherwise have made.
+      - name: Authenticate the base image pulls against Docker Hub
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DOCKER_USERNAME:-}" ] && [ -n "${DOCKER_TOKEN:-}" ]; then
+            {
+              echo "APPTAINER_DOCKER_USERNAME=$DOCKER_USERNAME"
+              echo "APPTAINER_DOCKER_PASSWORD=$DOCKER_TOKEN"
+            } >> "$GITHUB_ENV"
+            echo "Base image pulls authenticate as $DOCKER_USERNAME."
+          else
+            echo "No Docker Hub credentials in scope; pulls stay anonymous and share the box's quota."
+          fi
+
       # Installed by extracting the release under RUNNER_TEMP rather than
       # through scripts/install.sh: nothing here wants a ~/.peppy, and the
       # whole job lives in the checkout and its own temp dir. The whole

@@ -63,7 +63,7 @@ setters refuse with a message, as the document tells a model to expect.
 | `mcp_simulation_v1:builtin` | `scene_mcp_inst` | `http://127.0.0.1:8902/simulation/v1/mcp` |
 
 The AI brain's endpoint, `ai_brain:v1` on port 8901, appears when
-`--with alpha.ai_brain` selects it. It follows the same rule: robot-side and
+`--with alpha.ai_brain_vla` selects it. It follows the same rule: robot-side and
 optional, so it stays its own document and its own deployment.
 
 ### Registering the endpoints in a client

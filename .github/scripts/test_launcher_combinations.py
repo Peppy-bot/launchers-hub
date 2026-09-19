@@ -261,7 +261,7 @@ class CombinationsTests(unittest.TestCase):
             mcp,
         )
         self.assertIn(
-            ["combo", "openarm_simulation_mcp", "simulation=waldo,simulation_mcp=mcp_scene_commander,alpha.robot_commander=mcp_commander,alpha.camera_rig=cameras_sim,alpha.brain=ai_brain", "", "", "-"],
+            ["combo", "openarm_simulation_mcp", "simulation=waldo,simulation_mcp=mcp_scene_commander,alpha.robot_commander=mcp_commander,alpha.camera_rig=cameras_sim,alpha.brain=ai_brain_vla", "", "", "-"],
             mcp,
         )
         self.assertNotIn(
@@ -501,10 +501,10 @@ class CombinationsTests(unittest.TestCase):
 
     def test_every_robot_offering_the_mcp_commander_requires_its_rig(self):
         root = Path(__file__).resolve().parents[2]
-        for path, rig in [
-            ("openarm/fragments/openarm_v2_sim.json5", "cameras_sim"),
-            ("openarm/fragments/openarm_v2.json5", "cameras"),
-            ("openarm/fragments/openarm_v1.json5", "cameras"),
+        for path, rig, brain in [
+            ("openarm/fragments/openarm_v2_sim.json5", "cameras_sim", "ai_brain_vla"),
+            ("openarm/fragments/openarm_v2.json5", "cameras", None),
+            ("openarm/fragments/openarm_v1.json5", "cameras", None),
         ]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
@@ -521,15 +521,20 @@ class CombinationsTests(unittest.TestCase):
                     f"so the camera targets cannot be optional; select {rig}"])
                 # The rig's consumer rule admits the MCP commander: the model
                 # is the consumer. The scene commander's axis is out of a
-                # robot fragment's reach, so the rule cannot name it.
+                # robot fragment's reach, so the rule cannot name it. The
+                # rendered rig also binds the brain's camera slot, so there the
+                # brain is a consumer too; the physical rig does not bind it.
                 rule, = [c for c in robot["constraints"] if c.get("when") == {"camera_rig": rig}]
-                self.assertEqual(rule["requires"], [
+                requires = [
                     {"recorder": "lerobot_recorder"},
                     {"robot_commander": ["xr_commander", "mcp_commander"]},
-                ])
-                self.assertEqual(
-                    rule["reason"],
-                    "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander")
+                ]
+                consumers = "lerobot_recorder, xr_commander or mcp_commander"
+                if brain is not None:
+                    requires.append({"brain": brain})
+                    consumers = f"lerobot_recorder, xr_commander, mcp_commander or {brain}"
+                self.assertEqual(rule["requires"], requires)
+                self.assertEqual(rule["reason"], f"camera streams need a consumer; select {consumers}")
         # No simulation renders a rig on v1 links, so the simulated v1 has no
         # camera_rig axis and cannot offer the commander at all.
         v1_sim = combinations.load_json5(root / "openarm/fragments/openarm_v1_sim.json5", "openarm_v1_sim")

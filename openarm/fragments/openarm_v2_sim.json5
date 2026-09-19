@@ -54,14 +54,15 @@
     {
       name: "brain", cardinality: "zero_or_one",
       provides: ["brain_inst", "brain_mcp_inst"],
-      options: { ai_brain: "ai_brain.json5" },
+      options: { ai_brain_vla: "ai_brain_vla.json5" },
     },
   ],
 
   constraints: [
     // The camera streams need a consumer: the recorder films them, the XR
-    // headset shows them in its panels, and the MCP commander publishes
-    // them as resources and tools, the model its consumer. The rig must
+    // headset shows them in its panels, the MCP commander publishes them
+    // as resources and tools, the model its consumer, and the brain looks
+    // through the chest camera to find items. The rig must
     // feed at least one of them. The browser scene commander lists them in
     // its camera panel too, but its axis belongs to the simulation's
     // fragment, not to this robot's or the launcher's, so a constraint here
@@ -72,8 +73,9 @@
       requires: [
         { recorder: "lerobot_recorder" },
         { robot_commander: ["xr_commander", "mcp_commander"] },
+        { brain: "ai_brain_vla" },
       ],
-      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander, mcp_commander or ai_brain_vla" },
     // The MCP commander's exposure list is fixed and every target takes a
     // link, so its camera targets cannot be optional: the rendered rig
     // must run beside it.

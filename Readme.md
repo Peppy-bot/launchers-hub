@@ -89,8 +89,8 @@ discovery and host setup.
 | `control` | the robot | `control_common` (deployed): the shared initializer and backbone |
 | `robot_commander` | the robot | `web_commander` (deployed), `xr_commander`, and `mcp_commander`, the robot's MCP endpoint on port 8900, which requires the robot's camera rig; a simulated v1 has no rig and so no `mcp_commander` |
 | `recorder` | the robot | `lerobot_recorder`; requires web or XR |
-| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a consumer: a recorder, XR or `mcp_commander` |
-| `brain` | the v2 robots | `ai_brain`, with its MCP server on port 8901 |
+| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2; requires a consumer: a recorder, XR, `mcp_commander` or the brain |
+| `brain` | the v2 robots | `ai_brain_vla`, with its MCP server on port 8901 |
 
 A copy selects one option per axis of its robot. `stack resolve` previews any
 launch, and a join onto it, without starting nodes:
@@ -224,7 +224,7 @@ lacks. Structural checks and runtime startup checks are separate results.
 | `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs, or the simulation slots its control leads, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning, dataset labels, and the model the simulation stands for it |
 | `so101/fragments/so101.json5` | The SO-101 robot, on the same pattern |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs |
-| `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, with its MCP server |
+| `openarm/fragments/ai_brain_vla.json5` | The environment aware action layer beside a robot commander, with its MCP server |
 | `openarm/fragments/mcp_commander.json5` | The robot's MCP surface, the same on hardware and in simulation: its moves on the backbone and its three cameras on the copy's rig |
 | `robot_commanders/fragments/` | Reusable robot commanders, with robot tuning supplied by the robot fragments |
 | `recording/fragments/` | Reusable recorder deployment and record-button attachment |

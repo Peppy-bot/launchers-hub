@@ -20,7 +20,14 @@
       instances: [{
         instance_id: "simulation_inst",
         // Rendering is enabled by a robot's rendered camera rig.
-        arguments: { cameras_enabled: false, state_rate_hz: 100 },
+        // A robot's nodes start together with its join, and a robot holds
+        // its pairs only once its backbone is up: the SO-101's Python
+        // backbone takes several seconds to declare them, longer than the
+        // engine's default lease, which would end the stay before the robot
+        // is driven. The lease is also how long a robot whose nodes are gone
+        // stays, and how long one paired as another model stays before its
+        // stay ends naming both lists.
+        arguments: { cameras_enabled: false, state_rate_hz: 100, robot_lease_ms: 10000 },
       }],
     },
   ],

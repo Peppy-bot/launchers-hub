@@ -437,7 +437,7 @@ class CombinationsTests(unittest.TestCase):
                 self.assertFalse({"world", "plugins"} & set(adjustment.get("set_arguments", {})), launcher)
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
         arguments = waldo["deployments"][0]["instances"][0]["arguments"]
-        self.assertEqual((arguments["world"], arguments["plugins"]), ("stage", "hand_teleop,sim_inspector"))
+        self.assertEqual((arguments["world"], arguments["plugins"]), ("stage", "robot_names,hand_teleop,sim_inspector"))
         for adjustment in waldo.get("adjustments", []):
             self.assertFalse({"world", "plugins"} & set(adjustment.get("set_arguments", {})))
 

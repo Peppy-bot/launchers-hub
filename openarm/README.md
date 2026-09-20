@@ -221,9 +221,13 @@ carries the engine's 3D viewer of the running world, its `sim_inspector`
 plugin, and the "Start camera" panel, its `hand_teleop` plugin: webcam hand
 tracking drives an arm of the robot the panel chooses (the first standing
 when none is chosen), ahead of that robot's pairing while a hand is tracked.
+Its `robot_names` plugin has the viewer write `<robot>@<core node>` over every
+robot (`beta@cn-funky-animal` for `peppy stack join openarm_v2_sim -i beta` on
+the core node `cn-funky-animal`), which tells the robots of one world apart,
+and puts the button hiding and showing those names on the page.
 The fragment
-runs both plugins whatever the launch selects (`plugins:
-"hand_teleop,sim_inspector"`), so the viewer is on from the first launch
+runs the three plugins whatever the launch selects (`plugins:
+"robot_names,hand_teleop,sim_inspector"`), so the viewer is on from the first launch
 of every launcher deploying Waldo, and the inspector answers the scene
 commander's `scene_manipulation` and `object_state` calls. The viewer needs a
 browser with WebGPU and WebTransport (Chrome or Edge 119+) and streams

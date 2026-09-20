@@ -184,6 +184,12 @@ jobs:
           # credential sitting in .git/config for every later step to inherit.
           persist-credentials: false
 
+      # The workflow's own scripts, tested before the run trusts either: the
+      # planner below decides what is launched at all, and the disk reclaim
+      # the launch job runs deletes caches off the box.
+      - name: Test the CI scripts
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' --verbose
+
       # The inventory, printed for the person reading the run: every
       # launcher this repository publishes and every combination of its
       # component axes, discovered, not maintained. Runs on every event —
@@ -194,7 +200,6 @@ jobs:
           LC_ALL: C
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s .github/scripts -p 'test_*.py'
           python3 .github/scripts/launcher_combinations.py enumerate \
             > "$RUNNER_TEMP/inventory.tsv"
 
@@ -377,6 +382,17 @@ jobs:
         run: |
           echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH" >> "$GITHUB_ENV"
           echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH/apptainer-cache" >> "$GITHUB_ENV"
+
+      # Nothing in the directory named above ever shrinks: the daemon's build
+      # artifact cache gains an image for every fingerprint a node's sources
+      # reach, apptainer keeps the layers of every base it has pulled, and
+      # uv's built-wheel cache never evicts. The boxes are reused and shared
+      # with every other repository here, so the disk fills and a later job
+      # dies partway through with no space left on device. This evicts the
+      # coldest entries under ~/.cache, wherever they came from, until a
+      # quarter of the filesystem is free again, and only when it is not.
+      - name: Reclaim disk from the runner's caches
+        run: python3 .github/scripts/prune_ci_cache.py
 
       # Every node image bootstraps from a base on Docker Hub, and an
       # anonymous pull is charged against a quota tied to the address it comes

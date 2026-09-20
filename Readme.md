@@ -205,22 +205,31 @@ requires `peppy` on PATH.
 The [workflow](.github/workflows/tests.yml) enumerates every state of every
 axis, the fragments' own axes included: the launcher's own axes and each
 deployed copy's as launch words, `alpha.camera_rig=cameras_sim` among them,
-and every copy a fleet can add as a join, its axes as join words. It
-validates every admitted combination and launches a subset of the ones its
-runner can run, joining and removing the planned copy: the launches that,
-between them, run every configured node instance those combinations deploy
-and every pair of instances any of them runs side by side, with every
-launcher launched at least once. The launches run one after the other in one
-job, on one daemon, the stack reset between them. A pull request that
+and every copy a fleet can add as a join: plain, the way an operator types
+it, and with its axes as join words. It validates every admitted combination
+and launches a subset of the ones its runner can run, joining and removing
+the planned copy: the launches that, between them, run every configured node
+instance those combinations deploy and every pair of instances any of them
+runs side by side, with every launcher launched at least once and every
+robot joined plain at least once. The launches run one after the other in
+one job, on one daemon, the stack reset between them. A pull request that
 changes launcher files alone launches from the combinations whose resolved
 plan differs from the base tree's; the run summary names every combination
-left out and the launches that stand for it. A join is planned only where
-the copy the file deploys can make way for it: `stack remove` keeps a copy
-the stack links to, as the browser scene commander does to the rendered
-cameras of `openarm_simulation_mcp`'s copy, and the summary lists those
-joins with the links that hold the copy. The
-[skip file](.github/unlaunchable-nodes.json5) lists the hardware the runner
-lacks. Structural checks and runtime startup checks are separate results.
+left out and the launches that stand for it.
+
+A joined copy comes up beside the copies the file deploys, so a launch of
+`openarm_simulation_mcp` under Waldo ends with two MCP robots side by side,
+both preferring port 8900. The launch job holds the joined copy to the
+instances `peppy stack resolve` previewed for it, so a plain join that comes
+up under the fragment's default commander, where the launcher's entry gives
+it another, fails the launch. A stack deploying a node the
+[single-robot file](.github/single-robot-nodes.json5) names is the exception,
+MuJoCo today: there the file's copies make way for the joined one first, and
+the join is planned only where they can. `stack remove` keeps a copy the
+stack links to, and the summary lists those joins with the links that hold
+the copy. The [skip file](.github/unlaunchable-nodes.json5) lists the
+hardware the runner lacks. Structural checks and runtime startup checks are
+separate results.
 
 ## Configuration ownership
 

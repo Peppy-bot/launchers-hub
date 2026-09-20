@@ -5,9 +5,10 @@ enumerate prints launcher paths and fragment references, followed by
 six-column combo records: kind, launcher, launch words, joined option, join
 words, placement. It covers every state of every axis the launcher and its
 fragments declare, every copy a `zero_or_more` axis can add with
-`stack join`, and every state of the axes of each copy the file deploys,
-written as the `NAME.axis=option` launch words that select them. A declared
-core_nodes list requests local placement in CI.
+`stack join`, plain and under every selection of its own axes, and every
+state of the axes of each copy the file deploys, written as the
+`NAME.axis=option` launch words that select them. A declared core_nodes list
+requests local placement in CI.
 
 scope decides what a change can reach from the files it touches: every
 combination, the combinations whose resolved plan the change moves, or
@@ -15,14 +16,17 @@ nothing.
 
 plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
-classifies unavailable hardware and rollout dependencies. A join onto a
-stack that links to the copy the file deploys is reported, since the copy
-cannot make way for it. Of the launchable combinations in scope it keeps the
-launches that, between them, run every configured node instance and every
-pair of instances that run side by side.
+classifies unavailable hardware and rollout dependencies. A joined copy
+comes up beside the copies the file deploys, except where the stack deploys
+a node the single-robot file names: there the file's copies make way for it
+first, and a join onto a stack that links to one of them is reported, since
+that copy cannot make way. Of the launchable combinations in scope it keeps
+the launches that, between them, run every configured node instance and
+every pair of instances that run side by side.
 
 launch runs the planned launches one after the other on the running daemon,
-resetting the stack between them, and reports each one's outcome.
+resetting the stack between them, holds each joined copy to the instances
+its preview promised, and reports each one's outcome.
 
 The JSON5 subset reader reports unsupported syntax with its file and line.
 """
@@ -497,6 +501,18 @@ def copy_selections(axes, copy):
     ]
 
 
+def join_selections(own):
+    """Every join of one option, as the selections its join words write out.
+    The plain join comes first: it writes no word, so the copy is whatever
+    the launcher's entry for the option and the option's fragment give it,
+    and it is the join an operator types. Every selection of the option's own
+    axes that writes a word follows, in peppy's order. A selection leaving
+    every axis unfilled writes none, so it is the plain join."""
+    selections = selections_of(own)
+    plain = [selection for selection in selections if not render_words(selection)] or [[]]
+    return plain + [selection for selection in selections if render_words(selection)]
+
+
 def launcher_selections(axes, copies=()):
     """Every launch of the launcher, peppy's order: each stack selection
     bare, then with each deployed copy's own axes selected by launch word,
@@ -508,7 +524,7 @@ def launcher_selections(axes, copies=()):
         for axis in axes
         if axis.repeatable
         for option in axis.options
-        for selection in selections_of(axis.nested.get(option, []))
+        for selection in join_selections(axis.nested.get(option, []))
     ]
     combinations = []
     for selection in selections_of(stack):
@@ -554,7 +570,8 @@ class Candidate:
     join_words: str
     #: The launcher declares `core_nodes`, which CI places on the one daemon.
     local: bool
-    #: The copies the launcher's file deploys, which a join makes way for.
+    #: The copies the launcher's file deploys, which a join comes up beside
+    #: or, on a stack that stands one robot, takes the place of.
     file_copies: tuple
 
     @property
@@ -783,8 +800,8 @@ class Verdict(enum.Enum):
     SKIPPED = "skipped"
     #: The copy runs only where the file deploys it at launch.
     LAUNCH_ONLY = "launch-only"
-    #: The stack links to the copy the file deploys, so `stack remove` keeps
-    #: it and the join it would make way for cannot run.
+    #: The stack stands one robot and links to the copy the file deploys, so
+    #: `stack remove` keeps it and the join it would make way for cannot run.
     COPY_HELD = "copy-held"
     #: It does not resolve and nothing above explains why.
     BROKEN = "broken"
@@ -796,11 +813,16 @@ class Resolution:
     detail: str
     #: The flattened launcher, where the combination resolves.
     plan: dict | None = None
+    #: The copies of the file that make way for the join: the stack stands
+    #: one robot. Empty where the joined copy comes up beside them.
+    displaced: tuple = ()
 
     def fingerprint(self, candidate):
         """Everything a launch of the combination depends on: two trees
         giving a combination the same fingerprint launch the same thing."""
-        return canonical([self.verdict.value, self.detail, self.plan, candidate.local])
+        return canonical(
+            [self.verdict.value, self.detail, self.plan, candidate.local, self.displaced]
+        )
 
 
 def canonical(value):
@@ -842,6 +864,16 @@ def link_targets(value):
     return []
 
 
+def copy_instances(plan, name):
+    """The ids of the instances a flattened launcher deploys for one copy."""
+    return sorted(
+        instance.get("instance_id", "")
+        for deployment in plan.get("deployments", [])
+        for instance in deployment.get("instances", [])
+        if in_copies(instance.get("instance_id", ""), (name,))
+    )
+
+
 def links_holding_copies(plan, copies):
     """The links from the stack into the named copies, spelled as peppy
     spells them. `stack remove` keeps a copy the stack links to, so a copy
@@ -861,13 +893,15 @@ def links_holding_copies(plan, copies):
     return held
 
 
-def read_skips(path):
-    skips = {}
+def read_node_reasons(path):
+    """One of the two files that say of a node what no launcher can: the
+    skip file and the single-robot file. Node name to reason."""
+    reasons = {}
     for entry in load_json5(path, path) or []:
         if not isinstance(entry, dict) or "node" not in entry:
             raise Json5Error(f"{path}: an entry has no `node`")
-        skips[entry["node"]] = entry.get("reason", "no reason given")
-    return skips
+        reasons[entry["node"]] = entry.get("reason", "no reason given")
+    return reasons
 
 
 def resolve_command(path, words, join_option, join_words):
@@ -882,7 +916,7 @@ def resolve_command(path, words, join_option, join_words):
     return argv
 
 
-def resolve_candidate(root, candidate, skips):
+def resolve_candidate(root, candidate, skips, single_robot):
     """Previews one combination through `peppy stack resolve` and says what
     a runner can do with it."""
     argv = resolve_command(
@@ -910,18 +944,21 @@ def resolve_candidate(root, candidate, skips):
     if hits:
         detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
         return Resolution(Verdict.SKIPPED, detail, plan)
-    # MuJoCo stands one robot, so a join follows the removal of the copies
-    # the file deploys, and a copy the stack links to is not removed.
-    held = links_holding_copies(plan, candidate.file_copies) if candidate.join_option else []
+    # A joined copy comes up beside the copies the file deploys. A stack that
+    # stands one robot is the exception: there the join follows the removal
+    # of the file's copies, and a copy the stack links to is not removed.
+    stands_one_robot = any(node in single_robot for node in nodes)
+    displaced = candidate.file_copies if candidate.join_option and stands_one_robot else ()
+    held = links_holding_copies(plan, displaced)
     if held:
-        return Resolution(Verdict.COPY_HELD, ", ".join(held), plan)
-    return Resolution(Verdict.LAUNCH, "-", plan)
+        return Resolution(Verdict.COPY_HELD, ", ".join(held), plan, displaced)
+    return Resolution(Verdict.LAUNCH, "-", plan, displaced)
 
 
-def resolve_inventory(root, inventory, skips):
+def resolve_inventory(root, inventory, skips, single_robot):
     """Every combination of `inventory` resolved, keyed like its candidate."""
     return {
-        candidate.key: resolve_candidate(root, candidate, skips)
+        candidate.key: resolve_candidate(root, candidate, skips, single_robot)
         for launcher in inventory
         for candidate in launcher.candidates
     }
@@ -955,6 +992,16 @@ def changed_candidates(candidates, resolutions, base_candidates, base_resolution
 # and every launcher is launched at least once. What separates two
 # combinations a launch cannot tell apart is already held by
 # `peppy repo index --check` and by the resolve of every combination.
+#
+# The plain join is the one spelling a launch does tell apart. It writes no
+# word, so the daemon alone decides what the copy is, from the launcher's
+# entry for the option and the option's fragment, and the launch job holds
+# what comes up to the preview. A join spelling the same selection out proves
+# none of that. So each option of each launcher is joined plain in at least
+# one launch, beside the copies the file deploys and in their place where
+# both happen: beside them the two copies carry the same settings, the same
+# preferred port among them, which is the pair a join with words of its own
+# may never form.
 
 
 def instance_configurations(plan, without_copies=()):
@@ -974,9 +1021,11 @@ def running_states(candidate, resolutions):
     """The sets of instances a combination's launch has running together,
     one after the other. A launch without a join has one: the resolved plan.
     A launch with a join has two: the launch itself, which is the same
-    combination without its join, then the stack once the file's copies have
-    made way for the joined one."""
-    plan = resolutions[candidate.key].plan
+    combination without its join, then the stack with the joined copy, beside
+    the file's copies or, where the stack stands one robot, once they have
+    made way for it."""
+    resolution = resolutions[candidate.key]
+    plan = resolution.plan
     if not candidate.join_option:
         return [instance_configurations(plan)]
     launched = resolutions.get(candidate.launch_key)
@@ -988,14 +1037,18 @@ def running_states(candidate, resolutions):
         )
     return [
         instance_configurations(launched.plan),
-        instance_configurations(plan, without_copies=candidate.file_copies),
+        instance_configurations(plan, without_copies=resolution.displaced),
     ]
 
 
-def coverage_units(candidate, states):
+def coverage_units(candidate, states, displaced):
     """What a launch of the combination proves: its launcher launches, each
-    configured instance comes up, each two of them come up side by side."""
+    configured instance comes up, each two of them come up side by side, and
+    a plain join gives the copy what its preview says, beside the file's
+    copies or in the place of the `displaced` ones."""
     units = {("launcher", candidate.launcher)}
+    if candidate.join_option and not candidate.join_words:
+        units.add(("plain join", candidate.launcher, candidate.join_option, bool(displaced)))
     for state in states:
         units.update(("configuration", configuration) for configuration in state)
         units.update(("pair", *pair) for pair in itertools.combinations(sorted(state), 2))
@@ -1045,9 +1098,13 @@ class Launch:
     join_name: str
     join_words: str
     local: bool
+    #: The copies of the file that make way for the join, removed before it.
+    displaced: list
+    #: The instances the join's preview gives the joined copy.
+    join_instances: list
 
     @classmethod
-    def of(cls, candidate):
+    def of(cls, candidate, resolution):
         return cls(
             candidate.label,
             candidate.launcher,
@@ -1056,6 +1113,8 @@ class Launch:
             COPY_NAME if candidate.join_option else "",
             candidate.join_words,
             candidate.local,
+            list(resolution.displaced),
+            copy_instances(resolution.plan, COPY_NAME) if candidate.join_option else [],
         )
 
 
@@ -1069,7 +1128,7 @@ def read_plan(path):
         return [Launch(**entry) for entry in json.load(handle)]
 
 
-def candidates_in_scope(scope, candidates, resolutions, base_root, skips):
+def candidates_in_scope(scope, candidates, resolutions, base_root, skips, single_robot):
     """The combinations a run of this scope plans."""
     if scope.kind is ScopeKind.EVERYTHING:
         return candidates
@@ -1082,16 +1141,17 @@ def candidates_in_scope(scope, candidates, resolutions, base_root, skips):
         candidates,
         resolutions,
         [candidate for launcher in base_inventory for candidate in launcher.candidates],
-        resolve_inventory(base_root, base_inventory, skips),
+        resolve_inventory(base_root, base_inventory, skips, single_robot),
     )
 
 
-def command_plan(root, scope_path, base_root, skips_path, plan_path):
-    skips = read_skips(skips_path)
+def command_plan(root, scope_path, base_root, skips_path, single_robot_path, plan_path):
+    skips = read_node_reasons(skips_path)
+    single_robot = read_node_reasons(single_robot_path)
     scope = read_scope(scope_path)
     inventory = read_inventory(root)
     candidates = [candidate for launcher in inventory for candidate in launcher.candidates]
-    resolutions = resolve_inventory(root, inventory, skips)
+    resolutions = resolve_inventory(root, inventory, skips, single_robot)
     for candidate in candidates:
         resolution = resolutions[candidate.key]
         if resolution.verdict is Verdict.BROKEN:
@@ -1101,18 +1161,22 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
                 "do not refuse it either"
             )
 
-    in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)
+    in_scope = candidates_in_scope(
+        scope, candidates, resolutions, base_root, skips, single_robot
+    )
 
     launchable = [
         candidate for candidate in in_scope if resolutions[candidate.key].verdict is Verdict.LAUNCH
     ]
     units_by_key = {
-        candidate.key: coverage_units(candidate, running_states(candidate, resolutions))
+        candidate.key: coverage_units(
+            candidate, running_states(candidate, resolutions), resolutions[candidate.key].displaced
+        )
         for candidate in launchable
     }
     selected = select_launches(units_by_key)
     by_key = {candidate.key: candidate for candidate in launchable}
-    write_plan([Launch.of(by_key[key]) for key in selected], plan_path)
+    write_plan([Launch.of(by_key[key], resolutions[key]) for key in selected], plan_path)
 
     append_to_env_file(
         "GITHUB_STEP_SUMMARY",
@@ -1198,7 +1262,7 @@ def plan_summary(candidates, in_scope, resolutions, launchable, selected, units_
         (Verdict.REFUSED, "❌ Refused by the launcher's own constraints", "refusal"),
         (Verdict.SKIPPED, "⏭️ Skipped: hardware or rollout dependencies", "deploys"),
         (Verdict.LAUNCH_ONLY, "🧷 Copies the file deploys at launch, refused as a join", "join refusal"),
-        (Verdict.COPY_HELD, "🔗 Joins the file's copy cannot make way for", "the stack links to the copy"),
+        (Verdict.COPY_HELD, "🔗 Joins the file's copy cannot make way for", "the stack stands one robot and links to the copy"),
     ):
         rows = [
             (
@@ -1229,11 +1293,25 @@ BUILD_IDLE_TIMEOUT = ["--node-build-idle-timeout-secs", "900"]
 STACK_RESET = ["peppy", "stack", "reset"]
 
 
-class CommandFailed(Exception):
+class LaunchFailed(Exception):
+    """A launch did not come up start to end as planned."""
+
+
+class CommandFailed(LaunchFailed):
     """A `peppy` command of a launch exited non-zero."""
 
     def __init__(self, argv, returncode):
         super().__init__(f"`{' '.join(argv)}` exited {returncode}")
+
+
+class JoinedCopyDiffers(LaunchFailed):
+    """The joined copy does not run the instances its preview gave it."""
+
+    def __init__(self, name, planned, running):
+        super().__init__(
+            f"copy `{name}` runs {', '.join(running) or 'no instance'}; "
+            f"`peppy stack resolve` previewed {', '.join(planned)}"
+        )
 
 
 def run_peppy(argv, capture=False):
@@ -1255,13 +1333,15 @@ def checked(run, argv, capture=False):
     return completed
 
 
-def stack_copies(listing):
-    """The names of the copies on the stack, from `peppy stack list --json`."""
-    return [
-        copy["name"]
+def running_copy_instances(listing, name):
+    """The ids of the instances one copy runs, from `peppy stack list --json`."""
+    return sorted(
+        instance_id
         for core_node in json.loads(listing)["core_nodes"]
         for copy in core_node["copies"]
-    ]
+        if copy["name"] == name
+        for instance_id in copy["instance_ids"]
+    )
 
 
 def launch_command(launch, rebuild):
@@ -1284,14 +1364,19 @@ def join_command(launch):
 
 def launch_start_to_end(launch, rebuild, run):
     """Launches one combination and returns once every node has signalled
-    ready, then joins its copy where it plans one. MuJoCo stands one robot,
-    so the copies the file deploys make way for the joined one."""
+    ready, then joins its copy where it plans one: beside the copies the file
+    deploys, or after the ones the plan says make way for it. The joined copy
+    is held to the instances its preview gave it, so a join that comes up as
+    another robot than the one planned fails the launch."""
     checked(run, launch_command(launch, rebuild))
     if launch.join_option:
-        listing = checked(run, ["peppy", "stack", "list", "--json"], capture=True)
-        for copy in stack_copies(listing.stdout):
+        for copy in launch.displaced:
             checked(run, ["peppy", "stack", "remove", copy])
         checked(run, join_command(launch))
+        listing = checked(run, ["peppy", "stack", "list", "--json"], capture=True)
+        running = running_copy_instances(listing.stdout, launch.join_name)
+        if running != launch.join_instances:
+            raise JoinedCopyDiffers(launch.join_name, launch.join_instances, running)
         checked(run, ["peppy", "stack", "list"])
         checked(run, ["peppy", "stack", "remove", launch.join_name])
     checked(run, ["peppy", "stack", "list"])
@@ -1333,7 +1418,7 @@ def launch_and_reset(launch, rebuild, run):
     try:
         launch_start_to_end(launch, rebuild, run)
         failure = ""
-    except CommandFailed as error:
+    except LaunchFailed as error:
         failure = str(error)
     try:
         checked(run, STACK_RESET)
@@ -1407,7 +1492,10 @@ def main():
     plan_parser.add_argument("--root", default=".")
     plan_parser.add_argument("--scope", required=True, help="the decision `scope` wrote")
     plan_parser.add_argument("--base-root", help="the tree the pull request branched from")
-    plan_parser.add_argument("--skips", required=True)
+    plan_parser.add_argument("--skips", required=True, help="the nodes the runner cannot launch")
+    plan_parser.add_argument(
+        "--single-robot", required=True, help="the nodes that stand one robot at a time"
+    )
     plan_parser.add_argument("--plan", required=True, help="where to write the launches")
 
     launch_parser = subcommands.add_parser(
@@ -1423,7 +1511,9 @@ def main():
         elif args.command == "scope":
             command_scope(args.root, args.changed_files, args.base_root, args.scope)
         elif args.command == "plan":
-            command_plan(args.root, args.scope, args.base_root, args.skips, args.plan)
+            command_plan(
+                args.root, args.scope, args.base_root, args.skips, args.single_robot, args.plan
+            )
         else:
             command_launch(args.plan, args.rebuild)
     except Json5Error as error:

@@ -22,7 +22,8 @@ name: Tests
 # launcher files (a launcher, or a fragment any option references) reaches
 # exactly the combinations whose resolved plan differs from the one the base
 # tree gives them, and only those are planned. A change outside every
-# launcher (this workflow, the skips file, the repository index, ...) plans
+# launcher (this workflow, the skips file, the single-robot file, the
+# repository index, ...) plans
 # every combination, as does a push to main whose tree no run has tested yet
 # and the weekly run; a Markdown file outside every launcher is the one
 # exception, planning nothing.
@@ -41,9 +42,13 @@ name: Tests
 # which would resolve a pull request's launcher to the stale merged copy),
 # and runs the planned launches one after the other: `peppy stack launch`
 # resolves the launcher, adds each deployment's node, builds its container
-# image, and runs it, returning only once every node has signalled ready;
-# `peppy stack list` then records what came up and `peppy stack reset` hands
-# the next launch an empty stack. A failed launch is named and the run goes
+# image, and runs it, returning only once every node has signalled ready. A
+# launch that plans a join then runs `peppy stack join`, plain or with its
+# words: beside the copies the file deploys, so two robots run side by side,
+# or, on a stack deploying a node .github/single-robot-nodes.json5 names,
+# after the file's copies have made way. The joined copy is held to the
+# instances its preview gave it. `peppy stack list` then records what came up
+# and `peppy stack reset` hands the next launch an empty stack. A failed launch is named and the run goes
 # on, so a red run names every failing combination. Refused and skipped
 # combinations are validated by `discover` alone and named, with reasons, in
 # the run summary.
@@ -326,6 +331,7 @@ jobs:
             --scope "$RUNNER_TEMP/scope.json" \
             --base-root "$RUNNER_TEMP/base" \
             --skips .github/unlaunchable-nodes.json5 \
+            --single-robot .github/single-robot-nodes.json5 \
             --plan "$RUNNER_TEMP/plan.json"
           echo "plan=$(cat "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
 

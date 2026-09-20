@@ -18,8 +18,10 @@
       instances: [
         {
           instance_id: "scene_mcp_inst",
-          // The derived node's only parameter: it binds 127.0.0.1:<port>
-          // and serves the exposure at /simulation/v1/mcp.
+          // The derived node's only parameter: the port the server
+          // prefers on 127.0.0.1, serving the exposure at
+          // /simulation/v1/mcp. A server that finds the port held takes
+          // another and announces it.
           arguments: { port: 8902 },
           // One entry per target of the exposure, all three the
           // simulation's.

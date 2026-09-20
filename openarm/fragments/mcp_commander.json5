@@ -19,8 +19,10 @@
       instances: [
         {
           instance_id: "commander_inst",
-          // The derived node's only parameter: it binds 127.0.0.1:<port>
-          // and serves the exposure at /openarm_v2/v1/mcp.
+          // The derived node's only parameter: the port the server
+          // prefers on 127.0.0.1, serving the exposure at
+          // /openarm_v2/v1/mcp. A copy that finds the port held takes
+          // another and announces it.
           arguments: { port: 8900 },
           // One entry per target of the exposure. The identity role is
           // the initializer's and the two move roles are the backbone's,

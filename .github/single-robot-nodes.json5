@@ -1,0 +1,22 @@
+// Nodes that stand one robot at a time, read by
+// .github/scripts/launcher_combinations.py when it plans a run.
+//
+// A joined copy comes up beside the copies a launcher's file deploys, and
+// the CI launches it that way: two robots in one simulation, each with its
+// own commander, rig and endpoints. What the CI cannot discover is a node
+// that refuses the second robot at runtime while every link rule holds: the
+// pairing slots admit any number of pairs, and the node itself declines the
+// attach. On a stack deploying one of these nodes the copies of the file
+// make way for the joined one first, which is how an operator swaps the
+// robot of such a stack.
+//
+// When a new node stands one robot at a time, add one entry naming the node
+// and saying why. Entries are matched on the node names a flattened launcher
+// deploys, so they hold for every launcher, present or future, that selects
+// the node.
+[
+  {
+    node: "openarm_sim_mujoco",
+    reason: "admits one robot at a time, refusing a second attach while one stands",
+  },
+]

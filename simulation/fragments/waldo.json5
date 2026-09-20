@@ -5,8 +5,10 @@
 // all on from the first launch. Its scene_manipulation and
 // object_state contracts take a scene commander. The world opens with no
 // robot: every robot joins it through its initializer, bringing its own
-// model, and any number stand in it at once, each holding its own pairs on
-// the simulation's limb and camera slots. hand_teleop reads the
+// model, and any number stand in it at once, of any model in its
+// catalogue, placed and moved through the scene contract. Each holds its
+// own pairs on the simulation's four pairing slots, one per kind of pair:
+// arms, grippers, rgb_cameras and rgbd_cameras. hand_teleop reads the
 // plugins.hand_teleop block of each robot's model.
 {
   peppy_schema: "launcher_fragment/v1",

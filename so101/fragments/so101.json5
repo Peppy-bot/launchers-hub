@@ -1,6 +1,6 @@
-// The SO-101 robot: its follower, backbone, and its own axes: the command
-// surface, an optional recorder, and a camera. The leader arm leads unless a
-// launch word or a copy's `with` selects the headset.
+// The SO-101 robot: its follower, the shared SO-101 control, and its own
+// axes: the command surface, an optional recorder, and a camera. The leader
+// arm leads unless a launch word or a copy's `with` selects the headset.
 //
 // Before first launch: install ../rules/60-so101.rules (stable serial symlinks)
 // and calibrate both arms with lerobot-calibrate; the host paths below are
@@ -8,6 +8,8 @@
 {
   peppy_schema: "launcher_fragment/v1",
 
+  // The robot's driver, and the option it deploys on its own axes unless a
+  // copy's `with` says otherwise.
   deployments: [
     {
       source: { name: "so101_follower", tag: "v1" },
@@ -25,39 +27,16 @@
         },
       ],
     },
-    {
-      source: { name: "so101_backbone", tag: "v1" },
-      instances: [
-        {
-          instance_id: "backbone_inst",
-          arguments: {
-            // Joint-led by default: the leader_arm pairing is the followed
-            // upstream command (the XR adjustment below selects "pose").
-            upstream_mode: "joints",
-            control_rate_hz: 60,
-            // The stream's only limiter: max end-effector speed. Generous
-            // for teleop feel; lower for cautious sessions. The linear cap
-            // is the primary knob.
-            max_ee_velocity_m_s: 2.0,
-            max_ee_angular_velocity_rad_s: 12.0,
-            max_gripper_rate_frac_s: 10.0,
-          },
-          links: {
-            // The exclusive command loops with the follower: governed-shape
-            // setpoints stream down, measured state streams back.
-            arm_link: "follower_inst",
-            gripper_link: "follower_inst",
-            // The pose slot stays vacant under joint-led teleop. The XR
-            // adjustment below unsets this vacancy and binds the commander.
-            leader_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slot" },
-          },
-        },
-      ],
-    },
+    { control: "control_common" },
     { robot_commander: "so101_leader" },
   ],
 
   components: [
+    // The initializer and backbone every SO-101 shares.
+    {
+      name: "control", provides: ["init_inst", "backbone_inst"],
+      options: { control_common: "control_common.json5" },
+    },
     // No `provides`: the action-only option deploys nothing, and a provided
     // id must be defined by every option.
     {
@@ -80,12 +59,6 @@
   ],
 
   constraints: [
-    // Episodes start via the recorder's record_episode action, and only the
-    // XR commander carries that button; a recorder deployed beside the
-    // leader arm would idle with no way to trigger it.
-    { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: "xr_commander" }],
-      reason: "only the XR commander can start an episode: the leader arm has no recorder slot" },
     // A camera needs a consumer: only the recorder and the XR commander
     // have camera slots, so without either the camera opens its device and
     // publishes to zero subscribers.
@@ -95,50 +68,31 @@
   ],
 
   adjustments: [
-    {
-      when: { robot_commander: "xr_commander" },
-      target: "commander_inst",
-      // SO-101 teleop runs at 60 Hz. The released trigger opens the jaw
-      // to half travel, matching this robot's launch profile.
-      set_arguments: { command_rate_hz: 60, gripper_open_fraction: 0.5 },
+    // Where this robot's limbs are: one driver of its own, the follower,
+    // answering for both. It drives its own hardware, so it joins no
+    // simulation.
+    { target: "init_inst",
       set_links: {
-        // The right controller drives the single arm and its gripper.
-        right_arm: "backbone_inst/leader_pose",
-        right_gripper: "backbone_inst/leader_gripper",
-        left_arm: { vacant: "single-arm robot: only the right hand drives" },
-        left_gripper: { vacant: "single-arm robot: only the right hand drives" },
-        // A moves home, B moves ready; telemetry comes from the follower.
-        postures: ["backbone_inst"],
+        simulation: { vacant: "this robot drives its own limbs" },
+        limbs: ["follower_inst"],
+      } },
+    // The exclusive command loops with the follower: governed-shape
+    // setpoints stream down each pair, measured state streams back.
+    { target: "backbone_inst",
+      set_links: {
+        arm: "follower_inst",
+        gripper: "follower_inst",
+      } },
+    // The real driver reports per-motor health and emits operator alerts,
+    // which the headset shows. Only the XR commander declares those slots.
+    { target: "commander_inst", when: { robot_commander: "xr_commander" },
+      add_links: {
         motor_health: ["follower_inst"],
         alerts: ["follower_inst"],
-      },
-    },
-    {
-      when: { robot_commander: "xr_commander" },
-      target: "backbone_inst",
-      set_arguments: { upstream_mode: "pose" },
-      set_links: {
-        leader_arm: { vacant: "upstream_mode pose: arm commands arrive on the pose slot" },
-      },
-      unset_links: ["leader_pose"],
-    },
-    {
-      target: "recorder_inst",
-      set_arguments: {
-        robot_type: "so101",
-        // SO-101's dataset grid, sampled from its 60 Hz control streams.
-        fps: 30,
-        // /tmp lasts until reboot; select durable storage for saved datasets.
-        storage_root: "/tmp/lerobot_so101",
-      },
-      set_links: {
-        // Each measured source aligns positionally with its commanded
-        // source. The action is the governed setpoint sent to the follower.
-        observed_joints: ["follower_inst"],
-        observed_grippers: ["follower_inst"],
-        commanded_joints: ["backbone_inst/arm_link"],
-        commanded_grippers: ["backbone_inst/gripper_link"],
-      },
-    },
+      } },
+    // Dataset identity. /tmp lasts until reboot; select durable storage for
+    // saved datasets.
+    { target: "recorder_inst",
+      set_arguments: { robot_type: "so101", storage_root: "/tmp/lerobot_so101" } },
   ],
 }

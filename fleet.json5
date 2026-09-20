@@ -11,14 +11,20 @@
 //   peppy stack join openarm_v2_sim -i alpha --with xr_commander
 //   peppy stack join openarm_v1 -i bravo --place jetson-2
 //   peppy stack remove alpha
+//   peppy stack join so101_sim -i charlo                    # the next robot alone in MuJoCo
 //
 //   peppy stack launch fleet --with isaac_sim
 //   peppy stack join openarm_v2_sim -i alpha
 //   peppy stack join openarm_v1_sim -i bravo
+//   peppy stack join so101_sim -i charlo                    # an SO-101 beside the OpenArm alpha
 //
 // A simulated robot refuses to join without a simulation. Waldo and Isaac
-// Sim stand any number of robots at once, each joined copy bringing its own
-// model; MuJoCo stands one.
+// Sim stand any number of robots at once, of any model, each joined copy
+// bringing its own; MuJoCo stands one at a time, so the engine refuses a
+// simulated robot joined beside another until `peppy stack remove` takes
+// the first out. A join cannot turn rendering on and this file deploys no
+// copy that could at launch, so a simulated robot joined here has no
+// rendered camera, and `--with cameras_sim` on its join is refused.
 {
   peppy_schema: "launcher/v1",
 
@@ -42,6 +48,7 @@
         openarm_v1_sim: "openarm/fragments/openarm_v1_sim.json5",
         openarm_v2_sim: "openarm/fragments/openarm_v2_sim.json5",
         so101: "so101/fragments/so101.json5",
+        so101_sim: "so101/fragments/so101_sim.json5",
       },
     },
   ],
@@ -49,9 +56,17 @@
   deployments: [],
 
   constraints: [
-    // A simulated robot of either generation runs in any simulation, so its
-    // need for one is stated here, where the simulation axis may be unfilled.
-    { when: { robot: ["openarm_v1_sim", "openarm_v2_sim"] },
+    // The simulations that stand a so101_sim, in one list: the ones whose
+    // catalogue carries the so101 model. It is declared first because the
+    // first declared constraint is the one that refuses, so a so101_sim
+    // reads this reason, and because `peppy repo index --check` refuses a
+    // constraint whose refusals an earlier one already makes.
+    { when: { robot: "so101_sim" },
+      requires: [{ simulation: ["waldo", "mujoco", "isaac_sim"] }],
+      reason: "a so101_sim stands in a simulation whose catalogue carries the so101 model; this selection names none that does" },
+    // A simulated robot of any model runs in a simulation, so its need for
+    // one is stated here, where the simulation axis may be unfilled.
+    { when: { robot: ["openarm_v1_sim", "openarm_v2_sim", "so101_sim"] },
       requires: [{ simulation: ["mujoco", "isaac_sim", "waldo"] }],
       reason: "a simulated robot needs a simulation; launch with mujoco, isaac_sim or waldo" },
   ],

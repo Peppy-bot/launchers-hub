@@ -572,7 +572,8 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["instance_id"], "scene_mcp_inst")
         self.assertEqual(instance["arguments"], {"port": 8902})
         self.assertEqual(instance["links"], {
-            "scene": "simulation_inst", "lighting": "simulation_inst", "materials": "simulation_inst"})
+            "scene": "simulation_inst", "controls": "simulation_inst",
+            "lighting": "simulation_inst", "materials": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)
@@ -898,8 +899,9 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(document["constraints"], [{
             "when": {"simulation_mcp": "mcp_scene_commander"},
             "requires": [{"simulation": "waldo"}],
-            "reason": "the simulated world's endpoint binds scene_lighting and scene_materials, which "
-                      "only waldo implements; launch with waldo or with simulation_mcp=none",
+            "reason": "the simulated world's endpoint binds object_controls, scene_lighting and "
+                      "scene_materials, which only waldo implements; launch with waldo or with "
+                      "simulation_mcp=none",
         }])
         # The robot's selection sits on the option's entry and not on the
         # copy, so it holds for every copy of the robot: a v2 joined later

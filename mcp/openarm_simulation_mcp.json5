@@ -2,7 +2,7 @@
 // split by whether what a model does transfers to the physical robot.
 //
 //   http://127.0.0.1:8900/openarm_v2/v1/mcp   the robot: its arm and gripper moves, its three cameras and their controls
-//   http://127.0.0.1:8902/simulation/v1/mcp   the simulated world: the scene, its light sources, its materials
+//   http://127.0.0.1:8902/simulation/v1/mcp   the simulated world: the scene, its objects' controls, its light sources, its materials
 //
 // Each family is deployed by the part that owns what it publishes. The
 // robot's endpoint belongs to the copy alpha, a v2 with the MCP commander
@@ -24,8 +24,8 @@
 // when alpha is removed.
 //
 // Waldo is the simulation the file deploys because it alone implements
-// scene_lighting and scene_materials, which the world's exposure binds
-// unconditionally; the constraint below refuses that option under any
+// object_controls, scene_lighting and scene_materials, which the world's
+// exposure binds unconditionally; the constraint below refuses that option under any
 // other. The robot's endpoint has no such limit: the rendered rig runs
 // under every simulation, so `--with mujoco,simulation_mcp=none` serves it
 // alone, the camera setters refusing where the engine has no camera
@@ -119,11 +119,11 @@
   ],
 
   constraints: [
-    // A property of the world's document, not of the robot: its lighting
-    // and materials targets bind the simulation, and Waldo is the one
-    // simulation implementing those contracts.
+    // A property of the world's document, not of the robot: its controls,
+    // lighting and materials targets bind the simulation, and Waldo is the
+    // one simulation implementing those contracts.
     { when: { simulation_mcp: "mcp_scene_commander" },
       requires: [{ simulation: "waldo" }],
-      reason: "the simulated world's endpoint binds scene_lighting and scene_materials, which only waldo implements; launch with waldo or with simulation_mcp=none" },
+      reason: "the simulated world's endpoint binds object_controls, scene_lighting and scene_materials, which only waldo implements; launch with waldo or with simulation_mcp=none" },
   ],
 }

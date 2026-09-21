@@ -4,8 +4,8 @@
 // robot runs as and the openarm_v2 model to stand, and the backbone leads
 // the simulation's limb slots, arms and grippers, on the same pairings it
 // leads a real robot's drivers. Each slot holds any number of pairs, so
-// Isaac Sim and Waldo stand as many robots as their machines can run, of
-// any model; MuJoCo stands one at a time.
+// every simulation stands as many robots as its machine can run, of any
+// model.
 {
   peppy_schema: "launcher_fragment/v1",
 

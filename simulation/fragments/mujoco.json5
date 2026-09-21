@@ -1,10 +1,8 @@
-// The MuJoCo simulation. The scene opens empty: one robot of any model in
-// its catalogue joins it through its initializer, and the robot's file is
-// the whole world. The robot holds its pairs on the simulation's four
-// pairing slots, one per kind of pair: arms, grippers, rgb_cameras and
-// rgbd_cameras. One robot stands at a time: the engine refuses a second
-// attach while one stands, with its own reason, until `peppy stack remove`
-// takes the first out.
+// The MuJoCo simulation. The scene opens empty: every robot of a model in
+// its catalogue joins it through its initializer, and the engine composes
+// the scene from the models standing in it, each robot standing clear of
+// the others. Each holds its pairs on the simulation's four pairing slots,
+// one per kind of pair: arms, grippers, rgb_cameras and rgbd_cameras.
 {
   peppy_schema: "launcher_fragment/v1",
 

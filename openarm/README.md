@@ -204,7 +204,7 @@ peppy stack launch openarm_simulation --with isaac_sim
 peppy stack remove alpha                              # the simulation keeps running
 ```
 
-Waldo and Isaac Sim stand as many robots as the machines can run, of any
+Every simulation stands as many robots as the machines can run, of any
 model, each joined copy bringing its own, the simulation running throughout.
 The `robot` axis offers every simulated robot, so an SO-101
 ([so101_sim](../so101/README.md#simulation)) joins beside the OpenArm:
@@ -218,10 +218,8 @@ peppy stack join openarm_v2_sim -i delta --with ker_commander  # the KER against
 peppy stack remove bravo
 ```
 
-MuJoCo stands one robot at a time, loading the scene of whichever robot
-joins, its file being the whole world: under `--with mujoco` the engine
-refuses a join beside `alpha`, with its own reason, until
-`peppy stack remove alpha`. A join cannot turn rendering on, so a robot
+Every simulation stands any number of robots, so a join comes up beside
+`alpha` whichever one runs. A join cannot turn rendering on, so a robot
 joined to a launch whose copies select no rig has no rendered camera.
 
 Every simulation stands a v1 or a v2, the model the robot's fragment

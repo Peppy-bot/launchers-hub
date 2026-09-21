@@ -10,19 +10,16 @@
 //   peppy stack launch fleet --with mujoco
 //   peppy stack join openarm_v2_sim -i alpha --with xr_commander
 //   peppy stack join openarm_v1 -i bravo --place jetson-2
-//   peppy stack remove alpha
-//   peppy stack join so101_sim -i charlo                    # the next robot alone in MuJoCo
+//   peppy stack join so101_sim -i charlo                    # an SO-101 beside the simulated alpha
 //
 //   peppy stack launch fleet --with isaac_sim
 //   peppy stack join openarm_v2_sim -i alpha
 //   peppy stack join openarm_v1_sim -i bravo
 //   peppy stack join so101_sim -i charlo                    # an SO-101 beside the OpenArm alpha
 //
-// A simulated robot refuses to join without a simulation. Waldo and Isaac
-// Sim stand any number of robots at once, of any model, each joined copy
-// bringing its own; MuJoCo stands one at a time, so the engine refuses a
-// simulated robot joined beside another until `peppy stack remove` takes
-// the first out. A join cannot turn rendering on and this file deploys no
+// A simulated robot refuses to join without a simulation. Every simulation
+// stands any number of robots at once, of any model, each joined copy
+// bringing its own. A join cannot turn rendering on and this file deploys no
 // copy that could at launch, so a simulated robot joined here has no
 // rendered camera, and `--with cameras_sim` on its join is refused.
 {

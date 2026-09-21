@@ -73,7 +73,7 @@ peppy stack remove alpha                               # the simulation keeps ru
 peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
 peppy stack list
 peppy stack launch so101_simulation                    # Waldo and one SO-101
-peppy stack launch so101_simulation --with mujoco      # the same robot, alone in MuJoCo
+peppy stack launch so101_simulation --with mujoco      # the same robot, in MuJoCo
 peppy stack launch so101_simulation --with isaac_sim
 peppy stack launch openarm_simulation                  # Waldo and the OpenArm alpha
 peppy stack join so101_sim -i charlo                   # an SO-101 beside the OpenArm alpha
@@ -87,12 +87,11 @@ peppy stack join so101_sim -i delta --with mcp_commander,cameras_sim   # an SO-1
 ```
 
 A simulation stands a robot when it holds the robot's model in its scene and
-drives that model's limbs for the robot's backbone. Waldo and Isaac Sim stand
-any number of robots at once, of any model in their catalogue, each joined
-copy bringing its own, and place and move them through the scene contract.
-MuJoCo stands one robot at a time, the robot's file being the whole world:
-the engine refuses a second attach with its own reason, so a join beside
-`alpha` is refused there until `peppy stack remove alpha`.
+drives that model's limbs for the robot's backbone. Every simulation stands
+any number of robots at once, of any model in its catalogue, each joined
+copy bringing its own, and each standing clear of the others. Waldo and
+Isaac Sim place and move them through the scene contract; MuJoCo composes
+its scene from the models standing in it.
 
 These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
@@ -166,23 +165,22 @@ number of pairs: `arms`, `grippers`, `rgb_cameras` and `rgbd_cameras`. A
 pair's robot is its copy, a limb pair's limb is the backbone link it comes
 from, and a camera pair's camera is its relay's name in the copy
 (`wrist_left`, `front`), so a stack holds as many robots as its machines can
-run, of any model. MuJoCo admits one robot at a time, refusing a second
-attach while one stands. The simulation stays up when a robot is removed;
+run, of any model. The simulation stays up when a robot is removed;
 `stack reset` stops everything. Physical robots can join beside the
 simulated ones: they read wall time while the simulated robots read the
 simulation's clock. A simulated robot has no motors to report on, so the web
 and XR panels show no motor health for it.
 
-| Robot | MuJoCo | Isaac Sim | Waldo | Rendered cameras |
-|---|---|---|---|---|
-| OpenArm v1 | One robot | Any number | Any number | No |
-| OpenArm v2 | One robot | Any number | Any number | Yes |
-| SO-101 | One robot | Any number | Any number | Yes: `front` |
+| Robot | Rendered cameras its `camera_rig` axis offers |
+|---|---|
+| OpenArm v1 | None: the axis is not on the fragment |
+| OpenArm v2 | `wrist_left`, `wrist_right`, `chest` |
+| SO-101 | `front` |
 
 Waldo opens a world that stands no robot of its own (`stage`) and Isaac Sim
 an empty stage; every robot brings the model its fragment names. A rendered
-camera rig is one robot's: Isaac Sim and Waldo render one per robot that
-selects it, MuJoCo renders the one robot's.
+camera rig is one robot's, and every engine renders one per robot that
+selects it.
 
 Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
 endpoint and a headset for operator control.
@@ -239,7 +237,7 @@ camera over MCP on port 8903:
 
 ```sh
 peppy stack launch so101_simulation                  # Waldo and one SO-101
-peppy stack launch so101_simulation --with mujoco    # the same robot, alone in MuJoCo
+peppy stack launch so101_simulation --with mujoco    # the same robot, in MuJoCo
 peppy stack launch so101_simulation --with isaac_sim
 peppy stack launch so101_simulation --with alpha.mcp_commander,alpha.cameras_sim
 peppy stack join so101_sim -i charlo                 # an SO-101 beside the copies already standing
@@ -286,17 +284,12 @@ beside the OpenArm. The runner has no SO-101 hardware, no headset and no
 GPU, so of the simulated SO-101 it launches the selections that open no
 device, `no_commander` and `mcp_commander` with `cameras_sim`, under Waldo
 and MuJoCo; `so101_leader`, `xr_commander` and Isaac Sim are validated and
-skipped. The launch job holds the joined copy to the
-instances `peppy stack resolve` previewed for it, so a plain join that comes
-up under the fragment's default commander, where the launcher's entry gives
-it another, fails the launch. A stack deploying a node the
-[single-robot file](.github/single-robot-nodes.json5) names is the exception,
-MuJoCo's `sim_mujoco`: there the file's copies make way for the joined one first, and
-the join is planned only where they can. `stack remove` keeps a copy the
-stack links to, and the summary lists those joins with the links that hold
-the copy. The [skip file](.github/unlaunchable-nodes.json5) lists the
-hardware the runner lacks. Structural checks and runtime startup checks are
-separate results.
+skipped. The launch job holds the joined copy to the instances `peppy stack
+resolve` previewed for it, so a plain join that comes up under the
+fragment's default commander, where the launcher's entry gives it another,
+fails the launch. The [skip file](.github/unlaunchable-nodes.json5) lists
+the hardware the runner lacks. Structural checks and runtime startup
+checks are separate results.
 
 ## Configuration ownership
 

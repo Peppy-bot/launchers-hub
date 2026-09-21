@@ -119,14 +119,12 @@ def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base
         combinations.write_scope(scope, scope_path)
         skips = Path(directory) / "skips.json5"
         skips.write_text('[{ node: "zed_camera", reason: "the runner has no ZED camera" }]')
-        single_robot = Path(directory) / "single_robot.json5"
-        single_robot.write_text('[{ node: "sim_mujoco", reason: "stands one robot at a time" }]')
         plan_path = Path(directory) / "plan.json"
         summary = Path(directory) / "summary.md"
         resolve = FakeResolve(head=answers or {}, base=base_answers or {})
         with patch.object(combinations.subprocess, "run", resolve), \
                 patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}):
-            combinations.command_plan(head, scope_path, base, skips, single_robot, plan_path)
+            combinations.command_plan(head, scope_path, base, skips, plan_path)
         plan = combinations.read_plan(plan_path)
         yield resolve, [launch.label for launch in plan], plan, summary.read_text()
 
@@ -1068,41 +1066,14 @@ class ResolveTests(unittest.TestCase):
             self.assertIn("refused as a join (1)", summary)
             self.assertIn("| fleet + join openarm_v2 | joining bravo would change simulation_inst", summary)
 
-    def test_a_join_the_files_copy_cannot_make_way_for_is_reported_not_launched(self):
-        def plan_with(scene_commander_links):
-            return completed(json.dumps({"deployments": [
-                {"source": {"name": "sim_mujoco", "tag": "v1"},
-                 "instances": [{"instance_id": "simulation_inst"}]},
-                {"source": {"name": "scene_commander", "tag": "v1"},
-                 "instances": [{"instance_id": "scene_commander_inst", "links": scene_commander_links}]},
-                {"source": {"name": "sim_rgb_camera", "tag": "v1"},
-                 "instances": [{"instance_id": "alpha_chest", "links": {"simulation": "simulation_inst/rgbd_cameras"}},
-                               {"instance_id": "alpha_wrist", "links": {}}]},
-            ]}))
-
-        held = plan_with({"rgbd_cameras": "alpha_chest/frames", "color_cameras": ["alpha_wrist", "studio_camera"],
-                          "lighting": {"vacant": "no light rig"}})
-        answers = {
-            ("fleet.json5", "", "", ""): held,
-            ("fleet.json5", "", "openarm_v2", ""): held,
-            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"): held,
-        }
-        with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (_, labels, _plan, summary):
-            # The launch itself keeps running; only its joins are held back.
-            self.assertEqual(labels, ["fleet"])
-            self.assertIn("Joins the file's copy cannot make way for (2)", summary)
-            self.assertIn(
-                "| fleet + join openarm_v2 | scene_commander_inst.rgbd_cameras -> alpha_chest/frames, "
-                "scene_commander_inst.color_cameras -> alpha_wrist |", summary)
-
-    def test_a_join_comes_up_beside_the_files_copy_where_the_stack_stands_several_robots(self):
+    def test_a_join_comes_up_beside_the_files_copy(self):
         def plan_of(*copies):
             return completed(json.dumps({"deployments": [
                 {"source": {"name": "waldo", "tag": "v1"}, "instances": [{"instance_id": "simulation_inst"}]},
                 {"source": {"name": "scene_commander", "tag": "v1"},
                  "instances": [{"instance_id": "scene_commander_inst", "links": {"cameras": ["alpha_chest"]}}]},
                 {"source": {"name": "sim_rgb_camera", "tag": "v1"},
-                 "instances": [{"instance_id": f"{copy}_chest"} for copy in copies]},
+                 "instances": [{"instance_id": f"{copy}_chest", "core_node": copy} for copy in copies]},
             ]}))
 
         answers = {
@@ -1111,41 +1082,10 @@ class ResolveTests(unittest.TestCase):
             ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"): plan_of("alpha", "bravo"),
         }
         with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (_, labels, plan, summary):
-            # The stack links to the file's copy, which holds nothing back:
-            # no copy makes way on a stack that stands several robots.
+            # Every simulation stands the joined copy beside the file's.
             self.assertEqual(labels, ["fleet + join openarm_v2"])
-            self.assertNotIn("cannot make way for", summary)
             launch, = plan
-            self.assertEqual(launch.displaced, [])
             self.assertEqual(launch.join_instances, ["bravo_chest"])
-
-    def test_the_files_copies_make_way_on_a_stack_that_stands_one_robot(self):
-        def plan_of(*copies):
-            return completed(json.dumps({"deployments": [
-                {"source": {"name": "sim_mujoco", "tag": "v1"},
-                 "instances": [{"instance_id": "simulation_inst"}]},
-                {"source": {"name": "openarm_backbone", "tag": "v1"},
-                 "instances": [{"instance_id": f"{copy}_backbone_inst"} for copy in copies]},
-            ]}))
-
-        answers = {
-            ("fleet.json5", "", "", ""): plan_of("alpha"),
-            ("fleet.json5", "", "openarm_v2", ""): plan_of("alpha", "bravo"),
-            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"): plan_of("alpha", "bravo"),
-        }
-        with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (_, labels, plan, _summary):
-            self.assertEqual(labels, ["fleet + join openarm_v2"])
-            launch, = plan
-            self.assertEqual(launch.displaced, ["alpha"])
-            self.assertEqual(launch.join_instances, ["bravo_backbone_inst"])
-
-    def test_a_stack_linking_to_no_copy_lets_the_copy_make_way(self):
-        plan = {"deployments": [{"source": {"name": "node", "tag": "v1"}, "instances": [
-            {"instance_id": "scene_commander_inst", "links": {"simulation": "simulation_inst", "alphabet": "alphabet_inst"}},
-            {"instance_id": "alpha_recorder_inst", "links": {"cameras": ["alpha_chest"]}},
-        ]}]}
-        self.assertEqual(combinations.links_holding_copies(plan, ("alpha",)), [])
-        self.assertEqual(combinations.links_holding_copies(plan, ()), [])
 
     def test_a_run_reaching_only_refused_combinations_launches_nothing(self):
         refusal_with_a_pipe = completed(returncode=1, stderr=REFUSAL.stderr + " (a|b)")
@@ -1177,11 +1117,16 @@ SO101_SIM = "so101/fragments/so101_sim.json5"
 def fragment_deployments(path, copy=None):
     """The nodes one of the repository's fragments deploys, as `stack
     resolve` flattens them: ids as written for the stack's own instances,
-    minted under the name of `copy` for a copy's."""
-    prefix = f"{copy}_" if copy else ""
+    minted under the name of `copy` for a copy's, and given that copy as
+    their core node."""
+    def minted(instance):
+        if copy is None:
+            return {"instance_id": instance["instance_id"]}
+        return {"instance_id": f"{copy}_{instance['instance_id']}", "core_node": copy}
+
     return [
         {"source": deployment["source"],
-         "instances": [{"instance_id": prefix + instance["instance_id"]} for instance in deployment["instances"]]}
+         "instances": [minted(instance) for instance in deployment["instances"]]}
         for deployment in combinations.load_json5(ROOT / path, path).get("deployments", [])
         if "source" in deployment
     ]
@@ -1210,16 +1155,15 @@ def so101_stack(simulation, *copies):
 
 
 class SimulatedSo101Tests(unittest.TestCase):
-    """so101_simulation as the planner sees it. The launcher, its fragments,
-    the skip file and the single-robot file are the repository's own, and
-    `stack resolve` is answered with the nodes those fragments deploy."""
+    """so101_simulation as the planner sees it. The launcher, its fragments
+    and the skip file are the repository's own, and `stack resolve` is
+    answered with the nodes those fragments deploy."""
 
     @classmethod
     def setUpClass(cls):
         cls.inventory = combinations.read_launcher_inventory(
             ROOT, "so101_simulation", "so101/so101_simulation.json5")
         cls.skips = combinations.read_node_reasons(ROOT / ".github/unlaunchable-nodes.json5")
-        cls.single_robot = combinations.read_node_reasons(ROOT / ".github/single-robot-nodes.json5")
 
     def resolved(self, answer, words, join_option="", join_words=""):
         """The combination as the planner enumerates it, and its verdict
@@ -1227,10 +1171,9 @@ class SimulatedSo101Tests(unittest.TestCase):
         candidate, = [c for c in self.inventory.candidates
                       if (c.words, c.join_option, c.join_words) == (words, join_option, join_words)]
         with patch.object(combinations.subprocess, "run", return_value=answer):
-            return candidate, combinations.resolve_candidate(ROOT, candidate, self.skips, self.single_robot)
+            return candidate, combinations.resolve_candidate(ROOT, candidate, self.skips)
 
     def test_the_file_deploys_one_so101_the_runner_can_launch(self):
-        self.assertEqual(self.inventory.candidates[0].file_copies, ("alpha",))
         for simulation in ["waldo", "mujoco"]:
             with self.subTest(simulation=simulation):
                 _, resolution = self.resolved(
@@ -1243,22 +1186,14 @@ class SimulatedSo101Tests(unittest.TestCase):
         self.assertIs(resolution.verdict, combinations.Verdict.SKIPPED)
         self.assertIn("deploys sim_isaac:", resolution.detail)
 
-    def test_a_so101_joins_beside_the_files_copy_where_the_simulation_stands_several_robots(self):
-        answer = so101_stack("waldo", so101_copy("alpha"), so101_copy("bravo"))
-        candidate, resolution = self.resolved(answer, "simulation=waldo", "so101_sim")
-        self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
-        self.assertEqual(resolution.displaced, ())
-        launch = combinations.Launch.of(candidate, resolution)
-        self.assertEqual(launch.displaced, [])
-        self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst"])
-
-    def test_the_files_so101_makes_way_for_the_joined_one_under_mujoco(self):
-        answer = so101_stack("mujoco", so101_copy("alpha"), so101_copy("bravo"))
-        candidate, resolution = self.resolved(answer, "simulation=mujoco", "so101_sim")
-        self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
-        launch = combinations.Launch.of(candidate, resolution)
-        self.assertEqual(launch.displaced, ["alpha"])
-        self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst"])
+    def test_a_so101_joins_beside_the_files_copy_in_every_simulation(self):
+        for simulation in ["waldo", "mujoco"]:
+            with self.subTest(simulation=simulation):
+                answer = so101_stack(simulation, so101_copy("alpha"), so101_copy("bravo"))
+                candidate, resolution = self.resolved(answer, f"simulation={simulation}", "so101_sim")
+                self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
+                launch = combinations.Launch.of(candidate, resolution)
+                self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst"])
 
     def test_a_leader_arm_or_a_headset_is_skipped_as_hardware_the_runner_lacks(self):
         for commander in ["so101_leader", "xr_commander"]:
@@ -1349,7 +1284,7 @@ class CoverageTests(unittest.TestCase):
         with planned(launchers) as (_, labels, _plan, _summary):
             self.assertEqual(labels, ["fleet", "openarm_simulation"])
 
-    def test_a_join_runs_beside_the_files_copy_or_once_it_has_made_way(self):
+    def test_a_join_runs_beside_the_files_copy(self):
         def plan_of(*instance_ids):
             return {"deployments": [{
                 "source": {"name": "node", "tag": "v1"},
@@ -1364,36 +1299,114 @@ class CoverageTests(unittest.TestCase):
             next(c for c in inventory.candidates if (c.words, c.join_option, c.join_words) == key)
             for key in (("", "", ""), ("", "openarm_v2", ""))
         )
-        def resolutions_with(displaced):
-            return {
-                bare.key: combinations.Resolution(
-                    combinations.Verdict.LAUNCH, "-", plan_of("simulation_inst", "alpha_backbone_inst")),
-                joined.key: combinations.Resolution(
-                    combinations.Verdict.LAUNCH, "-",
-                    plan_of("simulation_inst", "alpha_backbone_inst", "bravo_backbone_inst"), displaced),
-            }
+        resolutions = {
+            bare.key: combinations.Resolution(
+                combinations.Verdict.LAUNCH, "-", plan_of("simulation_inst", "alpha_backbone_inst")),
+            joined.key: combinations.Resolution(
+                combinations.Verdict.LAUNCH, "-",
+                plan_of("simulation_inst", "alpha_backbone_inst", "bravo_backbone_inst")),
+        }
 
         def ids(state):
             return sorted(json.loads(configuration)[1]["instance_id"] for configuration in state)
 
         def pairs(states):
-            return [unit for unit in combinations.coverage_units(joined, states, ()) if unit[0] == "pair"]
+            units = combinations.coverage_units(joined, states, frozenset())
+            return [unit for unit in units if unit[0] == "pair"]
 
-        # On a stack that stands one robot the copies never run together, so
-        # no launch is asked to prove the pair.
-        resolutions = resolutions_with(("alpha",))
+        # The joined copy runs beside the file's, and the launch proves the
+        # two robots side by side.
         launch_state, join_state = combinations.running_states(joined, resolutions)
         self.assertEqual(ids(launch_state), ["alpha_backbone_inst", "simulation_inst"])
-        self.assertEqual(ids(join_state), ["bravo_backbone_inst", "simulation_inst"])
-        self.assertEqual(len(pairs([launch_state, join_state])), 2)
-        self.assertEqual(combinations.running_states(bare, resolutions), [launch_state])
-
-        # Anywhere else the joined copy runs beside the file's, and the launch
-        # proves the two robots side by side.
-        resolutions = resolutions_with(())
-        launch_state, join_state = combinations.running_states(joined, resolutions)
         self.assertEqual(ids(join_state), ["alpha_backbone_inst", "bravo_backbone_inst", "simulation_inst"])
         self.assertEqual(len(pairs([launch_state, join_state])), 3)
+        self.assertEqual(combinations.running_states(bare, resolutions), [launch_state])
+
+    def test_a_joined_copy_is_wired_into_the_simulation_it_stands_in(self):
+        """What a plain join comes up beside is read off the plan: a
+        simulated robot's initializer and backbone link into the
+        simulation's instance."""
+        plan = {"deployments": [
+            {"source": {"name": "sim_mujoco", "tag": "v1"},
+             "instances": [{"instance_id": "simulation_inst"}]},
+            {"source": {"name": "robot_initializer", "tag": "v1"},
+             "instances": [{"instance_id": "bravo_init_inst", "core_node": "bravo",
+                            "links": {"simulation": "simulation_inst"}}]},
+            {"source": {"name": "openarm_backbone", "tag": "v1"},
+             "instances": [{"instance_id": "bravo_backbone_inst", "core_node": "bravo",
+                            "links": {"left_arm": "simulation_inst/arms",
+                                      "robot_init": "bravo_init_inst"}}]},
+        ]}
+
+        self.assertEqual(combinations.joined_into(plan, "bravo"), frozenset({"sim_mujoco"}))
+
+    def test_a_joined_copy_that_drives_hardware_is_wired_into_nothing_outside_itself(self):
+        """A robot on real motors comes up beside the simulation without
+        standing in it, so which simulation the stack runs says nothing about
+        what its join proves."""
+        plan = {"deployments": [
+            {"source": {"name": "sim_mujoco", "tag": "v1"},
+             "instances": [{"instance_id": "simulation_inst"}]},
+            {"source": {"name": "openarm_arm", "tag": "v1"},
+             "instances": [{"instance_id": "bravo_left_arm_inst", "core_node": "bravo"}]},
+            {"source": {"name": "openarm_backbone", "tag": "v1"},
+             "instances": [{"instance_id": "bravo_backbone_inst", "core_node": "bravo",
+                            "links": {"left_arm": "bravo_left_arm_inst",
+                                      "peers": ["bravo_left_arm_inst"],
+                                      "simulation": {
+                                          "vacant": "this robot drives its own limbs"}}}]},
+        ]}
+
+        self.assertEqual(combinations.joined_into(plan, "bravo"), frozenset())
+
+    def test_a_link_shape_the_planner_cannot_read_stops_the_plan(self):
+        """A link read as naming no instance shrinks the plan in silence, so
+        a shape the reader does not know is a plan that does not run."""
+        plan = {"deployments": [
+            {"source": {"name": "openarm_backbone", "tag": "v1"},
+             "instances": [{"instance_id": "bravo_backbone_inst", "core_node": "bravo",
+                            "links": {"left_arm": {"instance": "simulation_inst"}}}]},
+        ]}
+
+        with self.assertRaisesRegex(SystemExit, r"the link `left_arm` of bravo_backbone_inst"):
+            combinations.joined_into(plan, "bravo")
+
+    def test_a_copy_wired_into_an_exposure_server_is_keyed_by_what_deploys_it(self):
+        """A deployment publishing MCP exposures names no node, and a copy
+        wired into one comes up beside it: each such server is a host of its
+        own, so two launches standing a copy beside different servers prove
+        different things."""
+        def plan_of(*exposures):
+            return {"deployments": [
+                {"source": {"exposures": list(exposures)},
+                 "instances": [{"instance_id": "scene_mcp_inst"}]},
+                {"source": {"name": "openarm_backbone", "tag": "v1"},
+                 "instances": [{"instance_id": "bravo_backbone_inst", "core_node": "bravo",
+                                "links": {"scene": "scene_mcp_inst"}}]},
+            ]}
+
+        scene = combinations.joined_into(plan_of("simulation:v1"), "bravo")
+
+        self.assertEqual(len(scene), 1)
+        self.assertNotEqual(scene, combinations.joined_into(plan_of("other:v1"), "bravo"))
+
+    def test_a_copy_placed_on_a_core_node_of_another_name_is_not_its_own(self):
+        """`core_node` places an instance: a copy for a copy's instances, and
+        the core node a launcher declares for the rest."""
+        plan = {"deployments": [
+            {"source": {"name": "sim_mujoco", "tag": "v1"},
+             "instances": [
+                 {"instance_id": "simulation_inst", "core_node": "robot_onboard"},
+                 # An id opening with the copy's name, placed nowhere.
+                 {"instance_id": "bravo_shared_log_inst"},
+             ]},
+            {"source": {"name": "robot_initializer", "tag": "v1"},
+             "instances": [{"instance_id": "bravo_init_inst", "core_node": "bravo",
+                            "links": {"simulation": "simulation_inst"}}]},
+        ]}
+
+        self.assertEqual(combinations.copy_instances(plan, "bravo"), ["bravo_init_inst"])
+        self.assertEqual(combinations.joined_into(plan, "bravo"), frozenset({"sim_mujoco"}))
 
     def test_a_plain_join_is_launched_even_where_a_join_with_words_runs_the_same_instances(self):
         def plan_of(*names):
@@ -1401,24 +1414,23 @@ class CoverageTests(unittest.TestCase):
                                      "instances": [{"instance_id": name} for name in names]}]}
 
         def candidate(join_words):
-            return combinations.Candidate("fleet", "fleet.json5", "", "openarm_v2", join_words, False, ())
+            return combinations.Candidate("fleet", "fleet.json5", "", "openarm_v2", join_words, False)
 
         state = [combinations.instance_configurations(plan_of("simulation_inst", "bravo_backbone_inst"))]
-        plain = combinations.coverage_units(candidate(""), state, ())
-        spelled = combinations.coverage_units(candidate("robot_commander=web_commander"), state, ())
-        self.assertEqual(plain - spelled, {("plain join", "fleet", "openarm_v2", False)})
-        # Beside the file's copies and in their place are two things to prove.
-        instead = combinations.coverage_units(candidate(""), state, ("alpha",))
-        self.assertEqual(instead - plain, {("plain join", "fleet", "openarm_v2", True)})
+        plain = combinations.coverage_units(candidate(""), state, frozenset({"sim_mujoco"}))
+        spelled = combinations.coverage_units(
+            candidate("robot_commander=web_commander"), state, frozenset({"sim_mujoco"})
+        )
+        self.assertEqual(plain - spelled, {("plain join", "fleet", "openarm_v2", ("sim_mujoco",))})
+        # A plain join proves the simulation it came up in and no other: each
+        # of them stands a joined robot beside the ones standing its own way.
+        elsewhere = combinations.coverage_units(candidate(""), state, frozenset({"waldo"}))
+        self.assertEqual(
+            elsewhere - plain, {("plain join", "fleet", "openarm_v2", ("waldo",))}
+        )
         # The spelled join proves more instances, and the plain one still launches.
         units = {"spelled": spelled | {("configuration", "recorder")}, "plain": plain}
         self.assertEqual(combinations.select_launches(units), ["spelled", "plain"])
-
-    def test_what_makes_way_is_part_of_what_a_launch_depends_on(self):
-        candidate = combinations.Candidate("fleet", "fleet.json5", "", "openarm_v2", "", False, ("alpha",))
-        beside = combinations.Resolution(combinations.Verdict.LAUNCH, "-", {"deployments": []})
-        instead = combinations.Resolution(combinations.Verdict.LAUNCH, "-", {"deployments": []}, ("alpha",))
-        self.assertNotEqual(beside.fingerprint(candidate), instead.fingerprint(candidate))
 
     def test_a_join_whose_own_launch_does_not_resolve_fails_the_plan(self):
         answers = {("fleet.json5", "", "", ""): REFUSAL}
@@ -1571,12 +1583,12 @@ class FakePeppy:
         return completed(listing if capture else "", returncode=1 if failed else 0)
 
 
-def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False, displaced=()):
+def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False):
     label = combinations.combination_label(launcher, words, join_option, join_words, local)
     join_name = combinations.COPY_NAME if join_option else ""
     return combinations.Launch(
         label, launcher, words, join_option, join_name, join_words, local,
-        list(displaced), JOINED_INSTANCES if join_option else [],
+        JOINED_INSTANCES if join_option else [],
     )
 
 
@@ -1620,16 +1632,6 @@ class LaunchTests(unittest.TestCase):
             ["peppy", "stack", "reset"],
         ])
         self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
-
-    def test_a_join_follows_the_copies_the_plan_says_make_way(self):
-        peppy = FakePeppy()
-        launched([a_launch(join_option="openarm_v2", displaced=["alpha", "charlie"])], peppy)
-        self.assertEqual(peppy.commands[:4], [
-            ["peppy", "stack", "launch", "fleet", *IDLE],
-            ["peppy", "stack", "remove", "alpha"],
-            ["peppy", "stack", "remove", "charlie"],
-            ["peppy", "stack", "join", "openarm_v2", "-i", "bravo", *IDLE],
-        ])
 
     def test_a_joined_copy_running_other_instances_than_its_preview_fails_the_launch(self):
         # A plain join that comes up under the fragment's default commander,

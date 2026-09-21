@@ -26,7 +26,8 @@ every pair of instances that run side by side.
 
 launch runs the planned launches one after the other on the running daemon,
 resetting the stack between them, holds each joined copy to the instances
-its preview promised, and reports each one's outcome.
+its preview promised, every one of them running, and reports each one's
+outcome.
 
 The JSON5 subset reader reports unsupported syntax with its file and line.
 """
@@ -1314,6 +1315,18 @@ class JoinedCopyDiffers(LaunchFailed):
         )
 
 
+class JoinedCopyNotRunning(LaunchFailed):
+    """An instance of the joined copy is not running once the join returned:
+    a robot the engine took out during the join leaves its initializer
+    finished, and the join reports nothing of it."""
+
+    def __init__(self, name, states):
+        super().__init__(
+            f"copy `{name}` is not running whole after its join: "
+            + ", ".join(f"{instance_id} is {state}" for instance_id, state in sorted(states.items()))
+        )
+
+
 def run_peppy(argv, capture=False):
     """Runs one command of a launch, its output going to the job's log, or
     returned where `capture` asks for it. A captured command is read as JSON,
@@ -1333,8 +1346,8 @@ def checked(run, argv, capture=False):
     return completed
 
 
-def running_copy_instances(listing, name):
-    """The ids of the instances one copy runs, from `peppy stack list --json`."""
+def copy_instance_ids(listing, name):
+    """The ids of the instances one copy minted, from `peppy stack list --json`."""
     return sorted(
         instance_id
         for core_node in json.loads(listing)["core_nodes"]
@@ -1342,6 +1355,25 @@ def running_copy_instances(listing, name):
         if copy["name"] == name
         for instance_id in copy["instance_ids"]
     )
+
+
+def copy_instance_states(listing, name):
+    """What each instance one copy minted is doing, by id, from `peppy stack
+    list --json`: the state peppy reports, `unhealthy` for a running instance
+    that did not answer its health probe, and `missing` for one no stack
+    lists."""
+    states = {}
+    for core_node in json.loads(listing)["core_nodes"]:
+        for node in (core_node.get("stack") or {}).get("nodes", []):
+            for instance in node["instances"]:
+                state = instance["state"]
+                if state == "running" and not instance.get("healthy", True):
+                    state = "unhealthy"
+                states[instance["instance_id"]] = state
+    return {
+        instance_id: states.get(instance_id, "missing")
+        for instance_id in copy_instance_ids(listing, name)
+    }
 
 
 def launch_command(launch, rebuild):
@@ -1367,16 +1399,25 @@ def launch_start_to_end(launch, rebuild, run):
     ready, then joins its copy where it plans one: beside the copies the file
     deploys, or after the ones the plan says make way for it. The joined copy
     is held to the instances its preview gave it, so a join that comes up as
-    another robot than the one planned fails the launch."""
+    another robot than the one planned fails the launch, and every one of
+    them is running once the join returns, so a copy whose robot the engine
+    took out during the join fails it too."""
     checked(run, launch_command(launch, rebuild))
     if launch.join_option:
         for copy in launch.displaced:
             checked(run, ["peppy", "stack", "remove", copy])
         checked(run, join_command(launch))
         listing = checked(run, ["peppy", "stack", "list", "--json"], capture=True)
-        running = running_copy_instances(listing.stdout, launch.join_name)
-        if running != launch.join_instances:
-            raise JoinedCopyDiffers(launch.join_name, launch.join_instances, running)
+        minted = copy_instance_ids(listing.stdout, launch.join_name)
+        if minted != launch.join_instances:
+            raise JoinedCopyDiffers(launch.join_name, launch.join_instances, minted)
+        stalled = {
+            instance_id: state
+            for instance_id, state in copy_instance_states(listing.stdout, launch.join_name).items()
+            if state != "running"
+        }
+        if stalled:
+            raise JoinedCopyNotRunning(launch.join_name, stalled)
         checked(run, ["peppy", "stack", "list"])
         checked(run, ["peppy", "stack", "remove", launch.join_name])
     checked(run, ["peppy", "stack", "list"])

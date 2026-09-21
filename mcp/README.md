@@ -261,11 +261,13 @@ With the stack up:
    their bounds in their schemas and their modes and units in their
    descriptions.
 5. Move the robot: call `openarm.move_to_ready` on the same endpoint, with
-   `duration_s` 0 for as fast as the joint limits allow. It is a
-   task-backed tool: the call returns a task handle, `tasks/get` reports
-   its progress, and it completes when both arms reach the working
-   posture. `openarm.move_arm` plans from there; the rest posture is not a
-   place to plan Cartesian moves from.
+   `duration_s` 0 for as fast as the joint limits allow. It is an
+   action-backed tool: for a client that declares the MCP tasks extension
+   the call returns a task handle and `tasks/get` reports its progress; for
+   any other client the call itself answers once the move settles. Either
+   way it completes when both arms reach the working posture.
+   `openarm.move_arm` plans from there; the rest posture is not a place to
+   plan Cartesian moves from.
 
 The simulation endpoint sets the rest of the world up the same way:
 `scene.get_assets_list` before `scene.spawn_object`, `scene.move_object`,

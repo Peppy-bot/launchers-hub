@@ -1549,35 +1549,36 @@ JOINED_INSTANCES = ["bravo_backbone_inst", "bravo_commander_inst"]
 class FakePeppy:
     """Stands in for the `peppy` commands of a launch: every command exits 0
     unless `failing` holds its first words, `stack list --json` answers
-    `copies`, copy name to the instances on its record, each in the state
-    `states` gives it, or finished where `stopped` names it, or running.
-    The commands are kept in order."""
+    `copies`, copy name to the instances it minted, with every instance
+    running and healthy but for `states`, instance id to the state peppy
+    reports, and `unhealthy`, the running instances whose health probe
+    failed; the commands are kept in order."""
 
-    def __init__(self, failing=(), copies=None, stopped=(), states=None):
+    def __init__(self, failing=(), copies=None, states=None, unhealthy=()):
         self.failing = [list(words) for words in failing]
         self.copies = {combinations.COPY_NAME: JOINED_INSTANCES} if copies is None else copies
-        self.stopped = set(stopped)
         self.states = states or {}
+        self.unhealthy = set(unhealthy)
         self.commands = []
-
-    def state_of(self, instance_id):
-        if instance_id in self.states:
-            return self.states[instance_id]
-        return "finished" if instance_id in self.stopped else "running"
 
     def __call__(self, argv, capture=False):
         self.commands.append(argv)
         failed = any(argv[: len(words)] == words for words in self.failing)
+        instances = [
+            {
+                "instance_id": instance_id,
+                "state": self.states.get(instance_id, "running"),
+                "healthy": instance_id not in self.unhealthy,
+            }
+            for instance_ids in self.copies.values()
+            for instance_id in instance_ids
+            if self.states.get(instance_id) != "missing"
+        ]
         listing = json.dumps({"core_nodes": [{
             "copies": [
-                {"name": name, "instance_ids": instance_ids}
-                for name, instance_ids in self.copies.items()
+                {"name": name, "instance_ids": instance_ids} for name, instance_ids in self.copies.items()
             ],
-            "stack": {"nodes": [{"instances": [
-                {"instance_id": instance_id, "state": self.state_of(instance_id)}
-                for instance_ids in self.copies.values()
-                for instance_id in instance_ids
-            ]}]},
+            "stack": {"nodes": [{"instances": instances}]},
         }]})
         return completed(listing if capture else "", returncode=1 if failed else 0)
 
@@ -1632,39 +1633,6 @@ class LaunchTests(unittest.TestCase):
         ])
         self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
 
-    def test_a_joined_copy_still_starting_an_instance_is_running_it(self):
-        """`peppy stack join` returns once every node it started has
-        signalled ready, so an instance the stack still calls starting is one
-        the copy runs and not one that failed to come up."""
-        peppy = FakePeppy(states={"bravo_backbone_inst": "starting"})
-
-        outcomes, _ = launched([a_launch(join_option="openarm_v2")], peppy)
-
-        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
-
-    def test_a_joined_copy_whose_instance_failed_fails_the_launch(self):
-        peppy = FakePeppy(states={"bravo_backbone_inst": "failed"})
-
-        outcomes, _ = launched([a_launch(join_option="openarm_v2")], peppy)
-
-        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
-        self.assertIn("bravo_commander_inst;", outcomes[0].detail)
-
-    def test_a_joined_copy_whose_instance_stopped_fails_the_launch(self):
-        """A robot the simulation would not stand leaves its initializer
-        finished and the rest of its copy up, and the copy keeps the stopped
-        instance on its record, so what a launch proves is read off the
-        stack's own report of each instance."""
-        peppy = FakePeppy(stopped=["bravo_backbone_inst"])
-        outcomes, _ = launched([a_launch(join_option="openarm_v2")], peppy)
-
-        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
-        self.assertEqual(
-            outcomes[0].detail,
-            "copy `bravo` runs bravo_commander_inst; `peppy stack resolve` previewed "
-            "bravo_backbone_inst, bravo_commander_inst",
-        )
-
     def test_a_joined_copy_running_other_instances_than_its_preview_fails_the_launch(self):
         # A plain join that comes up under the fragment's default commander,
         # where the preview gave it the launcher entry's.
@@ -1686,6 +1654,40 @@ class LaunchTests(unittest.TestCase):
     def test_a_joined_copy_the_stack_does_not_list_fails_the_launch(self):
         outcomes, _ = launched([a_launch(join_option="openarm_v2")], FakePeppy(copies={}))
         self.assertIn("copy `bravo` runs no instance", outcomes[0].detail)
+
+    def test_a_joined_copy_with_an_instance_not_running_fails_the_launch(self):
+        """The engine took the robot out during the join: its initializer
+        finished while the join reported success."""
+        for states, unhealthy, detail in [
+            ({"bravo_backbone_inst": "finished"}, (), "bravo_backbone_inst is finished"),
+            ({"bravo_commander_inst": "failed"}, (), "bravo_commander_inst is failed"),
+            ({}, ("bravo_backbone_inst",), "bravo_backbone_inst is unhealthy"),
+            ({"bravo_commander_inst": "missing"}, (), "bravo_commander_inst is missing"),
+            (
+                {"bravo_backbone_inst": "finished", "bravo_commander_inst": "starting"},
+                (),
+                "bravo_backbone_inst is finished, bravo_commander_inst is starting",
+            ),
+        ]:
+            with self.subTest(detail=detail):
+                peppy = FakePeppy(states=states, unhealthy=unhealthy)
+                outcomes, log = launched([a_launch(join_option="openarm_v2")], peppy)
+                self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
+                self.assertEqual(
+                    outcomes[0].detail, f"copy `bravo` is not running whole after its join: {detail}"
+                )
+                self.assertEqual(peppy.commands[-2:], [
+                    ["peppy", "stack", "list", "--json"],
+                    ["peppy", "stack", "reset"],
+                ])
+                self.assertIn("::error title=fleet + join openarm_v2::copy `bravo` is not running whole", log)
+
+    def test_a_joined_copy_running_whole_passes(self):
+        peppy = FakePeppy(states={"alpha_backbone_inst": "finished"}, copies={
+            "alpha": ["alpha_backbone_inst"], combinations.COPY_NAME: JOINED_INSTANCES,
+        })
+        outcomes, _ = launched([a_launch(join_option="openarm_v2")], peppy)
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
 
     def test_a_join_without_words_passes_none(self):
         peppy = FakePeppy()

@@ -43,10 +43,11 @@
         // without the follower. It opens /dev/so101_leader.
         so101_leader: "so101_leader.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        // The robot's front camera over MCP. It streams nothing into the
-        // backbone, exactly as no_commander, so the option is that
-        // fragment's vacancies with the server as its second part: the list
-        // form merges the two, and the vacancies are written once.
+        // The robot over MCP: it enrolls into the stack's robot_control
+        // endpoint. It streams nothing into the backbone, exactly as
+        // no_commander, so the option is that fragment's vacancies with the
+        // enrollment as its second part: the list form merges the two, and
+        // the vacancies are written once.
         mcp_commander: ["no_commander.json5", "mcp_commander.json5"],
       },
     },
@@ -76,15 +77,32 @@
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and its one target takes a
-    // link, so the camera target cannot be optional: the rendered rig must
-    // run beside it.
+    // The MCP commander enrolls the robot into the stack's robot_control_sim
+    // endpoint, which the launcher deploys.
     { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras_sim" }],
-      reason: "mcp_commander serves the robot's front camera and its exposure list is fixed, so the camera target cannot be optional; select cameras_sim" },
+      requires: [{ robot_control_sim: "robot_control_sim" }],
+      reason: "mcp_commander enrolls the robot into the stack's robot_control_sim endpoint; launch with robot_control_sim" },
+    // An episode starts via the recorder's record_episode action: from the
+    // headset's button, or from the recorder.record_episode tool of the
+    // stack's robot_control endpoint, which the MCP commander enrolls the
+    // recorder into.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: ["xr_commander", "mcp_commander"] }],
+      reason: "an episode starts from the XR commander's button or from recorder.record_episode under mcp_commander" },
   ],
 
   adjustments: [
+    // Every robot beside the stack's robot_control_sim endpoint is listed
+    // on it with what it is and how it stands: its identity is the
+    // initializer's and its limb state the backbone's, which watches for no
+    // collision; its recorder enrolls whenever it runs. The MCP commander
+    // adds the moves, and the rig adds the front camera under that option.
+    { target: "robot_control_sim_inst",
+      add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"] } },
+    { target: "robot_control_sim_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+    { target: "robot_control_sim_inst", when: { recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
     // Everything this robot runs reads the simulation's clock. The control,
     // commander and recorder fragments are shared with the physical robot,
     // so this robot binds the instances they deploy; the camera rig is the

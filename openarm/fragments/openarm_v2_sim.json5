@@ -26,12 +26,14 @@
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
-    // mcp_commander is the robot's own MCP surface, the one the real robot
-    // has: its moves beside its three cameras, which the rendered rig fills
-    // here. The simulated world's MCP endpoint is not this robot's: the
-    // launcher that serves it deploys it (mcp/openarm_simulation_mcp.json5).
+    // mcp_commander enrolls the robot into the stack's robot_control
+    // endpoint, the one the real robot has: its moves beside the cameras of
+    // its rig, which the rendered rig fills here. The option defines no
+    // commander_inst, so an adjustment naming one is skipped under it. The
+    // simulated world's MCP endpoint is not this robot's: the launcher that
+    // serves it deploys it (mcp/openarm_simulation_mcp.json5).
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
@@ -55,7 +57,7 @@
     // from the backbone, so it sits beside any robot commander.
     {
       name: "brain", cardinality: "zero_or_one",
-      provides: ["brain_inst", "brain_mcp_inst"],
+      provides: ["brain_inst"],
       options: { ai_brain: "ai_brain.json5" },
     },
   ],
@@ -76,15 +78,38 @@
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and every target takes a
-    // link, so its camera targets cannot be optional: the rendered rig
-    // must run beside it.
+    // The MCP commander enrolls the robot into the stack's robot_control_sim
+    // endpoint, which the launcher deploys.
     { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras_sim" }],
-      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras_sim" },
+      requires: [{ robot_control_sim: "robot_control_sim" }],
+      reason: "mcp_commander enrolls the robot into the stack's robot_control_sim endpoint; launch with robot_control_sim" },
+    // An episode needs a trigger: the record button of the web panel or the
+    // headset, or the recorder.record_episode tool of the stack's
+    // robot_control endpoint, which the MCP commander enrolls the recorder
+    // into. The KER leader carries none.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: ["web_commander", "xr_commander", "mcp_commander"] }],
+      reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode under mcp_commander" },
   ],
 
   adjustments: [
+    // Every robot beside the stack's robot_control_sim endpoint is listed on it with
+    // what it is and how it stands: its identity is the initializer's, and
+    // its limb state and collision readout the backbone's; its brain and
+    // recorder enroll whenever they run. The MCP commander adds the moves,
+    // and the rig adds the cameras under that option.
+    { target: "robot_control_sim_inst",
+      add_links: {
+        identity: ["init_inst"],
+        limb_state: ["backbone_inst"],
+        collision: ["backbone_inst"],
+      } },
+    { target: "robot_control_sim_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+    { target: "robot_control_sim_inst", when: { recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
+    { target: "robot_control_sim_inst", when: { brain: "ai_brain" },
+      add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
     // Everything this robot runs reads the simulation's clock. The control,
     // commander, recorder and brain fragments are shared with the physical
     // robot, so this robot binds the instances they deploy; the camera rig is
@@ -94,7 +119,6 @@
     { target: "commander_inst", set_framework: { clock: "simulation" } },
     { target: "recorder_inst", set_framework: { clock: "simulation" } },
     { target: "brain_inst", set_framework: { clock: "simulation" } },
-    { target: "brain_mcp_inst", set_framework: { clock: "simulation" } },
     // Who this robot is and where its limbs are: the v2 model, and the
     // simulation's limbs. The initializer joins the simulation as this
     // robot, and the simulation answers for every limb it stands.

@@ -65,9 +65,22 @@
     { when: { camera_rig: "cameras" },
       requires: [{ recorder: "lerobot_recorder" }, { robot_commander: "xr_commander" }],
       reason: "nothing in this selection consumes a camera stream: only the recorder and the XR commander have camera slots" },
+    // An episode starts via the recorder's record_episode action, and of
+    // this robot's commanders the headset alone carries that button.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: "xr_commander" }],
+      reason: "only the XR commander can start an episode: no other commander of this robot has a recorder slot" },
   ],
 
   adjustments: [
+    // Beside the stack's robot_control endpoint the robot is listed with
+    // what it is and how it stands, its identity the initializer's and its
+    // limb state the backbone's, and its recorder enrolls whenever it runs.
+    // No commander of this robot serves moves over MCP.
+    { target: "robot_control_inst",
+      add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"] } },
+    { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
     // Where this robot's limbs are: one driver of its own, the follower,
     // answering for both. It drives its own hardware, so it joins no
     // simulation.

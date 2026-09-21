@@ -1,11 +1,16 @@
 // Any mix of robots, physical and simulated, assembled from the command
 // line: this file deploys nothing. A simulation is selected at launch, and
-// every robot is a copy added with `stack join`, its ids minted under its
-// name: alpha_backbone_inst, alpha_commander_inst.
+// every robot is a copy, named at launch with `--join OPTION:NAME` or added
+// with `stack join`, its ids minted under its name: alpha_backbone_inst,
+// alpha_commander_inst.
 //
 //   peppy stack launch fleet                                # no simulation
 //   peppy stack join openarm_v2 -i alpha --place jetson-1
 //   peppy stack join so101 -i bravo
+//
+//   peppy stack launch fleet --with robot_control           # the physical robots' MCP endpoint, waiting for robots
+//   peppy stack launch fleet --with waldo,robot_control,robot_control_sim   # one endpoint per clock: real robots on 8900, simulated ones on 8901
+//   peppy stack join openarm_v2 -i alpha --with mcp_commander,cameras --place jetson-1   # listed on it when the join returns
 //
 //   peppy stack launch fleet --with mujoco
 //   peppy stack join openarm_v2_sim -i alpha --with xr_commander
@@ -39,6 +44,27 @@
         waldo: "simulation/fragments/waldo.json5",
       },
     },
+    // The robots' MCP endpoints, one per clock, each off unless `--with`
+    // turns it on: robot_control reads wall time and the physical robots'
+    // mcp_commander option requires it; robot_control_sim reads the
+    // simulation's clock and the simulated robots' requires it. A fleet of
+    // both kinds serves both, on 8900 and 8901.
+    {
+      name: "robot_control",
+      cardinality: "zero_or_one",
+      provides: ["robot_control_inst"],
+      options: {
+        robot_control: "mcp/fragments/robot_control.json5",
+      },
+    },
+    {
+      name: "robot_control_sim",
+      cardinality: "zero_or_one",
+      provides: ["robot_control_sim_inst"],
+      options: {
+        robot_control_sim: "mcp/fragments/robot_control_sim.json5",
+      },
+    },
     {
       name: "robot",
       cardinality: "zero_or_more",
@@ -56,6 +82,11 @@
   deployments: [],
 
   constraints: [
+    // The simulated robots' endpoint reads the simulation's clock, which
+    // only a simulation supplies.
+    { when: { robot_control_sim: "robot_control_sim" },
+      requires: [{ simulation: ["mujoco", "isaac_sim", "waldo"] }],
+      reason: "robot_control_sim reads the simulation's clock; launch with mujoco, isaac_sim or waldo, or serve the physical robots with robot_control" },
     // The simulations that stand a so101_sim, in one list: the ones whose
     // catalogue carries the so101 model. It is declared first because the
     // first declared constraint is the one that refuses, so a so101_sim

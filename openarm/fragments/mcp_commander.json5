@@ -1,47 +1,17 @@
-// The MCP command surface: no leader node at all. The server built into
-// peppy serves the openarm_v2:v1 exposure from the MCP hub, the robot's own
-// surface: its identity target filled by the robot's initializer, its two
-// move targets by the backbone and its three camera targets by the copy's
-// rig, the physical rig on hardware and the rendered one in simulation,
-// under the same ids. Its instance fills the
-// commander_inst role so everything keyed on the robot_commander axis keeps
-// resolving. The exposure list is fixed and every target takes a link, so
-// the camera targets cannot be optional: the robot fragment requires its
-// rig beside this option. Nothing streams: every move is a discrete action
-// the backbone runs itself, so the backbone's leader sockets and its
-// governor-control slot go vacant below.
+// The MCP command surface: no leader node at all. A model drives the robot
+// by name on the stack's robot_control endpoint, the server built into
+// peppy serving the robot_control:v1 exposure from the MCP hub. The robot
+// fragment enrolls the moves under this option, into the server of its
+// clock, robot_control_inst for a physical robot and robot_control_sim_inst
+// for a simulated one, and the rig adds the cameras under the same option;
+// the robot's identity and limb state are listed there under any
+// commander. Nothing streams: every
+// move is a discrete action the backbone runs itself, so the backbone's
+// leader sockets and its governor-control slot go vacant below.
 {
   peppy_schema: "launcher_fragment/v1",
 
-  deployments: [
-    {
-      source: { exposures: ["openarm_v2:v1"] },
-      instances: [
-        {
-          instance_id: "commander_inst",
-          // The derived node's only parameter: the port the server
-          // prefers on 127.0.0.1, serving the exposure at
-          // /openarm_v2/v1/mcp. A copy that finds the port held takes
-          // another and announces it.
-          arguments: { port: 8900 },
-          // One entry per target of the exposure. The identity role is
-          // the initializer's and the two move roles are the backbone's,
-          // the same instances under the real robot and every simulation;
-          // the camera roles name the rig's instances, which the resolver
-          // mints under the copy's name (alpha_wrist_left) as it does the
-          // initializer and the backbone.
-          links: {
-            identity: "init_inst",
-            postures: "backbone_inst",
-            limb_motion: "backbone_inst",
-            wrist_left: "wrist_left",
-            wrist_right: "wrist_right",
-            chest: "chest",
-          },
-        },
-      ],
-    },
-  ],
+  deployments: [],
 
   adjustments: [
     // The MCP server never pairs into the backbone: arm and gripper moves

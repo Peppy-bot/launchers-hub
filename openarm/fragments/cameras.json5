@@ -2,11 +2,11 @@
 // headset selection retunes them for in-headset panels below). The
 // adjustments bind the cameras into whichever recorder was selected; only
 // the XR leader has camera slots of its own, so that attach is guarded on
-// the shape. The MCP commander publishes the three cameras on the robot's
-// endpoint through its own links, by the instance ids written here. It
-// reads the rgb8 the recorder does: its server transcodes rgb8 to JPEG and
-// refuses yuyv, which only the headset selection below switches to, and a
-// copy runs one commander.
+// the shape. Under the MCP commander the rig enrolls the three cameras into
+// the stack's robot_control endpoint as this robot's, by the instance ids
+// written here. Its server reads the rgb8 the recorder does: it transcodes
+// rgb8 to JPEG and refuses yuyv, which only the headset selection below
+// switches to, and a copy runs one commander.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -82,6 +82,14 @@
     { target: "commander_inst", when: { robot_commander: "xr_commander" },
       add_links: { color_cameras: ["wrist_left", "wrist_right"],
                    rgbd_cameras: ["chest"] } },
+    // Under the MCP commander the cameras enroll into the stack's
+    // robot_control endpoint as this robot's, the wrists as color cameras
+    // and the chest as one carrying depth. The uvc and zed nodes describe
+    // no profile or geometry, so those two targets stay unfilled on
+    // hardware.
+    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { camera: ["wrist_left", "wrist_right"],
+                   depth_camera: ["chest"] } },
     // Panels take the Arducams as raw yuyv (half of rgb8) and the chest a
     // deeper disparity floor. Rate and resolution stay with the camera rig;
     // the XR node relays at view_max_width.

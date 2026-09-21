@@ -1,0 +1,35 @@
+// The physical robots of the stack over MCP: the server built into peppy
+// serves the robot_control:v1 exposure from the MCP hub on one endpoint,
+// http://127.0.0.1:8900/robot_control/v1/mcp, where every call names its
+// robot, reading wall time. A server reads one clock, so this is the server
+// the physical robots enroll into; robot_control_sim.json5 is the twin on
+// the simulation's clock the simulated robots enroll into. The document is
+// a per-robot surface, so each of its targets is a set the robots fill:
+// this instance takes no links, and a robot's own fragment adds its
+// instances to the targets with `add_links` on robot_control_inst: every
+// robot beside the server is listed with its identity, limb state and
+// collision readout, and with its brain and recorder whenever they run; its
+// `mcp_commander` option adds the moves, and its rig adds the cameras under
+// that option. A join adds its robot's instances while the server runs and a
+// removal takes them out, so the endpoint and its URL are the same for one
+// robot or ten and before and after any join.
+//
+// The fleet deploys this option with `--with robot_control`.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { exposures: ["robot_control:v1"] },
+      instances: [
+        {
+          instance_id: "robot_control_inst",
+          // The derived node's only parameter: the port the server prefers
+          // on 127.0.0.1. One server serves the fleet, so the port is the
+          // stack's, beside the simulated world's endpoint on 8902.
+          arguments: { port: 8900 },
+        },
+      ],
+    },
+  ],
+}

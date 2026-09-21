@@ -14,14 +14,14 @@ with the simulation's `arms` or `grippers` slot. The repository's launchers
 compose the fragments: [fleet.json5](../fleet.json5) deploys nothing and
 takes any mix from the command line, physical robots placed on their
 machines, [openarm_simulation.json5](openarm_simulation.json5) runs one
-simulation and simulated robots as copies, deploying `alpha`,
+simulation and simulated robots as copies, each named at launch with
+`--join openarm_v2_sim:alpha` or joined later,
 [../so101/so101_simulation.json5](../so101/so101_simulation.json5) is the
-same launcher deploying a simulated SO-101, with the simulated OpenArms as
+same launcher with the simulated SO-101 first and the simulated OpenArms as
 options, and
 [../mcp/openarm_simulation_mcp.json5](../mcp/openarm_simulation_mcp.json5)
-runs Waldo and deploys `alpha` with the MCP commander. A copy's
-ids carry its name:
-`alpha_backbone_inst`. See the [repository README](../Readme.md) for the
+runs Waldo and serves every robot named at launch or joined later on one
+MCP endpoint. A copy's ids carry its name: `alpha_backbone_inst`. See the [repository README](../Readme.md) for the
 option table, limits, and configuration ownership.
 
 ## Real hardware
@@ -83,27 +83,35 @@ peppy stack join openarm_v2 -i echo --with ker_commander
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
-poses and selects the backbone's pose mode. MCP publishes the robot's own
-surface through the built-in `openarm_v2:v1` exposure: the backbone's
-discrete motion actions and the three cameras of the copy's rig, their
-latest frames as resources and their stream info, exposure, gain and white
-balance as tools.
+poses and selects the backbone's pose mode. MCP enrolls the robot into the
+stack's `robot_control:v1` endpoint, the robots' own surface, where every
+call names its robot: the robot's identity, the backbone's discrete motion
+actions, its limb state and collision readout, and the cameras of the
+copy's rig, their latest frames and the chest's depth as resources and
+their stream info, exposure, gain and white balance as tools.
 
 `mcp_commander` ([fragments/mcp_commander.json5](fragments/mcp_commander.json5))
-is one option, the same on hardware and in simulation. Its exposure list is
-fixed and every target takes a link, so it requires the robot's rig,
-`cameras` on a physical robot and `cameras_sim` on a simulated v2, and the
-rig counts it among its consumers. No simulation renders a rig on v1 links,
-so a simulated v1 does not offer it; a physical v1 does, with `cameras`.
+is one option, the same on hardware and in simulation: no node of its own.
+Beside the MCP endpoint of its clock, `robot_control_inst` on a physical
+robot and `robot_control_sim_inst` on a simulated one, every robot is listed
+with its identity, limb state and collision readout under any commander;
+under this option the robot's fragment adds the backbone's moves with
+`add_links`, and requires that launcher option, `robot_control` or
+`robot_control_sim`. The
+rig, `cameras` on a physical robot and `cameras_sim` on a simulated v2,
+enrolls its cameras under it and counts it among its consumers; a robot
+without a rig enrolls with no camera. No simulation
+renders a rig on v1 links, so a simulated v1 does not offer it; a physical
+v1 does, with `cameras`.
 
 The KER leader, on the v2 robots (physical or simulated), streams joint
 setpoints from enactic's motorless leader arm.
 
-The MCP endpoint defaults to
-`http://127.0.0.1:8900/openarm_v2/v1/mcp`; the launch prints every exposure's
-URL under `MCP endpoints:`, labelled `<exposure>_<tag>`, and `stack list`
-reports them under `Instance endpoints`. Recording requires the web or XR
-commander.
+The robots' endpoint is `http://127.0.0.1:8900/robot_control/v1/mcp`, the
+stack's, the same for every robot; the launch prints every exposure's URL
+under `MCP endpoints:`, labelled `<exposure>_<tag>`, and `stack list`
+reports them under `Instance endpoints`. Recording starts from the web or
+XR commander's record button, or over MCP through `recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
 lighting and its materials, is a second endpoint a model uses to set the
@@ -115,15 +123,17 @@ setup and the move from simulation to the real robot are in the
 [MCP guide](../mcp/README.md):
 
 ```sh
-peppy stack launch openarm_simulation_mcp
-peppy stack launch openarm_simulation --with alpha.robot_commander=mcp_commander,alpha.camera_rig=cameras_sim
+peppy stack launch openarm_simulation_mcp --join openarm_v2_sim:alpha
+peppy stack launch openarm_simulation --join openarm_v2_sim:alpha --with robot_control_sim,alpha.mcp_commander,alpha.cameras_sim
 ```
 
 A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
 serving `item_perception` and `item_manipulation` over the backbone's
-`limb_motion`, with the MCP server built into peppy serving the `ai_brain:v1`
-exposure on port 8901. It composes with any commander: the operator and the
-brain send the same kind of goal to the same producer.
+`limb_motion`. It composes with any commander: the operator and the brain
+send the same kind of goal to the same producer. Whenever the stack serves
+the MCP endpoint of the robot's clock, the brain enrolls its tools under the
+robot's name there, and so does the recorder its episodes, whatever the
+robot's commander.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras
@@ -172,8 +182,6 @@ peppy stack join openarm_v2 -i bravo --with lerobot_recorder \
   --set-arguments 'recorder_inst.storage_root="/tmp/lerobot_bravo"'
 ```
 
-A second copy with a brain also takes a distinct `brain_mcp_inst.port`.
-
 Arguments name the instance as the fragment writes it, such as
 `left_arm_inst.can_interface`; the copy's name prefixes the running instance.
 
@@ -194,14 +202,15 @@ Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for th
 ## Simulation
 
 `openarm_simulation.json5` runs the simulation as the stack and the robot
-as a copy. The file deploys Waldo and `alpha`, a v2 with the browser
-commander:
+as a copy named at launch. The file deploys Waldo and lists no robot;
+`--join openarm_v2_sim:alpha` starts a v2 with the browser commander:
 
 ```sh
-peppy stack launch openarm_simulation                 # Waldo and alpha
-peppy stack launch openarm_simulation --with mujoco   # the same copy in MuJoCo
-peppy stack launch openarm_simulation --with isaac_sim
-peppy stack remove alpha                              # the simulation keeps running
+peppy stack launch openarm_simulation --join openarm_v2_sim:alpha                 # Waldo and alpha
+peppy stack launch openarm_simulation --join openarm_v2_sim:alpha --with mujoco   # the same copy in MuJoCo
+peppy stack launch openarm_simulation --join openarm_v2_sim:alpha --with isaac_sim
+peppy stack launch openarm_simulation                                             # Waldo alone
+peppy stack remove alpha                                                          # the simulation keeps running
 ```
 
 Waldo and Isaac Sim stand as many robots as the machines can run, of any
@@ -210,7 +219,7 @@ The `robot` axis offers every simulated robot, so an SO-101
 ([so101_sim](../so101/README.md#simulation)) joins beside the OpenArm:
 
 ```sh
-peppy stack launch openarm_simulation --with isaac_sim
+peppy stack launch openarm_simulation --join openarm_v2_sim:alpha --with isaac_sim
 peppy stack join openarm_v2_sim -i bravo --with xr_commander
 peppy stack join openarm_v1_sim -i charlie
 peppy stack join so101_sim -i charlo                           # an SO-101 beside the OpenArm alpha
@@ -227,14 +236,11 @@ joined to a launch whose copies select no rig has no rendered camera.
 Every simulation stands a v1 or a v2, the model the robot's fragment
 names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
 (from private-nodes-hub), which carries both, so a v1 and a v2 share one
-Waldo world. For rendered wrist/chest streams and recording, the copy
-selects them in the file:
+Waldo world. For rendered wrist/chest streams and recording, the launch
+words select them on the copy it names:
 
-```json5
-{ robot: "openarm_v2_sim", instances: [
-    { instance_id: "alpha",
-      with: { robot_commander: "xr_commander", recorder: "lerobot_recorder", camera_rig: "cameras_sim" } },
-] },
+```sh
+peppy stack launch openarm_simulation --join openarm_v2_sim:alpha --with alpha.xr_commander,alpha.lerobot_recorder,alpha.cameras_sim
 ```
 
 Rendered cameras require v2, so only `openarm_v2_sim` declares the rig,
@@ -281,8 +287,8 @@ reach the simulation's machine.
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve fleet --join openarm_v1 --join-name bravo --join-with xr_commander
-peppy stack resolve fleet --with isaac_sim,web_scene_commander --join openarm_v2_sim --join-name alpha --join-with xr_commander
+peppy stack resolve fleet --then-join openarm_v1 --then-join-name bravo --then-join-with xr_commander
+peppy stack resolve fleet --with isaac_sim,web_scene_commander --then-join openarm_v2_sim --then-join-name alpha --then-join-with xr_commander
 peppy stack resolve openarm_simulation_mcp --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/robot_initializer -sb
 ```

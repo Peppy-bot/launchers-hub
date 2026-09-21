@@ -76,7 +76,7 @@
       options: { control_common: "control_common.json5" },
     },
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
@@ -99,7 +99,7 @@
     // from the backbone, so it sits beside any robot commander.
     {
       name: "brain", cardinality: "zero_or_one",
-      provides: ["brain_inst", "brain_mcp_inst"],
+      provides: ["brain_inst"],
       options: { ai_brain: "ai_brain.json5" },
     },
   ],
@@ -115,15 +115,38 @@
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and every target takes a
-    // link, so its camera targets cannot be optional: the rig must run
-    // beside it.
+    // The MCP commander enrolls the robot into the stack's robot_control
+    // endpoint, which the launcher deploys.
     { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras" }],
-      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras" },
+      requires: [{ robot_control: "robot_control" }],
+      reason: "mcp_commander enrolls the robot into the stack's robot_control endpoint; launch with robot_control" },
+    // An episode needs a trigger: the record button of the web panel or the
+    // headset, or the recorder.record_episode tool of the stack's
+    // robot_control endpoint, which the MCP commander enrolls the recorder
+    // into. The KER leader carries none.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: ["web_commander", "xr_commander", "mcp_commander"] }],
+      reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode under mcp_commander" },
   ],
 
   adjustments: [
+    // Every robot beside the stack's robot_control endpoint is listed on it with
+    // what it is and how it stands: its identity is the initializer's, and
+    // its limb state and collision readout the backbone's; its brain and
+    // recorder enroll whenever they run. The MCP commander adds the moves,
+    // and the rig adds the cameras under that option.
+    { target: "robot_control_inst",
+      add_links: {
+        identity: ["init_inst"],
+        limb_state: ["backbone_inst"],
+        collision: ["backbone_inst"],
+      } },
+    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+    { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
+    { target: "robot_control_inst", when: { brain: "ai_brain" },
+      add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
     // Who this robot is and where its limbs are: the v2 model, and four
     // drivers of its own, each answering for its limb. It drives its own
     // hardware, so it joins no simulation.

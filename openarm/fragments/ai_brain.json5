@@ -3,7 +3,10 @@
 // through the backbone's discrete moves, so it composes with whichever
 // commander was selected instead of competing with it: the operator and the
 // brain send the same kind of goal to the same producer, and the governor
-// sizes both on the way down.
+// sizes both on the way down. Where the stack serves the robot's
+// robot_control endpoint, the robot's fragment enrolls the brain into it,
+// so a model drives it by the robot's name beside the direct moves, or
+// alone under another commander.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -25,22 +28,6 @@
             // rather than starting a node that can only refuse.
             limb_motion: "backbone_inst",
           },
-        },
-      ],
-    },
-    {
-      // The brain's MCP surface: the server built into peppy serves the
-      // ai_brain:v1 exposure from the MCP hub, both of its targets filled by
-      // the brain instance above, which implements the two contracts. The
-      // port is the one its server prefers, its own so it runs beside the
-      // mcp_commander option's server on 8900 when both are selected; a
-      // copy that finds it held takes another and announces it.
-      source: { exposures: ["ai_brain:v1"] },
-      instances: [
-        {
-          instance_id: "brain_mcp_inst",
-          arguments: { port: 8901 },
-          links: { item_perception: "brain_inst", item_manipulation: "brain_inst" },
         },
       ],
     },

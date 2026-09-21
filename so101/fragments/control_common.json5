@@ -48,15 +48,6 @@
     },
   ],
 
-  constraints: [
-    // Episodes start via the recorder's record_episode action, and only the
-    // XR commander carries that button; a recorder deployed beside any other
-    // commander would idle with no way to trigger it.
-    { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: "xr_commander" }],
-      reason: "only the XR commander can start an episode: no other commander of this robot has a recorder slot" },
-  ],
-
   adjustments: [
     {
       when: { robot_commander: "xr_commander" },

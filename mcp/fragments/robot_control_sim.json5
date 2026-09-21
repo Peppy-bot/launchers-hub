@@ -1,0 +1,34 @@
+// The simulated robots of the stack over MCP: the server built into peppy
+// serves the robot_control:v1 exposure from the MCP hub on one endpoint,
+// where every call names its robot, reading the simulation's clock. A
+// server reads one clock, so this is the server the simulated robots
+// enroll into; robot_control.json5 is the wall-time twin the physical
+// robots enroll into. A stack running both, a fleet with a simulation
+// beside real robots, serves two URLs, one per clock; a stack of one kind
+// serves one. Every target of the document is a set the robots fill: this
+// instance takes no links, and a simulated robot's own fragment adds its
+// instances to the targets with `add_links` on robot_control_sim_inst, at
+// launch or by a later join, and a removal takes them out: every robot
+// beside the server is listed with its identity and limb state, and with
+// its brain and recorder whenever they run; its `mcp_commander` option
+// adds the moves, and its rig adds the cameras under that option.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { exposures: ["robot_control:v1"] },
+      instances: [
+        {
+          instance_id: "robot_control_sim_inst",
+          // The derived node's only parameter: the port the server prefers
+          // on 127.0.0.1. The fleet serves the wall-time server on 8900 and
+          // this one beside it; a simulation launcher, running this server
+          // alone, puts it on 8900 with an adjustment.
+          arguments: { port: 8901 },
+          framework: { clock: "simulation" },
+        },
+      ],
+    },
+  ],
+}

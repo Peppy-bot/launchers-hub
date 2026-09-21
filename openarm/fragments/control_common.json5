@@ -53,14 +53,6 @@
     },
   ],
 
-  constraints: [
-    // Recording starts through the commander's record button and recorder
-    // slot, provided by the web panel and XR headset.
-    { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: ["web_commander", "xr_commander"] }],
-      reason: "the record button requires web_commander or xr_commander" },
-  ],
-
   adjustments: [
     {
       target: "commander_inst",

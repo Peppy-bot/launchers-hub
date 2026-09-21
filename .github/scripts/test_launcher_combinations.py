@@ -218,7 +218,7 @@ class CombinationsTests(unittest.TestCase):
         # times 2 times 2),
         # the v2 has one (3 times 2 times 2 times 2), the simulated v1 has
         # neither camera rig nor brain, and without a rig no MCP commander
-        # (2 times 2), the simulated v2 has both and all three commanders (3
+        # (2 times 2), the simulated v2 has both and all four commanders (4
         # times 2 times 2 times 2), the SO-101 has three commanders, a
         # recorder and a camera rig, and the simulated SO-101 a fourth
         # commander, the MCP one (4 times 2 times 2). It deploys nothing, so
@@ -226,7 +226,7 @@ class CombinationsTests(unittest.TestCase):
         fleet = combos("fleet")
         self.assertEqual(
             len(fleet),
-            6 * (1 + 6 + 3 * 2 * 2 + 3 * 2 * 2 * 2 + 2 * 2 + 3 * 2 * 2 * 2 + 3 * 2 * 2 + 4 * 2 * 2)
+            6 * (1 + 6 + 3 * 2 * 2 + 4 * 2 * 2 * 2 + 2 * 2 + 4 * 2 * 2 * 2 + 3 * 2 * 2 + 4 * 2 * 2)
         )
         self.assertIn(["combo", "fleet", "", "", "", "-"], fleet)
         self.assertIn(["combo", "fleet", "simulation=mujoco", "openarm_v2_sim", "", "-"], fleet)
@@ -241,11 +241,11 @@ class CombinationsTests(unittest.TestCase):
         # bare, with every other selection of its deployed v2 copy's axes,
         # and joined by any simulated robot, plain (1 per robot) and under
         # every selection of its axes: the v1 has no camera rig, no brain and
-        # two commanders (2 times 2), the v2 has both and three commanders (3
+        # two commanders (2 times 2), the v2 has both and four commanders (4
         # times 2 times 2 times 2), and the SO-101 has four commanders, a
         # recorder and a rig (4 times 2 times 2).
         sim = combos("openarm_simulation")
-        self.assertEqual(len(sim), 5 * (1 + (3 * 2 * 2 * 2 - 1) + 3 + 2 * 2 + 3 * 2 * 2 * 2 + 4 * 2 * 2))
+        self.assertEqual(len(sim), 5 * (1 + (4 * 2 * 2 * 2 - 1) + 3 + 2 * 2 + 4 * 2 * 2 * 2 + 4 * 2 * 2))
         self.assertIn(["combo", "openarm_simulation", "simulation=waldo", "so101_sim", "", "-"], sim)
         self.assertIn(["combo", "openarm_simulation", "simulation=waldo,scene_commander=web_scene_commander", "", "", "-"], sim)
         self.assertIn(
@@ -274,7 +274,7 @@ class CombinationsTests(unittest.TestCase):
         # copy runs no commander, no recorder and no rig), and joined by any
         # simulated robot, plain and under every selection of its axes.
         so101 = combos("so101_simulation")
-        self.assertEqual(len(so101), 5 * (1 + (4 * 2 * 2 - 1) + 3 + 4 * 2 * 2 + 2 * 2 + 3 * 2 * 2 * 2))
+        self.assertEqual(len(so101), 5 * (1 + (4 * 2 * 2 - 1) + 3 + 4 * 2 * 2 + 2 * 2 + 4 * 2 * 2 * 2))
         self.assertIn(["combo", "so101_simulation", "simulation=waldo", "", "", "-"], so101)
         self.assertIn(["combo", "so101_simulation", "simulation=mujoco", "so101_sim", "", "-"], so101)
         self.assertIn(
@@ -316,7 +316,7 @@ class CombinationsTests(unittest.TestCase):
         # picks the launcher and the options up from the index and the
         # fragments alone.
         mcp = combos("openarm_simulation_mcp")
-        self.assertEqual(len(mcp), 5 * 2 * (1 + (3 * 2 * 2 * 2 - 1) + 2 + 3 * 2 * 2 * 2 + 4 * 2 * 2))
+        self.assertEqual(len(mcp), 5 * 2 * (1 + (4 * 2 * 2 * 2 - 1) + 2 + 4 * 2 * 2 * 2 + 4 * 2 * 2))
         self.assertIn(
             ["combo", "openarm_simulation_mcp", "simulation=waldo,simulation_mcp=mcp_scene_commander", "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim", "-"],
             mcp,
@@ -926,7 +926,7 @@ class CombinationsTests(unittest.TestCase):
                     if c.join_option is None and c.words[0] == ("simulation", "waldo")]
         # Waldo with and without its scene commander, the world's endpoint
         # on or off.
-        self.assertEqual(len(deployed), 2 * 2 * (1 + 3 * 2 * 2 * 2 - 1))
+        self.assertEqual(len(deployed), 2 * 2 * (1 + 4 * 2 * 2 * 2 - 1))
         self.assertIn(
             "simulation=waldo,simulation_mcp=mcp_scene_commander,alpha.robot_commander=xr_commander,alpha.camera_rig=cameras_sim",
             deployed)

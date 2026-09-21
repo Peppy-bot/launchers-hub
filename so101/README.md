@@ -125,11 +125,9 @@ peppy stack resolve so101_simulation --with mujoco --join so101_sim --join-name 
 
 The limits:
 
-- Waldo and Isaac Sim stand any number of robots at once and place and move
-  them through the scene contract. MuJoCo stands one robot at a time, the
-  robot's file being the whole world: under `--with mujoco` the engine
-  refuses a join beside `alpha`, with its own reason, until
-  `peppy stack remove alpha`.
+- Every simulation stands any number of robots at once, each clear of the
+  others. Waldo and Isaac Sim place and move them through the scene
+  contract.
 - A join cannot turn rendering on, so an SO-101 joined to a plain
   `openarm_simulation` or `so101_simulation` has no `front` camera, and
   `--with cameras_sim` on that join is refused. Under
@@ -148,9 +146,9 @@ The limits:
 
 CI launches the simulated SO-101 where it opens no device: `no_commander`,
 and `mcp_commander` with `cameras_sim`, under Waldo and MuJoCo, the joined
-copy beside `alpha` under Waldo and in its place under MuJoCo. The
-`so101_leader` and `xr_commander` selections and Isaac Sim are validated and
-skipped, as the [skip file](../.github/unlaunchable-nodes.json5) says.
+copy beside `alpha` under both. The `so101_leader` and `xr_commander`
+selections and Isaac Sim are validated and skipped, as the
+[skip file](../.github/unlaunchable-nodes.json5) says.
 
 ## Host prerequisites
 

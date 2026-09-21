@@ -209,8 +209,13 @@ Over MCP a model sees through the SO-101's camera
 endpoint (`scene.move_robot`). Its arm is not drivable over MCP: the
 exposure carries no move.
 
-Under `--with mujoco,simulation_mcp=none` one robot stands at a time, so the
-engine refuses a join beside `alpha` until `peppy stack remove alpha`.
+Under `--with mujoco,simulation_mcp=none` the SO-101 joins beside `alpha`
+and serves its frames as it does under Waldo. Its exposure, camera relay and
+rig are the same; what differs is that Waldo models a camera's response to
+exposure, gain and white balance and MuJoCo does not, so under MuJoCo those
+setters refuse, as the document tells a model to expect. That selection also
+switches the simulated world's endpoint off, so the SO-101 is seen through
+and never moved; the OpenArm `alpha` keeps its own endpoint and its moves.
 
 ### The same client on the real robot
 

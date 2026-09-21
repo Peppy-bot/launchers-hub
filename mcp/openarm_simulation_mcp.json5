@@ -63,10 +63,8 @@
 // the SO-101's camera and moves its base through the simulated world's
 // endpoint (scene.move_robot); its arm is not drivable over MCP.
 //
-// Waldo and Isaac Sim stand any number of robots, of any model, each joined
-// copy bringing its own; this file ships one copy. MuJoCo stands one robot
-// at a time, so under `--with mujoco,simulation_mcp=none` the engine
-// refuses a join beside alpha until `peppy stack remove alpha`.
+// Every simulation stands any number of robots, of any model, each joined
+// copy bringing its own; this file ships one copy.
 {
   peppy_schema: "launcher/v1",
 

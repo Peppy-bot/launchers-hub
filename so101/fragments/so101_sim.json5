@@ -4,9 +4,8 @@
 // robot runs as and the so101 model to stand, and the backbone leads the
 // simulation's limb slots, arms and grippers, on the same pairings it leads
 // the real follower. There is no follower node: the engine plays the
-// follower role toward the backbone. Waldo and Isaac Sim stand any number
-// of robots at once, of any model; MuJoCo stands one at a time, this
-// robot's file being its whole world.
+// follower role toward the backbone. Every simulation stands any number of
+// robots at once, of any model.
 //
 // It comes up with no commander, so it runs on a machine with no SO-101
 // hardware: a CI runner, a development host, a plain

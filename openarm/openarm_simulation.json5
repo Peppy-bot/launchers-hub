@@ -11,7 +11,7 @@
 //   peppy stack remove alpha                                       # the simulation keeps running
 //
 // The robot axis offers every simulated robot, so an SO-101 joins beside
-// the OpenArm. Waldo and Isaac Sim stand as many robots as the machines can
+// the OpenArm. Every simulation stands as many robots as the machines can
 // run, of any model, each joined copy bringing its own:
 //
 //   peppy stack launch openarm_simulation --with isaac_sim
@@ -20,11 +20,11 @@
 //   peppy stack join so101_sim -i charlo                           # an SO-101 beside the OpenArm alpha
 //   peppy stack remove bravo
 //
-// MuJoCo stands one robot at a time, so under `--with mujoco` the engine
-// refuses a join beside alpha until `peppy stack remove alpha`. A join
-// cannot turn rendering on: the simulation renders when a copy the file
-// deploys selects its rig at launch, as the fourth command above does, so
-// an SO-101 joined to a launch without one has no `front` camera, and
+// Every simulation stands any number of robots at once, so a join comes up
+// beside alpha whichever one runs. A join cannot turn rendering on: the
+// simulation renders when a copy the file deploys selects its rig at
+// launch, as the fourth command above does, so an SO-101 joined to a
+// launch without one has no `front` camera, and
 // `--with cameras_sim` on its join is refused. mcp/openarm_simulation_mcp.json5
 // launches with alpha's rig, and an SO-101 joined there takes its camera.
 {

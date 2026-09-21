@@ -37,10 +37,10 @@
             // Live readouts: each limb's measured state, on the pair the
             // backbone leads to that limb, named by the backbone's end so
             // the panel hears this robot's limbs whatever holds the far end.
-            observed_left_arm: "backbone_inst/left_arm_link",
-            observed_right_arm: "backbone_inst/right_arm_link",
-            observed_left_gripper: "backbone_inst/left_gripper_link",
-            observed_right_gripper: "backbone_inst/right_gripper_link",
+            observed_left_arm: "backbone_inst/left_arm",
+            observed_right_arm: "backbone_inst/right_arm",
+            observed_left_gripper: "backbone_inst/left_gripper",
+            observed_right_gripper: "backbone_inst/right_gripper",
             // Per-motor health and operator alerts come from real drivers,
             // so the physical robots add those bindings.
           },

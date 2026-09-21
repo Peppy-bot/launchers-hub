@@ -16,7 +16,7 @@
 // the node.
 [
   {
-    node: "openarm_sim_mujoco",
+    node: "sim_mujoco",
     reason: "admits one robot at a time, refusing a second attach while one stands",
   },
 ]

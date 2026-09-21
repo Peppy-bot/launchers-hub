@@ -61,7 +61,7 @@ CONSTRAINT_REFUSAL_MARK = "which this selection"
 JOIN_CHANGE_MARK = "would change"
 
 # The name every previewed and launched copy joins under in CI. A copy name is
-# unique on the stack, and `openarm_simulation` deploys `alpha`.
+# unique on the stack, and the simulation launchers deploy `alpha`.
 COPY_NAME = "bravo"
 
 CARDINALITIES = ("one", "zero_or_one", "zero_or_more")

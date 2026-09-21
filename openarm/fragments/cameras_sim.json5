@@ -3,13 +3,16 @@
 // dataset image keys a real one does (observation.images.wrist_left /
 // wrist_right / chest, plus chest_depth). The frames come from the
 // simulation, so there are no device paths and no udev rule here; each
-// relay views one camera slot on the simulation and presents the
-// rgb_camera / rgbd_camera contract, exactly as the uvc and zed nodes do,
-// and describes its device through camera_profile.
+// relay pairs into the simulation's slot for its kind of camera,
+// rgb_cameras or rgbd_cameras, and presents the rgb_camera / rgbd_camera
+// contract, exactly as the uvc and zed nodes do, describing its device
+// through camera_profile. Each slot holds any number of pairs: the
+// simulation tells a pair's robot by its copy and its camera by the
+// relay's name in that copy, the instance id written here.
 //
 // Each relay also holds a control slot for the simulation's camera
 // response model (sim_camera_control), which forwards the controls a
-// consumer sets on the camera to the simulation under the slot's name.
+// consumer sets on the camera to the simulation's model of that camera.
 // Waldo implements it, so the relays bind it there; MuJoCo and Isaac Sim
 // have no response model, so the slot is written vacant and every camera
 // control refuses on them.
@@ -39,13 +42,13 @@
       instances: [
         { instance_id: "wrist_left",
           links: {
-            simulation: "simulation_inst/wrist_left",
+            simulation: "simulation_inst/rgb_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
           },
           framework: { clock: "simulation" } },
         { instance_id: "wrist_right",
           links: {
-            simulation: "simulation_inst/wrist_right",
+            simulation: "simulation_inst/rgb_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
           },
           framework: { clock: "simulation" } },
@@ -61,7 +64,7 @@
       instances: [
         { instance_id: "chest",
           links: {
-            simulation: "simulation_inst/chest",
+            simulation: "simulation_inst/rgbd_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
           },
           framework: { clock: "simulation" } },

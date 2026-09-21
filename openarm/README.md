@@ -5,13 +5,21 @@ physical robot over CAN, `openarm_v1_sim` and `openarm_v2_sim` join a
 simulation that runs their limbs. Every fragment selects the shared OpenArm
 control ([fragments/control_common.json5](fragments/control_common.json5)),
 the robot's initializer and backbone, and declares the robot's own axes: the
-robot commander, the recorder, and the camera rig. The repository's three
-launchers compose them: [fleet.json5](../fleet.json5) deploys nothing and
+robot commander, the recorder, and the camera rig. The initializer is
+`robot_initializer`, the identity node every robot runs, and the fragment
+names its model, `openarm_v1` or `openarm_v2`. The backbone names its
+downstream links after the limbs, `left_arm`, `right_arm`, `left_gripper`
+and `right_gripper`: on hardware each pairs with its driver, in a simulation
+with the simulation's `arms` or `grippers` slot. The repository's launchers
+compose the fragments: [fleet.json5](../fleet.json5) deploys nothing and
 takes any mix from the command line, physical robots placed on their
 machines, [openarm_simulation.json5](openarm_simulation.json5) runs one
-simulation and simulated robots as copies, deploying `alpha`, and
+simulation and simulated robots as copies, deploying `alpha`,
+[../so101/so101_simulation.json5](../so101/so101_simulation.json5) is the
+same launcher deploying a simulated SO-101, with the simulated OpenArms as
+options, and
 [../mcp/openarm_simulation_mcp.json5](../mcp/openarm_simulation_mcp.json5)
-runs Waldo and deploys `alpha` with the MCP simulation commander. A copy's
+runs Waldo and deploys `alpha` with the MCP commander. A copy's
 ids carry its name:
 `alpha_backbone_inst`. See the [repository README](../Readme.md) for the
 option table, limits, and configuration ownership.
@@ -48,7 +56,9 @@ after startup. `stack remove alpha` stops every instance owned by alpha;
 `stack reset --federated` tears down the fleet.
 
 The hardware generation applies to the arms, grippers, backbone and browser
-panel. A mismatched gripper setting has these physical consequences:
+panel, as `hardware_version`; the initializer takes the same choice as its
+`model`, `openarm_v1` or `openarm_v2`. A mismatched gripper setting has
+these physical consequences:
 
 | Rig | Incorrect setting | Consequence |
 |---|---|---|
@@ -170,18 +180,26 @@ peppy stack launch openarm_simulation --with isaac_sim
 peppy stack remove alpha                              # the simulation keeps running
 ```
 
-Waldo and Isaac Sim stand as many robots as the machines can run, each
-joined copy bringing its own model, the simulation running throughout;
-MuJoCo stands one at a time, loading the scene of whichever robot joins:
+Waldo and Isaac Sim stand as many robots as the machines can run, of any
+model, each joined copy bringing its own, the simulation running throughout.
+The `robot` axis offers every simulated robot, so an SO-101
+([so101_sim](../so101/README.md#simulation)) joins beside the OpenArm:
 
 ```sh
 peppy stack launch openarm_simulation --with isaac_sim
 peppy stack join openarm_v2_sim -i bravo --with xr_commander
 peppy stack join openarm_v1_sim -i charlie
+peppy stack join so101_sim -i charlo                  # an SO-101 beside the OpenArm alpha
 peppy stack remove bravo
 ```
 
-Every simulation stands a v1 or a v2, the generation the robot's fragment
+MuJoCo stands one robot at a time, loading the scene of whichever robot
+joins, its file being the whole world: under `--with mujoco` the engine
+refuses a join beside `alpha`, with its own reason, until
+`peppy stack remove alpha`. A join cannot turn rendering on, so a robot
+joined to a launch whose copies select no rig has no rendered camera.
+
+Every simulation stands a v1 or a v2, the model the robot's fragment
 names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
 (from private-nodes-hub), which carries both, so a v1 and a v2 share one
 Waldo world. For rendered wrist/chest streams and recording, the copy
@@ -241,7 +259,7 @@ peppy stack resolve openarm_simulation --with mujoco
 peppy stack resolve fleet --join openarm_v1 --join-name bravo --join-with xr_commander
 peppy stack resolve fleet --with isaac_sim,web_scene_commander --join openarm_v2_sim --join-name alpha --join-with xr_commander
 peppy stack resolve openarm_simulation_mcp --with web_scene_commander
-peppy node add /path/to/ws/nodes-hub/openarm/initializer -sb
+peppy node add /path/to/ws/nodes-hub/robot_initializer -sb
 ```
 
 Use `--node-build-idle-timeout-secs 18000` on launch or join for long first
@@ -258,11 +276,11 @@ The repo providing that node isn't registered with the daemon. Run `peppy repo a
 The first build pulls the sim base image and can outlive the daemon's idle timeout. Build it once beforehand with a longer timeout, then launch:
 
 ```sh
-peppy node add /path/to/ws/nodes-hub/openarm/sim_isaac -sb --idle-timeout 18000
+peppy node add /path/to/ws/nodes-hub/sim_isaac -sb --idle-timeout 18000
 ```
 
 **Everything launches but the arms don't respond**
-The simulation keeps loading after `Launch complete`, and Isaac can take a minute. Check instance health with `peppy stack list` and watch its log with `peppy node info openarm_sim_mujoco:v1`, `openarm_sim_isaac:v1` or `waldo:v1`.
+The simulation keeps loading after `Launch complete`, and Isaac can take a minute. Check instance health with `peppy stack list` and watch its log with `peppy node info sim_mujoco:v1`, `sim_isaac:v1` or `waldo:v1`.
 
 **The Isaac stream is a black screen**
 Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and launch again.

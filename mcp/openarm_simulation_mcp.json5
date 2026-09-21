@@ -42,13 +42,31 @@
 //   peppy stack join openarm_v2_sim -i delta --with xr_commander                  # a fourth, under the headset, the rig feeding its panels
 //
 // A `--with` word on a join wins on its own axis and the entry's other axes
-// stay selected, so the rendered rig runs for every robot and the robot's
+// stay selected, so the rendered rig runs for every OpenArm and the robot's
 // fragment asks for a consumer of its streams: `--with web_commander` alone
 // is refused with that reason, and `--with web_commander,lerobot_recorder`
 // is the browser panel with the recorder filming.
 //
-// Waldo stands any number of robots, each joined copy bringing its own
-// model; this file ships one copy.
+// A simulated SO-101 is an option of the robot axis too, so one joins
+// beside the OpenArm. The file holds no entry for so101_sim: an entry lists
+// a copy, which would start an SO-101 at every launch. A plain join is
+// therefore the robot its fragment deploys, with no commander and no
+// camera, and the MCP robot takes its words on the join:
+//
+//   peppy stack join so101_sim -i charlo                                          # an SO-101 beside the OpenArm alpha
+//   peppy stack join so101_sim -i echo --with mcp_commander,cameras_sim           # its front camera served over MCP, its URL printed by the join
+//
+// A join cannot turn rendering on; here alpha's rig turns it on at launch,
+// so the SO-101's `front` camera comes up, which it does not on a launch
+// whose copies select no rig. Its endpoint prefers port 8903, at
+// http://127.0.0.1:8903/front_camera/v1/mcp. Over MCP a model sees through
+// the SO-101's camera and moves its base through the simulated world's
+// endpoint (scene.move_robot); its arm is not drivable over MCP.
+//
+// Waldo and Isaac Sim stand any number of robots, of any model, each joined
+// copy bringing its own; this file ships one copy. MuJoCo stands one robot
+// at a time, so under `--with mujoco,simulation_mcp=none` the engine
+// refuses a join beside alpha until `peppy stack remove alpha`.
 {
   peppy_schema: "launcher/v1",
 
@@ -73,11 +91,16 @@
         none: "../simulation/fragments/none.json5",
       },
     },
+    // Every option of this file's simulation axis stands a so101_sim, so no
+    // constraint pairs the two here: `peppy repo index --check` refuses a
+    // constraint that refuses no selection. fleet.json5, whose simulation
+    // axis may be unfilled, lists the simulations that stand one.
     {
       name: "robot",
       cardinality: "zero_or_more",
       options: {
         openarm_v2_sim: "../openarm/fragments/openarm_v2_sim.json5",
+        so101_sim: "../so101/fragments/so101_sim.json5",
       },
     },
   ],
@@ -85,7 +108,8 @@
   // The entry names the component and its option. Its `with` selects the
   // robot's own axes for every copy of the option, alpha and the robots a
   // join adds alike: the MCP commander requires the rendered rig, whose
-  // relays fill the exposure's camera targets.
+  // relays fill the exposure's camera targets. so101_sim has no entry, so a
+  // joined SO-101 selects its own axes with join words.
   deployments: [
     { simulation: "waldo" },
     { simulation_mcp: "mcp_scene_commander" },

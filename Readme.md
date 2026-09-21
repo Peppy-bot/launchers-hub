@@ -35,7 +35,10 @@ a `none` option whose fragment deploys nothing:
 
 ## Launchers
 
-Four launchers run robots as copies, each named, its ids minted under its
+[simulation/simulation.json5](simulation/simulation.json5) stands a
+simulation and nothing else: the engine and its viewer, no robot, on the
+machine the launch is sent to. It declares no robot axis, so nothing joins
+it. Four more run robots as copies, each named, its ids minted under its
 name: `alpha_left_arm_inst`, `alpha_backbone_inst`, `alpha_commander_inst`.
 [fleet.json5](fleet.json5) deploys nothing: a simulation is selected at
 launch, or none, and every robot, physical or simulated, is joined by name,
@@ -74,6 +77,7 @@ peppy stack launch so101_simulation --with mujoco      # the same robot, alone i
 peppy stack launch so101_simulation --with isaac_sim
 peppy stack launch openarm_simulation                  # Waldo and the OpenArm alpha
 peppy stack join so101_sim -i charlo                   # an SO-101 beside the OpenArm alpha
+peppy stack launch simulation                          # a simulation with no robot
 peppy stack launch fleet                               # a new stack with no simulation
 peppy stack join openarm_v2 -i alpha --place jetson-1
 peppy stack join so101 -i bravo
@@ -101,7 +105,7 @@ discovery and host setup.
 
 | Axis | Declared by | Options |
 |---|---|---|
-| `simulation` | `openarm_simulation.json5`, `so101_simulation.json5` and `openarm_simulation_mcp.json5` (`one`), `fleet.json5` (`zero_or_one`) | `waldo` (deployed by the three `one` launchers), `mujoco`, `isaac_sim` |
+| `simulation` | `simulation.json5`, `openarm_simulation.json5`, `so101_simulation.json5` and `openarm_simulation_mcp.json5` (`one`), `fleet.json5` (`zero_or_one`) | `waldo` (deployed by the four `one` launchers), `mujoco`, `isaac_sim`; `simulation.json5` offers the two that answer scene calls |
 | `simulation_mcp` | `openarm_simulation_mcp.json5` (`one`) | `mcp_scene_commander` (deployed): the simulated world's MCP endpoint on port 8902, bound to the simulation alone; requires `waldo`. `none` switches it off |
 | `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting and the robot's materials, and it shows a camera panel when a rendered rig runs |
 | `robot` | all four launchers | `openarm_v1_sim`, `openarm_v2_sim` and `so101_sim` in `openarm_simulation.json5` and `so101_simulation.json5`; `openarm_v2_sim` and `so101_sim` in `openarm_simulation_mcp.json5`; the three simulated robots, `openarm_v1`, `openarm_v2` and `so101` in `fleet.json5` |
@@ -298,7 +302,7 @@ separate results.
 
 | Location | Owns |
 |---|---|
-| `fleet.json5`, `openarm/openarm_simulation.json5`, `so101/so101_simulation.json5` | The simulation axis, the robot options, and what the file deploys. `fleet.json5` also states which simulations stand a `so101_sim` |
+| `fleet.json5`, `openarm/openarm_simulation.json5`, `so101/so101_simulation.json5`, `simulation/simulation.json5` | The simulation axis, the robot options, and what the file deploys. `fleet.json5` also states which simulations stand a `so101_sim`, and `simulation/simulation.json5` declares no robot options at all |
 | `openarm/fragments/control_common.json5` | The initializer and backbone every OpenArm shares, with the commander and recorder wiring into both |
 | `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs, or the simulation slots its control leads, the control it selects, the robot commander, recorder and camera rig axes, its generation, speed cap, commander tuning, dataset labels, and the model the simulation stands for it |
 | `so101/fragments/control_common.json5` | The initializer, with the `so101` model, and the backbone every SO-101 shares, with the commander and recorder wiring, the recorder's need for the headset included |

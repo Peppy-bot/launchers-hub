@@ -16,6 +16,9 @@
     rust_robot: {
       path: "examples/rust_robot.json5"
     },
+    simulation: {
+      path: "simulation/simulation.json5"
+    },
     so101_simulation: {
       path: "so101/so101_simulation.json5"
     },

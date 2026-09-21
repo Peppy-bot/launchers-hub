@@ -1,0 +1,41 @@
+// A simulation on its own: the engine and its viewer, standing no robot.
+// This is the command for a machine whose job is the simulation and
+// nothing else.
+//
+//   peppy stack launch simulation                             # Waldo and its viewer
+//   peppy stack launch simulation --with isaac_sim
+//   peppy stack launch simulation --with web_scene_commander  # the scene panel with it
+//
+// The simulation runs on the machine the launch is sent to: this one, or
+// the one `--core-node` names. Waldo serves its viewer and the hand teleop
+// panel on viewer_port (8080) and Isaac Sim its WebRTC frontend on 8210.
+// The scene panel, on 8766, is the axis each of them declares, so it takes
+// the launch word above: spawn, move and remove objects, and list what
+// stands in the scene.
+//
+// This file declares no robot axis, so nothing joins it. A robot stands in
+// a simulation the same launch names, which is what
+// openarm/openarm_simulation.json5, so101/so101_simulation.json5 and
+// fleet.json5 do.
+//
+// MuJoCo is no option here: it answers no scene call, so nothing in this
+// launch could command it. It runs a robot's own simulation in the
+// launchers above.
+{
+  peppy_schema: "launcher/v1",
+
+  components: [
+    {
+      name: "simulation",
+      cardinality: "one",
+      options: {
+        isaac_sim: "fragments/isaac_sim.json5",
+        waldo: "fragments/waldo.json5",
+      },
+    },
+  ],
+
+  deployments: [
+    { simulation: "waldo" },
+  ],
+}

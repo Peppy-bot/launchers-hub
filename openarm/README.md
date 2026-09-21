@@ -79,6 +79,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 peppy stack join openarm_v2 -i bravo --with xr_commander,lerobot_recorder,cameras
 peppy stack join openarm_v1 -i charlie --with mcp_commander,cameras --place jetson-2
 peppy stack join openarm_v2 -i delta --with web_commander,ai_brain
+peppy stack join openarm_v2 -i echo --with ker_commander
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
@@ -94,6 +95,9 @@ fixed and every target takes a link, so it requires the robot's rig,
 `cameras` on a physical robot and `cameras_sim` on a simulated v2, and the
 rig counts it among its consumers. No simulation renders a rig on v1 links,
 so a simulated v1 does not offer it; a physical v1 does, with `cameras`.
+
+The KER leader, on the v2 robots (physical or simulated), streams joint
+setpoints from enactic's motorless leader arm.
 
 The MCP endpoint defaults to
 `http://127.0.0.1:8900/openarm_v2/v1/mcp`; the launch prints every exposure's
@@ -135,6 +139,26 @@ B moves ready, and either grip cancels a posture move. With recording selected,
 X starts or saves an episode; holding Y for one second finishes the session.
 Set the demonstration task at `https://<host>:4443/task` before recording.
 
+For the KER, install [the KER udev rule](rules/60-openarm-ker.rules) on the
+machine the copy is placed on, following its header, and zero the KER on its
+calibration jig first (the
+`openarm_ker` README has that procedure). Plug the KER into the machine the
+copy is placed on, since the commander runs there. Squeeze an arm's trigger
+down to a fifth open, near shut, to engage that arm; from then on the arm and
+its gripper track the KER. Engagement latches: releasing the trigger opens
+that gripper and the arm keeps tracking. The same lever drives both, so a
+released trigger holds its gripper half open, a full squeeze closes it, and an
+arm engages with its gripper near shut. Unplugging the KER pauses it, holding
+both arms where they are and still energized; `peppy stack remove echo` ends
+the session and the arms disable, going limp where they are, so bring them low
+first. After a pause, plug the KER back in, then release a trigger and squeeze
+it again to re-engage. The node reads the hardware 2.x channel layout, so any
+2.x unit runs on the arguments in the fragment.
+
+The KER replaces the browser panel, so a KER session has no alerts or
+motor-health readout and no recording, and the governor keeps the backbone's
+launch-time band and caps.
+
 For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:
 
@@ -157,13 +181,13 @@ Arguments name the instance as the fragment writes it, such as
 
 The backbone follows exactly one kind of upstream arm command, named by its required `upstream_mode` argument, and subscribes only that kind of arm slot (gripper and posture slots are read under either mode):
 
-- `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The commander every robot fragment deploys.
+- `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The commander every robot fragment deploys. `openarm_ker` (the KER leader) streams them the same way.
 - `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The robot fragment selects the mode and re-vacates the slots as part of being selected.
 - Nobody streams - `mcp_commander` drives the backbone through discrete actions only: the whole-robot posture moves and the per-limb arm and gripper moves it exposes as tools, beside the cameras it publishes from the rig. `upstream_mode` stays `"joints"`, all six leader sockets are vacant with their reasons, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 
-The `xr_commander` selection runs without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic, so it never will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
+The `xr_commander` and `ker_commander` selections run without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic and the KER produces only motion, so neither ever will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
 
 Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for the dataset workflow). The `cameras` option adds the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header); the headset retunes them for in-headset panels as part of its own selection.
 
@@ -189,7 +213,8 @@ The `robot` axis offers every simulated robot, so an SO-101
 peppy stack launch openarm_simulation --with isaac_sim
 peppy stack join openarm_v2_sim -i bravo --with xr_commander
 peppy stack join openarm_v1_sim -i charlie
-peppy stack join so101_sim -i charlo                  # an SO-101 beside the OpenArm alpha
+peppy stack join so101_sim -i charlo                           # an SO-101 beside the OpenArm alpha
+peppy stack join openarm_v2_sim -i delta --with ker_commander  # the KER against a simulated follower
 peppy stack remove bravo
 ```
 
@@ -287,6 +312,9 @@ Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and lau
 
 **The headset shows the page but "Enter VR" is missing**
 WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open one of the https URLs the launch printed under `Web pages:` (`peppy stack list` shows them again). Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
+
+**The KER is plugged in but neither arm moves**
+Squeeze a trigger down to a fifth open, near shut: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up; if no "KER left arm engaged, tracking the leader" line follows a squeeze, the squeeze never reached `engage_trigger_opening`. A "KER connection lost (open: ...)" line names the cause, and repeats when the cause changes or after the link streams again: an attached-but-unopenable device needs the udev rule, and on a host reached over SSH its group matchers as well, since uaccess grants only a local seat; and no device at all means the KER is unplugged, switched off, or running a firmware that streams over its serial device; `lsusb -d 303a:` shows `303a:1001` for the last and nothing for the first two. A trigger held from before the node started, or across a stall or reconnect, stays disengaged by design: release it and squeeze again.
 
 **The headset is connected but neither arm moves**
 Hold a grip button: it is the deadman, per hand, and with it released the node publishes nothing at all so the arms hold. If holding it does nothing, check the backbone's startup log line for which upstream mode it is following: a `"joints"` backbone reads only the panel's joint slots and a `"pose"` backbone only the headset's pose slots. A leader wired to the off-mode slots never reaches launch, so what remains is a leader that is publishing nothing: check the headset link and the grip in the node's status panel.

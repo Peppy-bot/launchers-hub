@@ -1,0 +1,44 @@
+# The OpenArm KER leader arm (enactic), an M5Stack CoreS3 on USB.
+#
+# Vendor mode is what openarm_ker reads by default. The ESP32's own USB
+# serial device appears while the firmware is being flashed, and is what
+# transport "serial" reads on a firmware built without USE_USB.
+#
+# Install:
+#   sudo cp 60-openarm-ker.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   then replug the KER
+#
+# Verify, vendor mode (what the node reads by default):
+#   lsusb -d 303a:4002                             # e.g. "Bus 001 Device 027"
+#   getfacl /dev/bus/usb/001/027                   # names the user it granted
+#
+# Verify, a firmware that streams over the serial device:
+#   getfacl /dev/openarm/ker
+#
+# uaccess grants the ACL to the user of an active local seat, so on a headless
+# host (a placed copy on a Jetson, reached over SSH) it grants nobody. There,
+# uncomment the group matchers below, which run alongside the uaccess ones,
+# then put the user the peppy daemon runs as into plugdev and log in again:
+#   getent group plugdev || sudo groupadd plugdev
+#   sudo usermod -aG plugdev "$USER"
+#   ls -l /dev/bus/usb/001/027                     # group plugdev, mode crw-rw----
+#
+# Keep the 60- prefix and the TAG+="uaccess" on every matcher: the tag must
+# sort before systemd's 73-seat-late.rules to grant the seat user the ACL,
+# and without it the node cannot open the device it just found.
+#
+# Vendor 303a is Espressif's, and every board with native USB reports it, so
+# any such board exposing the stock 303a:1001 serial device matches the tty
+# line below, and udev leaves it undefined which one keeps the symlink. On a
+# host carrying other ESP32 boards, read the KER's serial with
+#   udevadm info -a -n /dev/ttyACM0 | grep '{serial}'
+# and add ATTRS{serial}=="..." to that matcher.
+
+# Vendor mode: openarm_ker claims the bulk interface directly.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", TAG+="uaccess"
+#SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4002", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+
+# The ESP32 serial device, under a stable name for device_path.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", TAG+="uaccess", SYMLINK+="openarm/ker"
+#SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", TAG+="uaccess", GROUP="plugdev", MODE="0660", SYMLINK+="openarm/ker"

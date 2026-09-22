@@ -1,6 +1,6 @@
 // The SO-101 robot: its follower, the shared SO-101 control, and its own
 // axes: the command surface, an optional recorder, and a camera. The leader
-// arm leads unless a launch word or a copy's `with` selects the headset.
+// arm leads unless a launch word or a copy's `with` selects another surface.
 //
 // Before first launch: install ../rules/60-so101.rules (stable serial symlinks)
 // and calibrate both arms with lerobot-calibrate; the host paths below are
@@ -32,20 +32,20 @@
   ],
 
   components: [
-    // The initializer and backbone every SO-101 shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
-    // No `provides`: the action-only option deploys nothing, and a provided
-    // id must be defined by every option.
+    // No `provides`: `none` deploys nothing, and a provided id must be
+    // defined by every option.
     {
       name: "robot_commander",
       options: {
         so101_leader: "so101_leader.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
         // An action-only session: no teleop surface, actions still drive it.
-        no_commander: "no_commander.json5",
+        none: "../../simulation/fragments/none.json5",
       },
     },
     {
@@ -59,12 +59,16 @@
   ],
 
   constraints: [
-    // A camera needs a consumer: only the recorder and the XR commander
-    // have camera slots, so without either the camera opens its device and
-    // publishes to zero subscribers.
+    // The camera stream needs a consumer: the recorder films it, the XR
+    // headset shows it in its panel, and the MCP commander publishes it as
+    // a resource and tools, the model its consumer. The rig must feed at
+    // least one of them.
     { when: { camera_rig: "cameras" },
-      requires: [{ recorder: "lerobot_recorder" }, { robot_commander: "xr_commander" }],
-      reason: "nothing in this selection consumes a camera stream: only the recorder and the XR commander have camera slots" },
+      requires: [
+        { recorder: "lerobot_recorder" },
+        { robot_commander: ["xr_commander", "mcp_commander"] },
+      ],
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
   ],
 
   adjustments: [

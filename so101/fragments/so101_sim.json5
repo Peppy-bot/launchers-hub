@@ -9,44 +9,38 @@
 //
 // It comes up with no commander, so it runs on a machine with no SO-101
 // hardware: a CI runner, a development host, a plain
-// `peppy stack join so101_sim -i charlo`. A copy's `with` or a join word
-// selects a command surface.
+// `peppy stack join so101_sim -i charlo`, with actions driving the arm. A
+// copy's `with` or a join word selects a command surface.
 {
   peppy_schema: "launcher_fragment/v1",
 
-  // The option this robot deploys on its own axes unless a copy's `with`
-  // says otherwise.
+  // The option this robot deploys on its own axes: the shared control, and
+  // no teleop surface unless a copy's `with` selects one, so nothing here
+  // opens a device.
   deployments: [
     { control: "control_common" },
-    // No teleop surface unless a copy's `with` selects one: actions drive
-    // the robot, and nothing here opens a device.
-    { robot_commander: "no_commander" },
   ],
 
   // The robot's own axes, `one` or `zero_or_one`, filled per copy of this
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`.
   components: [
-    // The initializer and backbone every SO-101 shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
-    // No `provides`: the action-only option deploys nothing, and a provided
-    // id must be defined by every option.
+    // Unfilled by default: the backbone's sockets stand vacant and actions
+    // drive the arm.
     {
-      name: "robot_commander",
+      name: "robot_commander", cardinality: "zero_or_one",
       options: {
-        no_commander: "no_commander.json5",
         // A real leader arm driving the simulated follower: LeRobot data
         // without the follower. It opens /dev/so101_leader.
         so101_leader: "so101_leader.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        // The robot's front camera over MCP. It streams nothing into the
-        // backbone, exactly as no_commander, so the option is that
-        // fragment's vacancies with the server as its second part: the list
-        // form merges the two, and the vacancies are written once.
-        mcp_commander: ["no_commander.json5", "mcp_commander.json5"],
+        // The robot over MCP: a model drives it by name on the stack's MCP
+        // endpoint.
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
       },
     },
     {
@@ -66,21 +60,13 @@
     // The camera stream needs a consumer: the recorder films it, the XR
     // headset shows it in its panel, and the MCP commander publishes it as
     // a resource and tools, the model its consumer. The rig must feed at
-    // least one of them. The browser scene commander lists it in its camera
-    // panel too, but its axis belongs to the simulation's fragment, not to
-    // this robot's or the launcher's, so a constraint here cannot name it.
+    // least one of them.
     { when: { camera_rig: "cameras_sim" },
       requires: [
         { recorder: "lerobot_recorder" },
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and its one target takes a
-    // link, so the camera target cannot be optional: the rendered rig must
-    // run beside it.
-    { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras_sim" }],
-      reason: "mcp_commander serves the robot's front camera and its exposure list is fixed, so the camera target cannot be optional; select cameras_sim" },
   ],
 
   adjustments: [

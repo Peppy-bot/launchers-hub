@@ -1,0 +1,41 @@
+// The physical robots, assembled from the command line: this file deploys
+// nothing, and every robot is a copy named at launch with `--join
+// OPTION:NAME` or added with `stack join`, placed on the machine its
+// hardware is wired to, its ids minted under its name: alpha_backbone_inst,
+// alpha_commander_inst.
+//
+//   peppy stack launch physical                                   # a new stack with no robot
+//   peppy stack join openarm_v2 -i alpha --place jetson-1        # a v2 with the browser panel
+//   peppy stack join so101 -i bravo                              # an SO-101 under its leader arm
+//   peppy stack remove alpha
+//
+//   peppy stack launch physical --with robot_control                       # the robots' MCP endpoint, waiting for robots
+//   peppy stack join openarm_v2 -i alpha --with mcp_commander,cameras --place jetson-1   # driven over MCP, listed when the join returns
+//   peppy stack launch physical --join openarm_v2:alpha --join openarm_v1:bravo --place alpha@jetson-1 --place bravo@jetson-2
+{
+  peppy_schema: "launcher/v1",
+
+  components: [
+    // The robots' MCP endpoint, selected with `--with robot_control`. Every robot is
+    // listed on it, and a robot's mcp_commander option adds its moves and
+    // requires it.
+    {
+      name: "robot_control",
+      cardinality: "zero_or_one",
+      options: {
+        robot_control: "mcp/fragments/robot_control.json5",
+      },
+    },
+    {
+      name: "robot",
+      cardinality: "zero_or_more",
+      options: {
+        openarm_v1: "openarm/fragments/openarm_v1.json5",
+        openarm_v2: "openarm/fragments/openarm_v2.json5",
+        so101: "so101/fragments/so101.json5",
+      },
+    },
+  ],
+
+  deployments: [],
+}

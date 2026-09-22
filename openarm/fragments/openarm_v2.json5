@@ -61,8 +61,8 @@
         },
       ],
     },
-    { control: "control_common" },
     // The commander this robot runs unless a copy's `with` selects another.
+    { control: "control_common" },
     { robot_commander: "web_commander" },
   ],
 
@@ -70,17 +70,16 @@
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`.
   components: [
-    // The initializer and backbone every OpenArm shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        mcp_commander: "mcp_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
         ker_commander: "ker_commander.json5",
       },
     },
@@ -99,7 +98,7 @@
     // from the backbone, so it sits beside any robot commander.
     {
       name: "brain", cardinality: "zero_or_one",
-      provides: ["brain_inst", "brain_mcp_inst"],
+      provides: ["brain_inst"],
       options: { ai_brain: "ai_brain.json5" },
     },
   ],
@@ -115,12 +114,6 @@
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and every target takes a
-    // link, so its camera targets cannot be optional: the rig must run
-    // beside it.
-    { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras" }],
-      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras" },
   ],
 
   adjustments: [

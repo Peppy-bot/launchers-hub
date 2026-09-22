@@ -12,29 +12,27 @@
   // The option this robot deploys on its own axes unless a copy's `with`
   // says otherwise.
   deployments: [
-    { control: "control_common" },
     // The commander this robot runs unless a copy's `with` selects another.
+    { control: "control_common" },
     { robot_commander: "web_commander" },
   ],
 
   // The robot's own axes, `one` or `zero_or_one`, filled per copy of this
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`. The simulations render
-  // the camera rig on v2 links only, so a v1 has no camera_rig axis, and
-  // with it no mcp_commander: that option's exposure publishes the robot's
-  // cameras, its list is fixed and every target takes a link, so it runs
-  // only where a rig fills them.
+  // the camera rig on v2 links only, so a v1 has no camera_rig axis; over
+  // MCP it is listed with no camera.
   components: [
-    // The initializer and backbone every OpenArm shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
       },
     },
     {
@@ -81,10 +79,10 @@
     // Dataset identity follows the simulation. /tmp lasts until reboot;
     // select durable storage for saved datasets.
     { target: "recorder_inst", when: { simulation: "mujoco" },
-      set_arguments: { robot_type: "openarm_v1_mujoco", storage_root: "/tmp/lerobot_openarm_mujoco" } },
+      set_arguments: { robot_type: "openarm_v1_mujoco", storage_root: "/tmp/lerobot_openarm_v1_mujoco" } },
     { target: "recorder_inst", when: { simulation: "isaac_sim" },
-      set_arguments: { robot_type: "openarm_v1_isaac", storage_root: "/tmp/lerobot_openarm_isaac" } },
+      set_arguments: { robot_type: "openarm_v1_isaac", storage_root: "/tmp/lerobot_openarm_v1_isaac" } },
     { target: "recorder_inst", when: { simulation: "waldo" },
-      set_arguments: { robot_type: "openarm_v1_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
+      set_arguments: { robot_type: "openarm_v1_waldo", storage_root: "/tmp/lerobot_openarm_v1_waldo" } },
   ],
 }

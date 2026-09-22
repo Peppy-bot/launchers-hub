@@ -39,7 +39,10 @@
   ],
 
   adjustments: [
+    // The KER streams joint setpoints into the four leader sockets, released
+    // here for it to pair into; it produces no governor_control, so that
+    // slot keeps the control's vacancy.
     { target: "backbone_inst",
-      set_links: { collision_ctrl: { vacant: "the KER leader never produces governor_control" } } },
+      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
   ],
 }

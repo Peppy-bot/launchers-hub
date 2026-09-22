@@ -39,8 +39,12 @@
             max_gripper_rate_frac_s: 10.0,
           },
           links: {
-            // The pose slot stays vacant under joint-led teleop. The XR
-            // adjustment below unsets this vacancy and binds the commander.
+            // No leader streams by default: both sockets and the pose slot
+            // stand vacant, and actions drive the arm. A leader releases the
+            // sockets it drives and pairs into them from its own fragment;
+            // the headset block below switches to pose mode.
+            leader_arm: { vacant: "no leader streams joint commands: actions drive the arm" },
+            leader_gripper: { vacant: "no leader streams joint commands: actions drive the gripper" },
             leader_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slot" },
           },
         },
@@ -49,15 +53,22 @@
   ],
 
   constraints: [
-    // Episodes start via the recorder's record_episode action, and only the
-    // XR commander carries that button; a recorder deployed beside any other
-    // commander would idle with no way to trigger it.
+    // An episode starts via the recorder's record_episode action: from the
+    // headset's button, or from the recorder.record_episode tool of the
+    // stack's MCP endpoint, where the recorder is listed whenever the
+    // endpoint runs.
     { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: "xr_commander" }],
-      reason: "only the XR commander can start an episode: no other commander of this robot has a recorder slot" },
+      requires: [{ robot_commander: "xr_commander" }, { robot_control: "robot_control" }],
+      reason: "an episode starts from the XR commander's button or from recorder.record_episode on the MCP endpoint; select xr_commander or launch with robot_control" },
   ],
 
   adjustments: [
+    // Every robot beside the stack's MCP endpoint is listed on it with what
+    // it is and how it stands: its identity is the initializer's and its
+    // limb state the backbone's, which watches for no collision. Skipped
+    // where the launch runs no endpoint.
+    { target: "robot_control_inst",
+      add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"] } },
     {
       when: { robot_commander: "xr_commander" },
       target: "commander_inst",
@@ -75,15 +86,20 @@
         postures: ["backbone_inst"],
       },
     },
+    // The headset streams a pose and the gripper: the backbone follows the
+    // pose slot, released here with the gripper socket for the headset to
+    // pair into; the joint socket stays vacant.
     {
       when: { robot_commander: "xr_commander" },
       target: "backbone_inst",
       set_arguments: { upstream_mode: "pose" },
-      set_links: {
-        leader_arm: { vacant: "upstream_mode pose: arm commands arrive on the pose slot" },
-      },
-      unset_links: ["leader_pose"],
+      unset_links: ["leader_pose", "leader_gripper"],
     },
+    // The record button: the headset carries a recorder slot, and the
+    // recorder fills it when both run. The leader arm carries none.
+    { target: "commander_inst",
+      when: { robot_commander: "xr_commander", recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
     {
       target: "recorder_inst",
       // SO-101's dataset grid, sampled from its 60 Hz control streams.

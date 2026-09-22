@@ -1,4 +1,7 @@
 // The empty option: a `one` axis is on by default and switchable when one
-// of its options deploys nothing. `simulation_mcp=none` launches without
-// the simulated world's MCP endpoint.
+// of its options deploys nothing. `--with
+// robot_control=none,alpha.web_commander,alpha.lerobot_recorder` launches
+// simulation_mcp without the robots' MCP endpoint and `--with
+// world_control=none` without the simulated world's, and `robot_commander=none` runs the physical SO-101
+// with no leader, actions driving it.
 { peppy_schema: "launcher_fragment/v1" }

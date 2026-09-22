@@ -1,0 +1,135 @@
+// Robots in Waldo driven over MCP: the two endpoints, alpha, an OpenArm v2
+// the file lists, and the robots named at launch or joined later, each
+// driven over MCP, the v2 and the SO-101 with their rendered rigs.
+//
+//   http://127.0.0.1:8900/robot_control/v1/mcp   every robot of the stack: its identity, moves, limbs, cameras, brain and recorder, each call naming its robot
+//   http://127.0.0.1:8902/simulation/v1/mcp      the simulated world: the scene, its light sources, its materials
+//
+// The robots' endpoint is the robot_control axis every launcher with
+// robots carries; this file deploys it, and the other launchers serve it
+// with `--with robot_control`. Every robot beside it is listed with its
+// identity and limb state, and
+// with its brain and recorder whenever they run; its
+// mcp_commander option adds the moves and its rig the cameras, at launch or
+// by a later join, and a removal takes them out. The world's endpoint is
+// this file's own world_control axis, deployed with a `none` option: Waldo
+// alone implements the object controls, lighting and materials contracts
+// it binds, so the
+// constraint below refuses it under any other engine, and `--with
+// mujoco,world_control=none` is the robots' endpoint alone. The two URLs are
+// the same for one robot or ten and before and after any join, so a client
+// registers them once, and both keep running when every robot is removed.
+//
+// What this file adds to openarm_simulation: the robots' endpoint
+// deployed, the world's endpoint on its own axis, rendering on from the
+// launch, and its robot entries: alpha, and for each option the setup of
+// every copy, the MCP commander with the rendered rig, so alpha, the
+// robots a launch names with `--join OPTION:NAME` and a plain `stack join`
+// alike come up driven over MCP, listed on the same URL when the join
+// returns. The stacks this file is meant for, and the same client on the
+// real robots, are in mcp/README.md:
+//
+//   peppy stack launch simulation_mcp                                            # Waldo, the two endpoints, alpha listed
+//   peppy stack launch simulation_mcp --join so101_sim:charlie                   # alpha and an SO-101
+//   peppy stack launch simulation_mcp --with mujoco,world_control=none               # the robots' endpoint alone, under MuJoCo
+//   peppy stack join openarm_v2_sim -i bravo                                     # a second OpenArm, on the same URL when the join returns
+//   peppy stack remove alpha                                                     # the endpoints keep running, listing nothing
+//
+// A `--with` word on a join wins on its own axis and the entry's other axes
+// stay selected: `--with xr_commander` is a headset robot with the rig
+// feeding its panels. `--with
+// robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
+// launch is the world's endpoint alone, alpha under the browser panel with
+// the recorder filming its rig; a joined robot needs a commander word too,
+// since mcp_commander requires the endpoint.
+{
+  peppy_schema: "launcher/v1",
+
+  components: [
+    {
+      name: "simulation",
+      cardinality: "one",
+      provides: ["simulation_inst"],
+      options: {
+        mujoco: "../simulation/fragments/mujoco.json5",
+        isaac_sim: "../simulation/fragments/isaac_sim.json5",
+        waldo: "../simulation/fragments/waldo.json5",
+      },
+    },
+    // The robots' MCP endpoint, deployed by this file; `--with
+    // robot_control=none` switches it off. Every robot is listed on it, and
+    // a robot's mcp_commander option adds its moves and requires it.
+    {
+      name: "robot_control",
+      cardinality: "one",
+      options: {
+        robot_control: "fragments/robot_control.json5",
+        none: "../simulation/fragments/none.json5",
+      },
+    },
+    // The simulated world's MCP endpoint, deployed by this file; `--with
+    // world_control=none` switches it off. It binds Waldo's object controls,
+    // lighting and materials contracts, so the constraint below requires
+    // Waldo.
+    {
+      name: "world_control",
+      cardinality: "one",
+      options: {
+        world_control: "fragments/world_control.json5",
+        none: "../simulation/fragments/none.json5",
+      },
+    },
+    // Every simulated robot, an option of the same name in every simulation
+    // launcher. Every simulation stands any number of them, of any model.
+    {
+      name: "robot",
+      cardinality: "zero_or_more",
+      options: {
+        openarm_v1_sim: "../openarm/fragments/openarm_v1_sim.json5",
+        openarm_v2_sim: "../openarm/fragments/openarm_v2_sim.json5",
+        so101_sim: "../so101/fragments/so101_sim.json5",
+      },
+    },
+  ],
+
+  // An entry's `with` selects the robot's own axes for every copy of the
+  // option, alpha, the ones `--join OPTION:NAME` starts with the launch and
+  // the ones a join adds alike: the MCP commander with the rendered rig.
+  deployments: [
+    { simulation: "waldo" },
+    { robot_control: "robot_control" },
+    { world_control: "world_control" },
+    // A simulated v1 has no rendered rig, so it is listed with no camera.
+    {
+      robot: "openarm_v1_sim",
+      with: { robot_commander: "mcp_commander" },
+    },
+    {
+      robot: "openarm_v2_sim",
+      with: { robot_commander: "mcp_commander", camera_rig: "cameras_sim" },
+      instances: [{ instance_id: "alpha" }],
+    },
+    {
+      robot: "so101_sim",
+      with: { robot_commander: "mcp_commander", camera_rig: "cameras_sim" },
+    },
+  ],
+
+  adjustments: [
+    // Every engine renders a camera only while a robot holds its pair, so
+    // rendering is on from the launch and a joined robot's rig comes up.
+    { target: "simulation_inst", set_arguments: { cameras_enabled: true } },
+    // The server reads the simulation's clock, as every instance a robot
+    // copy runs does; each simulated robot's fragment binds its own.
+    { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+  ],
+
+  constraints: [
+    // A property of the world's document: its controls, lighting and
+    // materials targets bind the simulation, and Waldo is the one
+    // simulation implementing those contracts.
+    { when: { world_control: "world_control" },
+      requires: [{ simulation: "waldo" }],
+      reason: "the simulated world's endpoint binds object_controls, scene_lighting and scene_materials, which only waldo implements; launch with waldo or with world_control=none" },
+  ],
+}

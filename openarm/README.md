@@ -259,23 +259,19 @@ so their page carries no camera panel and every camera control refuses.
 Waldo serves its HTTPS page on `viewer_port` (8080, at the URLs the launch
 prints under `Web pages:`; accept the self-signed certificate once). The page
 carries the engine's 3D viewer of the running world, served by its debug
-inspector (the `debug_inspector` parameter), and around it the page plugins
-the fragment runs, each a UI element of the page: the connection badge
-(`connection_status`) at the top left; in the right column the viewer's frame
-rate and the menu of rates it may be capped at (`frame_rate`), the button
-showing and hiding the robots' names (`robot_names`) and the "Start camera"
-panel (`hand_teleop`); the toolbar's contact points and dark mode buttons
-(`contact_markers`, `dark_mode`) at the bottom; and the viewer's controls
-under them (`viewer_hint`). With `hand_teleop`, webcam hand tracking drives
-an arm of the robot the panel chooses (the first standing when none is
-chosen), ahead of that robot's pairing while a hand is tracked. With
-`robot_names`, the viewer writes `<robot>@<core node>` over every robot
-(`beta@cn-funky-animal` for `peppy stack join openarm_v2_sim -i beta` on the
-core node `cn-funky-animal`), which tells the robots of one world apart.
-Every plugin but `hand_teleop` needs the debug inspector. The fragment runs
-the debug inspector and these plugins whatever the launch selects
-(`debug_inspector: true, plugins:
-"connection_status,frame_rate,robot_names,hand_teleop,contact_markers,dark_mode,viewer_hint"`),
+inspector (the `debug_inspector` parameter), and around it every UI element
+of the page, each a Waldo plugin the fragment's `plugins` argument runs: the
+connection badge, the frame rate and its caps, the robots' names, the "Start
+camera" panel, the contact points and dark mode buttons, and the viewer's
+controls (Waldo's `plugins/README.md` says which plugin shows each, and
+where). With `hand_teleop`, webcam hand tracking drives an arm of the robot
+the panel chooses (the first standing when none is chosen), ahead of that
+robot's pairing while a hand is tracked. With `robot_names`, the viewer
+writes `<robot>@<core node>` over every robot (`beta@cn-funky-animal` for
+`peppy stack join openarm_v2_sim -i beta` on the core node
+`cn-funky-animal`), which tells the robots of one world apart. Every plugin
+but `hand_teleop` needs the debug inspector. The fragment runs the debug
+inspector and every plugin the node accepts whatever the launch selects,
 so the viewer is on from the first launch of every launcher deploying Waldo,
 and the debug inspector answers the scene commander's `scene_manipulation`
 and `object_state` calls. The viewer needs a browser with WebGPU and

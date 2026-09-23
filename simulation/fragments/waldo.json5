@@ -24,18 +24,19 @@
       source: { name: "waldo", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
-        // Rendering is enabled by a robot's rendered camera rig. plugins is
-        // the comma-separated list of plugins to run, and all three run
-        // whatever else the launch selects; their panels stack on the page
-        // in this order. sim_inspector serves the engine's 3D viewer on the
-        // HTTPS page (without it the page is blank) and answers the
-        // scene_manipulation and object_state calls of the scene commander;
-        // robot_names has that viewer write `<robot>@<core node>` over every
-        // robot, which tells the robots of a crowded world apart, and is the
-        // page's button hiding and showing those names; hand_teleop is the
-        // page's "Start camera" panel, which tracks the operator's hands on
-        // the webcam and drives the arm of the chosen robot ahead of that
-        // robot's pairing while a hand is tracked.
+        // Rendering is enabled by a robot's rendered camera rig. The debug
+        // inspector and both plugins run whatever else the launch selects.
+        // debug_inspector serves the engine's 3D viewer on the HTTPS page
+        // (without it the page shows no viewer) and answers the
+        // scene_manipulation and object_state calls of the scene commander.
+        // plugins is the comma-separated list of plugins to run; their
+        // panels stack on the page in this order. robot_names has the debug
+        // inspector's viewer write `<robot>@<core node>` over every robot,
+        // which tells the robots of a crowded world apart, and is the page's
+        // button hiding and showing those names; it needs debug_inspector.
+        // hand_teleop is the page's "Start camera" panel, which tracks the
+        // operator's hands on the webcam and drives the arm of the chosen
+        // robot ahead of that robot's pairing while a hand is tracked.
         // A robot's nodes start together with its join, and a robot holds
         // its pairs only once its backbone is up: the SO-101's Python
         // backbone takes several seconds to declare them, longer than the
@@ -43,7 +44,7 @@
         // is driven. The lease is also how long a robot whose nodes are gone
         // stays, and how long one paired as another model stays before its
         // stay ends naming both lists.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "robot_names,hand_teleop,sim_inspector", world: "stage", robot_lease_ms: 10000 },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "robot_names,hand_teleop", world: "stage", robot_lease_ms: 10000 },
       }],
     },
   ],

@@ -266,10 +266,15 @@ jobs:
       # source the shell parses, and the shape check turns a typo into a
       # named failure rather than a 404 from a URL built out of it.
       #
-      # The binary answers `--version` before building any app context, so
-      # no PEPPY_HOME is needed here. `latest` resolves to a different
-      # release over time, so the log and the run summary both record which
-      # release this run actually executed.
+      # `peppy stack resolve` reads the nodes cache under PEPPY_HOME, and a
+      # release build with no PEPPY_HOME reads the runner user's ~/.peppy,
+      # which outlives the job and differs from box to box. This step gives
+      # the later steps a PEPPY_HOME under RUNNER_TEMP, empty at the start of
+      # every run. That home holds no nodes cache, so the plan step's resolves
+      # check no link rules; the launch job's daemon checks them for every
+      # combination it launches. `latest` resolves to a different release
+      # over time, so the log and the run summary both record which release
+      # this run actually executed.
       - name: Install peppy
         if: steps.scope.outputs.any == 'true'
         env:
@@ -299,6 +304,8 @@ jobs:
             | tar -xzf - -C "$dest"
           chmod +x "$dest/bin/peppy"
           echo "$dest/bin" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/peppy-home"
+          echo "PEPPY_HOME=$RUNNER_TEMP/peppy-home" >> "$GITHUB_ENV"
 
           # $GITHUB_PATH serves the steps after this one; this step names the
           # binary it just extracted by its full path.

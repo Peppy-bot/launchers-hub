@@ -1597,9 +1597,9 @@ def a_launch(launcher="fleet", words="", join_option="", join_words="", local=Fa
     )
 
 
-def launched(launches, peppy, rebuild=False):
+def launched(launches, peppy):
     with contextlib.redirect_stdout(io.StringIO()) as log:
-        outcomes = combinations.launch_all(launches, rebuild, peppy)
+        outcomes = combinations.launch_all(launches, peppy)
     return outcomes, log.getvalue()
 
 
@@ -1609,9 +1609,9 @@ IDLE = ["--node-build-idle-timeout-secs", "900"]
 class LaunchTests(unittest.TestCase):
     def test_a_launch_comes_up_is_listed_and_is_reset(self):
         peppy = FakePeppy()
-        outcomes, log = launched([a_launch(words="simulation=mujoco", local=True)], peppy, rebuild=True)
+        outcomes, log = launched([a_launch(words="simulation=mujoco", local=True)], peppy)
         self.assertEqual(peppy.commands, [
-            ["peppy", "stack", "launch", "fleet", "--with", "simulation=mujoco", "--local", "--rebuild", *IDLE],
+            ["peppy", "stack", "launch", "fleet", "--with", "simulation=mujoco", "--local", *IDLE],
             ["peppy", "stack", "list"],
             ["peppy", "stack", "reset"],
         ])
@@ -1748,7 +1748,7 @@ class LaunchTests(unittest.TestCase):
                     patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
                     contextlib.redirect_stdout(io.StringIO()):
                 try:
-                    combinations.command_launch(plan, rebuild=False)
+                    combinations.command_launch(plan)
                     code = 0
                 except SystemExit as exit:
                     code = exit.code

@@ -138,11 +138,14 @@ name, so `alpha` here is `alpha` in the simulated world's
 `scene.get_robots_list` too. The listing carries, per robot, its identity
 (model and host), its arms and grippers, its cameras under `members`
 (`camera` for color cameras, `depth_camera` for the ones carrying depth),
-the capabilities its tools answer for it, and notes on anything that could
-not be read. A call naming a robot that is not there, a capability it does
-not fill or a camera it does not have is refused, and the refusal names what
-is there. Resources are published per robot: `alpha/robot.limb_state`,
-`alpha/wrist_left/camera.latest_frame`, `alpha/chest/depth_camera.latest_depth`,
+the tools it answers under `tools`, the resources it publishes under
+`resources`, and notes on anything that could not be read. A call naming a
+robot that is not there, a tool that robot does not answer or a camera it
+does not have is refused, and the refusal names what is there. Resources are
+published per robot: `alpha/robot.limb_state`,
+`alpha/wrist_left/camera.latest_frame`,
+`alpha/chest/depth_camera.latest_depth_picture` and
+`alpha/chest/depth_camera.latest_depth_samples`,
 and the server sends `resources/list_changed` when a join or a removal
 changes the list.
 
@@ -174,7 +177,7 @@ frames are rendered or captured, so a client written against it moves to the
 real robots unchanged. On hardware the `uvc_camera_linux` and `zed_camera` nodes
 fill the color and depth targets, and the `cameras` rigs list no profile or
 geometry, so `camera_profile.get` and the `camera_geometry` tools refuse for
-those cameras and the listing's capabilities say so. The simulated world's
+those cameras and the listing leaves them out of that robot's `tools`. The simulated world's
 endpoint has no counterpart there (its title and instructions say so): drop
 the `simulation` entry, keep `robots`, and launch `physical` with the
 endpoint, joining each robot with its MCP option and rig:
@@ -197,8 +200,8 @@ the stack up and `alpha` in it:
 
 1. Find the robots: call `robot.list` on the robots' endpoint. Every entry
    carries `robot`, the name every other tool takes, its `identity`
-   (`model` and the `core_node` hosting it), its `limbs`, its cameras and
-   its capabilities. Then call `scene.get_robots_list` on the simulation
+   (`model` and the `core_node` hosting it), its `limbs`, its cameras, the
+   `tools` it answers and the `resources` it publishes. Then call `scene.get_robots_list` on the simulation
    endpoint: the entry whose `robot` matches is the same robot, with
    `position`, where its base stands in the simulated world, and `yaw`,
    which way it faces in radians about +Z. A point `p` in the robot's own
@@ -220,9 +223,11 @@ the stack up and `alpha` in it:
    included.
 4. Look through a wrist camera: read the resource
    `alpha/wrist_left/camera.latest_frame` on the robots' endpoint, the
-   latest frame as a JPEG, published at no more than 2 Hz, and
-   `alpha/chest/depth_camera.latest_depth`, the chest's depth as a 16-bit
-   PNG in the unit `depth_camera.depth_info` reports. `camera.info` with
+   latest frame as a JPEG, published at no more than 2 Hz. The chest
+   publishes its depth twice: `alpha/chest/depth_camera.latest_depth_picture`
+   draws it as a grayscale JPEG to look at, and
+   `alpha/chest/depth_camera.latest_depth_samples` carries the measurements
+   as a 16-bit PNG in the unit `depth_camera.depth_info` reports. `camera.info` with
    `robot: alpha, camera: wrist_left` reports the stream's resolution,
    frame rate and encoding; `camera.set_exposure` and `camera.set_gain`
    carry their bounds in their schemas and their modes and units in their

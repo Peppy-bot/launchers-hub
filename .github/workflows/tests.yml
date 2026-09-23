@@ -38,16 +38,19 @@ name: Tests
 # the link rules a launch would reject it for, reading the manifest of every
 # node it deploys, so `discover` boots a daemon of its own and refreshes the
 # hub repositories into this machine's caches before it plans; a resolve
-# reporting those rules unchecked fails the job. The launches picked among
-# the launchable ones are the plan the second job runs. `launch` installs a
-# peppy release, boots one isolated daemon, registers this checkout as the
-# launcher repository in its place (the bundled entry points at GitHub main,
-# which would resolve a pull request's launcher to the stale merged copy),
-# and runs the planned launches one after the other: `peppy stack launch`
-# resolves the launcher, adds each deployment's node, builds its container
-# image, and runs it, returning only once every node has signalled ready. A
-# launch that plans a join then runs `peppy stack join`, plain or with its
-# words, beside whatever copies the file deploys: two robots side by side
+# reporting those rules unchecked fails the job, except where the caches could
+# not be filled for a reason the workflow already tolerates, which today is a
+# fork's pull request with no deploy key for the private hub: there the run
+# summary names every combination left unproven and the job stays green. The
+# launches picked among the launchable ones are the plan the second job runs.
+# `launch` installs a peppy release, boots one isolated daemon, registers this
+# checkout as the launcher repository in its place (the bundled entry points at
+# GitHub main, which would resolve a pull request's launcher to the stale
+# merged copy), and runs the planned launches one after the other: `peppy stack
+# launch` resolves the launcher, adds each deployment's node, builds its
+# container image, and runs it, returning only once every node has signalled
+# ready. A launch that plans a join then runs `peppy stack join`, plain or with
+# its words, beside whatever copies the file deploys: two robots side by side
 # where it deploys one, and the scene's first robot where it deploys none.
 # One join per launch is what a plan carries, so a simulation standing three
 # robots or more is proven by hand and not here.
@@ -413,6 +416,12 @@ jobs:
       # the resolve below reads a git-backed node's manifest from. The
       # bundled launchers-hub entry stays as it is: the planner resolves every
       # launcher by its path in this checkout.
+      #
+      # This step is the one that knows whether the private hub was registered,
+      # so where it was not it carries that on to the plan step through
+      # LINK_RULES_UNPROVABLE, whose value is the reason the run summary gives
+      # for every combination it then leaves unproven. A fork's pull request
+      # reaches the plan step this way and stays green.
       - name: Fill the caches the link rules read
         if: steps.scope.outputs.any == 'true'
         env:
@@ -421,6 +430,8 @@ jobs:
           set -euo pipefail
           if [ -n "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
             peppy repo add git@github.com:Peppy-bot/private-nodes-hub.git --ref main --id 2000
+          else
+            echo "LINK_RULES_UNPROVABLE=the private hub is not registered and this machine holds no manifest for the nodes it publishes" >> "$GITHUB_ENV"
           fi
           peppy repo refresh
 
@@ -432,7 +443,10 @@ jobs:
       # configured node instance and every pair running side by side leave
       # as the plan the launch job runs. The resolve reads the caches filled
       # above and talks to no daemon; a combination whose link rules it could
-      # not check fails this step, naming the manifest it could not read.
+      # not check fails this step, naming the manifest it could not read,
+      # unless the step above set LINK_RULES_UNPROVABLE, when those
+      # combinations pass, stay out of the plan, and are listed in the run
+      # summary under that reason.
       - name: Plan the combinations this run launches
         id: plan
         if: steps.scope.outputs.any == 'true'

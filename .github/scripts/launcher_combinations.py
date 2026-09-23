@@ -18,10 +18,12 @@ plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
 classifies unavailable hardware and rollout dependencies. A joined copy
 comes up beside the copies the file deploys. A resolve whose report says the
-link rules went unchecked fails the plan, naming the caches to fill. Of the
-launchable combinations in scope it keeps the launches that, between them,
-run every configured node instance and every pair of instances that run side
-by side.
+link rules went unchecked fails the plan, naming the caches to fill; where
+LINK_RULES_UNPROVABLE says why this machine's caches are short, those
+combinations pass, stay out of the plan, and are named in the run summary.
+Of the launchable combinations in scope it keeps the launches that, between
+them, run every configured node instance and every pair of instances that run
+side by side.
 
 launch runs the planned launches one after the other on the running daemon,
 resetting the stack between them, holds each joined copy to the instances
@@ -66,6 +68,13 @@ JOIN_CHANGE_MARK = "would change"
 # caches are cold resolves every combination without checking one, so the line
 # fails the plan and names the caches to fill.
 LINK_RULES_UNCHECKED_MARK = "link rules not checked"
+
+# The environment variable the step that fills the caches sets when it knows
+# they are short: its value says why, in one clause, and a resolve reporting
+# the link rules unchecked is then the expected outcome. The private hub needs
+# a deploy key a fork's pull request is not given, which is the case it names
+# today.
+LINK_RULES_UNPROVABLE = "LINK_RULES_UNPROVABLE"
 
 # The name every previewed and launched copy joins under in CI. A copy name is
 # unique on the stack, and the simulation launchers deploy `alpha`.
@@ -1240,6 +1249,7 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
     inventory = read_inventory(root)
     candidates = [candidate for launcher in inventory for candidate in launcher.candidates]
     resolutions = resolve_inventory(root, inventory, skips)
+    unprovable = os.environ.get(LINK_RULES_UNPROVABLE, "").strip()
     for candidate in candidates:
         resolution = resolutions[candidate.key]
         if resolution.verdict is Verdict.BROKEN:
@@ -1248,7 +1258,7 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
                 f"{candidate.label} does not resolve and the launcher's constraints "
                 "do not refuse it either"
             )
-        if resolution.verdict is Verdict.UNCHECKED:
+        if resolution.verdict is Verdict.UNCHECKED and not unprovable:
             raise SystemExit(
                 f"{candidate.label}: {resolution.detail}; register the repositories "
                 "holding those nodes and run `peppy repo refresh` before planning"
@@ -1275,7 +1285,9 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
 
     append_to_env_file(
         "GITHUB_STEP_SUMMARY",
-        plan_summary(candidates, in_scope, resolutions, by_key, selected, units_by_key),
+        plan_summary(
+            candidates, in_scope, resolutions, by_key, selected, units_by_key, unprovable
+        ),
     )
 
 
@@ -1311,12 +1323,35 @@ def launches_headline(in_scope, launchable, selected):
     )
 
 
-def plan_summary(candidates, in_scope, resolutions, launchable, selected, units_by_key):
+def unchecked_note(candidates, resolutions, unprovable):
+    """What a run whose caches are short owes its reader: the one reason, and
+    every combination no link rule was checked over. Every combination of the
+    inventory counts, in or out of scope, so a green run says what it left
+    unproven whatever the change reaches."""
+    unchecked = [
+        candidate
+        for candidate in candidates
+        if resolutions[candidate.key].verdict is Verdict.UNCHECKED
+    ]
+    if not unchecked:
+        return ""
+    return (
+        f"\n### 🔓 Link rules not checked ({len(unchecked)})\n\n"
+        f"`peppy stack resolve` checked no link rule over these plans: {unprovable}. "
+        "They resolve; none of them is launched.\n\n"
+        + "".join(f"- {candidate.label}\n" for candidate in unchecked)
+    )
+
+
+def plan_summary(candidates, in_scope, resolutions, launchable, selected, units_by_key, unprovable):
     """The run summary's account of the plan: what launches, what each
     launch stands for, what is left out and why. A `diff` block is the one
     construct a step summary renders in color, so the launches are green `+`
     lines, spelled like the launch job's log groups."""
-    parts = [launches_headline(in_scope, launchable, selected)]
+    parts = [
+        launches_headline(in_scope, launchable, selected),
+        unchecked_note(candidates, resolutions, unprovable),
+    ]
 
     left_out = [key for key in launchable if key not in selected]
     if left_out:

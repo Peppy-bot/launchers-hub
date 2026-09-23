@@ -119,10 +119,12 @@ CHANGED = combinations.Scope(combinations.ScopeKind.CHANGED, "a test of a launch
 
 
 @contextlib.contextmanager
-def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base_answers=None):
+def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base_answers=None,
+            unprovable=""):
     """The launchers planned in a repository of their own, `stack resolve`
-    answering `answers`, and `base_answers` for the base tree a changed scope
-    compares against: the fake resolve, the labels of the planned launches,
+    answering `answers`, `base_answers` for the base tree a changed scope
+    compares against, and `unprovable` for what the step that fills the caches
+    reports about them: the fake resolve, the labels of the planned launches,
     the plan and the run summary."""
     with tempfile.TemporaryDirectory() as directory:
         head = Path(directory) / "head"
@@ -139,7 +141,10 @@ def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base
         summary = Path(directory) / "summary.md"
         resolve = FakeResolve(head=answers or {}, base=base_answers or {})
         with patch.object(combinations.subprocess, "run", resolve), \
-                patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}):
+                patch.dict(combinations.os.environ, {
+                    "GITHUB_STEP_SUMMARY": str(summary),
+                    combinations.LINK_RULES_UNPROVABLE: unprovable,
+                }):
             combinations.command_plan(head, scope_path, base, skips, plan_path)
         plan = combinations.read_plan(plan_path)
         yield resolve, [launch.label for launch in plan], plan, summary.read_text()
@@ -1133,6 +1138,11 @@ REFUSAL = completed(returncode=1, stderr=(
 JOIN_REFUSAL = completed(returncode=1, stderr=(
     "Error: joining bravo would change simulation_inst, which already runs"
 ))
+#: A resolve that flattened its launcher and checked no link rule over it.
+UNCHECKED = completed(
+    resolved_plan("waldo:v1").stdout,
+    stderr="link rules not checked, 1 manifest(s) unavailable: waldo:v1 (not in the nodes cache)",
+)
 
 
 class ResolveTests(unittest.TestCase):
@@ -1259,18 +1269,29 @@ class ResolveTests(unittest.TestCase):
         self.assertIn("sim (simulation=waldo) does not resolve", str(failure.exception))
 
     def test_a_resolve_that_checked_no_link_rule_fails_the_plan(self):
-        """A cold cache resolves every combination and proves none of them,
-        so the report line peppy writes for it stops the run."""
-        unchecked = completed(
-            resolved_plan("waldo:v1").stdout,
-            stderr="link rules not checked: the nodes cache is empty; run `peppy repo refresh`",
-        )
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): unchecked}
+        """With the caches filled, a resolve that reports the link rules
+        unchecked names a manifest the run should have had, so peppy's report
+        line stops it."""
+        answers = {("sim.json5", "simulation=waldo", "", "", ""): UNCHECKED}
         with self.assertRaises(SystemExit) as failure:
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
                 pass
         self.assertIn("sim (simulation=waldo): link rules not checked", str(failure.exception))
         self.assertIn("run `peppy repo refresh` before planning", str(failure.exception))
+        self.assertIn("waldo:v1", str(failure.exception))
+
+    def test_a_resolve_the_caches_could_not_prove_passes_and_says_what_went_unchecked(self):
+        """A fork's pull request is given no deploy key for the private hub,
+        so the step that fills the caches reports them short and the run
+        carries on, naming the combinations it left unproven."""
+        answers = {("sim.json5", "simulation=waldo", "", "", ""): UNCHECKED}
+        reason = "the private hub is not registered"
+        with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers,
+                     unprovable=reason) as (_, labels, _plan, summary):
+            self.assertEqual(labels, ["sim (simulation=mujoco)"])
+            self.assertIn("### 🔓 Link rules not checked (1)", summary)
+            self.assertIn(f"checked no link rule over these plans: {reason}.", summary)
+            self.assertIn("- sim (simulation=waldo)", summary)
 
     def test_a_refusal_that_is_no_join_is_not_mistaken_for_a_launch_only_copy(self):
         answers = {("sim.json5", "simulation=waldo", "", "", ""): JOIN_REFUSAL}

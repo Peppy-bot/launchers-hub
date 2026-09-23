@@ -79,10 +79,10 @@
     // Dataset identity follows the simulation. /tmp lasts until reboot;
     // select durable storage for saved datasets.
     { target: "recorder_inst", when: { simulation: "mujoco" },
-      set_arguments: { robot_type: "openarm_v1_mujoco", storage_root: "/tmp/lerobot_openarm_v1_mujoco" } },
+      set_arguments: { robot_type: "openarm_v1_mujoco", storage_root: "/tmp/lerobot_openarm_mujoco" } },
     { target: "recorder_inst", when: { simulation: "isaac_sim" },
-      set_arguments: { robot_type: "openarm_v1_isaac", storage_root: "/tmp/lerobot_openarm_v1_isaac" } },
+      set_arguments: { robot_type: "openarm_v1_isaac", storage_root: "/tmp/lerobot_openarm_isaac" } },
     { target: "recorder_inst", when: { simulation: "waldo" },
-      set_arguments: { robot_type: "openarm_v1_waldo", storage_root: "/tmp/lerobot_openarm_v1_waldo" } },
+      set_arguments: { robot_type: "openarm_v1_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
   ],
 }

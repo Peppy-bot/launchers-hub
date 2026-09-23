@@ -16,14 +16,13 @@
           instance_id: "brain_inst",
           arguments: {
             // The grippers this robot has, in the order get_state reports
-            // them. The v2 bimanual arm carries one per side, under the names
-            // limb_motion addresses them by.
+            // them: one per side, under the names limb_motion addresses them
+            // by.
             gripper_names: "left_gripper,right_gripper",
           },
           links: {
-            // The governed producer of limb_motion. Required: a brain with no
-            // arms to move is a misconfiguration, so the launch fails loudly
-            // rather than starting a node that can only refuse.
+            // The governed producer of limb_motion. Required: a launch with
+            // no producer bound is refused.
             limb_motion: "backbone_inst",
             // The camera the brain looks through, optional on the node: the
             // rig that renders it binds the chest camera here
@@ -38,13 +37,5 @@
         },
       ],
     },
-  ],
-
-  adjustments: [
-    // Under the MCP commander the brain's tools are listed on the stack's
-    // endpoint as this robot's: one rule for everything that moves the arms,
-    // so a robot an operator drives answers no brain action.
-    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
-      add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
   ],
 }

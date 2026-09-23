@@ -408,13 +408,148 @@ def read_axes(document, label, scope, read_option):
     return axes
 
 
-def fragment_parts(spec):
-    """An option's fragment parts in order: paths and inline bodies."""
-    parts = spec if isinstance(spec, list) else [spec]
-    for part in parts:
-        if not isinstance(part, (str, dict)):
-            raise Json5Error("an option is a fragment path, an inline fragment, or a list of both")
-    return parts
+#: The keys an option object takes: the files it names, the launcher's writes
+#: for it, and the body keys a fragment document takes.
+OPTION_KEYS = ("fragments", "adjustments")
+BODY_KEYS = ("deployments", "components", "constraints", "core_nodes", "framework")
+
+
+#: The `deployments`, `components`, `constraints` and `core_nodes` of a body
+#: are lists, and `framework` is an object; `peppy` refuses any other shape.
+BODY_SHAPES = {
+    "deployments": list,
+    "components": list,
+    "constraints": list,
+    "core_nodes": list,
+    "framework": dict,
+}
+
+
+#: The operations an adjustment writes, as `peppy`'s `Adjustment` declares
+#: them. A key outside this set is a typo the daemon refuses.
+ADJUSTMENT_OPERATIONS = (
+    "set_arguments",
+    "set_framework",
+    "set_links",
+    "add_links",
+    "unset_links",
+)
+
+
+def check_adjustments(written, label):
+    """The shape of one `adjustments` list, as `peppy` reads it: a list of
+    entries, each naming a target, at least one operation it writes and,
+    where it guards, a selection."""
+    if not isinstance(written, list):
+        raise Json5Error(f"{label}: `adjustments` is a list of entries")
+    for entry in written:
+        if not isinstance(entry, dict) or not entry.get("target"):
+            raise Json5Error(f"{label}: an adjustment names its `target`")
+        target = entry["target"]
+        if not isinstance(target, str):
+            raise Json5Error(f"{label}: an adjustment's `target` is an instance id")
+        for key in entry:
+            if key not in ("target", "when") and key not in ADJUSTMENT_OPERATIONS:
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` writes `{key}`; an adjustment writes "
+                    + ", ".join(f"`{name}`" for name in ADJUSTMENT_OPERATIONS)
+                )
+        written_operations = [key for key in ADJUSTMENT_OPERATIONS if entry.get(key)]
+        if not written_operations:
+            raise Json5Error(
+                f"{label}: adjustment on `{target}` names no operation; write "
+                + ", ".join(f"`{name}`" for name in ADJUSTMENT_OPERATIONS)
+            )
+        if "when" in entry and not entry["when"]:
+            raise Json5Error(
+                f"{label}: adjustment on `{target}` declares an empty `when`; "
+                "name the axes it guards on, or leave `when` out"
+            )
+        for key in ("set_arguments", "set_links", "add_links"):
+            if any(not name.strip() for name in (entry.get(key) or {})):
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` names an empty key under `{key}`"
+                )
+        if any(not slot.strip() for slot in (entry.get("unset_links") or [])):
+            raise Json5Error(f"{label}: adjustment on `{target}` unsets an empty link key")
+        for slot, targets in (entry.get("add_links") or {}).items():
+            if not targets:
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` adds no target to slot `{slot}`"
+                )
+            if len(set(targets)) != len(targets):
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` adds one target to slot `{slot}` twice"
+                )
+            if any(not isinstance(one, str) or not one.strip() for one in targets):
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` adds an empty target to slot `{slot}`"
+                )
+
+
+def fragment_parts(spec, label, depth=1, axis=None):
+    """An option's fragment parts in order: the files it names, then a body
+    written in place. A path string names one file, and an object names them
+    under `fragments` and carries the launcher's `adjustments` for the option
+    beside a body of its own. `depth` says how deep the option sits: an option
+    inside a body, two levels down, carries no `adjustments`."""
+    if isinstance(spec, str):
+        if not spec.strip():
+            raise Json5Error(
+                f"{label}: a fragment path cannot be empty; name a `launcher_fragment/v1` "
+                "file relative to this document's directory"
+            )
+        return [spec]
+    if isinstance(spec, list):
+        raise Json5Error(
+            f"{label}: an option is a fragment path or an object; several fragments are "
+            'listed as `{ fragments: ["a.json5", "b.json5"] }`'
+        )
+    if not isinstance(spec, dict):
+        raise Json5Error(f"{label}: an option is a fragment path or an object")
+    for key in spec:
+        if key not in OPTION_KEYS and key not in BODY_KEYS:
+            raise Json5Error(
+                f"{label}: unknown key `{key}`; an option takes "
+                f"{', '.join(f'`{known}`' for known in (*OPTION_KEYS, *BODY_KEYS))}"
+            )
+    files = spec.get("fragments")
+    if files is not None and (
+        not isinstance(files, list)
+        or not files
+        or any(not isinstance(part, str) or not part.strip() for part in files)
+    ):
+        raise Json5Error(
+            f"{label}: `fragments` names at least one `launcher_fragment/v1` path, "
+            "or is left out"
+        )
+    if "adjustments" in spec:
+        if axis and isinstance(spec.get("adjustments"), list):
+            for entry in spec["adjustments"]:
+                if isinstance(entry, dict) and axis in (entry.get("when") or {}):
+                    raise Json5Error(
+                        f"{label}: adjustment on `{entry.get('target')}` guards on `{axis}`, "
+                        "the axis this option fills; selecting the option is the guard, so "
+                        "name the other axes only"
+                    )
+        if depth > 1:
+            raise Json5Error(
+                f"{label}: declares `adjustments`, which an option inside a body does not "
+                "carry: write them under the option whose body declares this axis, or, in a "
+                "fragment file, under the fragment's own top-level `adjustments`"
+            )
+        if spec["adjustments"] == []:
+            raise Json5Error(
+                f"{label}: `adjustments` names no entry; leave the key out, or name the "
+                "entries it runs"
+            )
+        check_adjustments(spec["adjustments"], label)
+    for key, shape in BODY_SHAPES.items():
+        if key in spec and not isinstance(spec[key], shape):
+            kind = "a list" if shape is list else "an object"
+            raise Json5Error(f"{label}: `{key}` is {kind}")
+    body = {key: value for key, value in spec.items() if key not in OPTION_KEYS}
+    return [*(files or []), *([body] if body else [])]
 
 
 class Reader:
@@ -432,7 +567,7 @@ class Reader:
         directory = posixpath.dirname(path)
 
         def read_option(axis, option, spec):
-            return self.option_axes(spec, directory, f"{path} option {axis}.{option}", depth=1)
+            return self.option_axes(spec, directory, f"{path} option {axis}.{option}", 1, axis)
 
         axes = read_axes(document, path, "launcher", read_option)
         copies, unlisted = deployed_copies(document, axes, path)
@@ -444,11 +579,11 @@ class Reader:
             unlisted,
         )
 
-    def option_axes(self, spec, directory, label, depth):
+    def option_axes(self, spec, directory, label, depth, axis=None):
         """The axes an option's fragments declare, their own options read
         one level down; a fragment two levels down declares none."""
         axes = []
-        for part in fragment_parts(spec):
+        for part in fragment_parts(spec, label, depth, axis):
             if isinstance(part, str):
                 reference = posixpath.normpath(posixpath.join(directory, part))
                 self.references.add(reference)
@@ -467,7 +602,10 @@ class Reader:
                 continue
 
             def read_option(axis, option, nested_spec):
-                return self.option_axes(nested_spec, body_directory, f"{body_label} option {axis}.{option}", depth + 1)
+                return self.option_axes(
+                    nested_spec, body_directory,
+                    f"{body_label} option {axis}.{option}", depth + 1, axis,
+                )
 
             axes.extend(read_axes(body, body_label, "fragment", read_option))
         return axes
@@ -780,7 +918,7 @@ def classify_scope(changed_files, launcher_files):
     outside a pull request) and the files the launchers are made of, in the
     pull request's tree and in its base.
 
-    A launcher's whole behaviour is the plan its combinations resolve to, so
+    A launcher's whole behavior is the plan its combinations resolve to, so
     a change confined to launcher files reaches exactly the combinations
     whose plan it moves. Nothing narrower can be proven safe for a file
     outside every launcher, so it selects every combination, except a
@@ -1553,7 +1691,7 @@ def join_command(launch):
 
 
 def launch_start_to_end(launch, run):
-    """Launches one combination and returns once every node has signalled
+    """Launches one combination and returns once every node has signaled
     ready, then joins its copy where it plans one, beside the copies the file
     deploys. The copy the launch names with `--join` and the joined copy are
     held to the instances the preview gave them, every one of them running,

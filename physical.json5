@@ -1,24 +1,29 @@
-// The physical robots, assembled from the command line: this file deploys
-// nothing, and every robot is a copy named at launch with `--join
-// OPTION:NAME` or added with `stack join`, placed on the machine its
-// hardware is wired to, its ids minted under its name: alpha_backbone_inst,
-// alpha_commander_inst.
+// The physical robots, each joined by name. A launch starts no robot and,
+// with `--with robot_control`, the robots' MCP endpoint;
+// `peppy stack join openarm:alpha` adds a robot,
+// `peppy stack remove alpha` takes it away. An OpenArm stands the generation
+// its join names, a v2 unless a word says otherwise.
 //
-//   peppy stack launch physical                                   # a new stack with no robot
-//   peppy stack join openarm_v2:alpha --place jetson-1           # a v2 with the browser panel
-//   peppy stack join so101:bravo                                 # an SO-101 under its leader arm
+//   peppy stack launch physical                                 # a new stack with no robot
+//   peppy stack join openarm:alpha --place jetson-1             # a v2 with the browser panel
+//   peppy stack join openarm:bravo --with v1 --place jetson-2   # a v1 beside it
+//   peppy stack join so101:charlie                              # an SO-101 under its leader arm
 //   peppy stack remove alpha
 //
-//   peppy stack launch physical --with robot_control                       # the robots' MCP endpoint, waiting for robots
-//   peppy stack join openarm_v2:alpha --with mcp_commander,cameras --place jetson-1      # driven over MCP, listed when the join returns
-//   peppy stack launch physical --join openarm_v2:alpha --join openarm_v1:bravo --place alpha@jetson-1 --place bravo@jetson-2
+//   peppy stack launch physical --with robot_control   # the robots' MCP endpoint, waiting for robots
+//   peppy stack join openarm:alpha --with mcp_commander,cameras --place jetson-1   # driven over MCP, listed when the join returns
+//   peppy stack launch physical --join openarm:alpha --join so101:bravo --place alpha@jetson-1 --place bravo@jetson-2
+//
+// Each robot fragment describes itself. The connections between a robot and
+// the stack, its commander's sockets and the MCP endpoint's slots, are the
+// adjustments written here under the option that selects the robot.
 {
   peppy_schema: "launcher/v1",
 
   components: [
-    // The robots' MCP endpoint, selected with `--with robot_control`. Every robot is
-    // listed on it, and a robot's mcp_commander option adds its moves and
-    // requires it.
+    // The robots' MCP endpoint, selected with `--with robot_control`. Every
+    // robot is listed on it, and a robot's mcp_commander option adds its
+    // moves and requires it.
     {
       name: "robot_control",
       cardinality: "zero_or_one",
@@ -30,9 +35,98 @@
       name: "robot",
       cardinality: "zero_or_more",
       options: {
-        openarm_v1: "openarm/fragments/openarm_v1.json5",
-        openarm_v2: "openarm/fragments/openarm_v2.json5",
-        so101: "so101/fragments/so101.json5",
+        openarm: {
+          fragments: ["openarm/fragments/openarm.json5"],
+          adjustments: [
+            // Listed on the MCP endpoint: who it is, what its limbs measure
+            // and how close its arms stand.
+            { target: "robot_control_inst",
+              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"] } },
+            // The headset leads from the pose sockets; a released trigger rests
+            // at half travel, since fully open splays the fingers nearly flat.
+            { target: "commander_inst", when: { robot_commander: "xr_commander" },
+              set_arguments: { command_rate_hz: 100, gripper_open_fraction: 0.5 },
+              set_links: {
+                left_arm: "backbone_inst/leader_left_arm_pose",
+                right_arm: "backbone_inst/leader_right_arm_pose",
+                left_gripper: "backbone_inst/leader_left_gripper",
+                right_gripper: "backbone_inst/leader_right_gripper",
+                postures: ["backbone_inst"],
+              } },
+            // Real drivers report per-motor health and operator alerts; the
+            // panel and the headset show them.
+            { target: "commander_inst", when: { robot_commander: ["web_commander", "xr_commander"] },
+              add_links: { motor_health: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"], alerts: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"] } },
+            // An episode also starts from the MCP endpoint.
+            { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
+              add_links: { recorder: ["recorder_inst"] } },
+            // Dataset identity, by generation.
+            { target: "recorder_inst", when: { robot_initializer: "v1" },
+              set_arguments: { robot_type: "openarm_v1", storage_root: "/tmp/lerobot_openarm_v1" } },
+            { target: "recorder_inst", when: { robot_initializer: "v2" },
+              set_arguments: { robot_type: "openarm_v2", storage_root: "/tmp/lerobot_openarm_v2" } },
+            // Under the MCP commander, the moves a model drives it by.
+            { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+            // The brain's tools, under the same commander as the moves.
+            { target: "robot_control_inst", when: { brain: "ai_brain_vla", robot_commander: "mcp_commander" },
+              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
+            // The recorder films the rig; binding order fixes the dataset's
+            // feature order.
+            { target: "recorder_inst", when: { camera_rig: "cameras" },
+              add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
+            // The headset shows the rig in its panels.
+            { target: "commander_inst", when: { camera_rig: "cameras", robot_commander: "xr_commander" },
+              add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
+            // Listed on the MCP endpoint; neither node describes a profile,
+            // and the launcher lists no geometry on hardware.
+            { target: "robot_control_inst", when: { camera_rig: "cameras", robot_commander: "mcp_commander" },
+              add_links: { camera: ["wrist_left", "wrist_right"], depth_camera: ["chest"] } },
+          ],
+        },
+        so101: {
+          fragments: ["so101/fragments/so101.json5"],
+          adjustments: [
+            // Listed on the MCP endpoint: who it is and what its limbs measure.
+            { target: "robot_control_inst",
+              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"] } },
+            // The headset leads from the pose socket; only the right hand drives
+            // a single-arm robot.
+            { target: "commander_inst", when: { robot_commander: "xr_commander" },
+              set_arguments: { command_rate_hz: 60, gripper_open_fraction: 0.5 },
+              set_links: {
+                right_arm: "backbone_inst/leader_pose",
+                right_gripper: "backbone_inst/leader_gripper",
+                left_arm: { vacant: "single-arm robot: only the right hand drives" },
+                left_gripper: { vacant: "single-arm robot: only the right hand drives" },
+                postures: ["backbone_inst"],
+              } },
+            // The follower reports per-motor health and operator alerts; the
+            // headset shows them.
+            { target: "commander_inst", when: { robot_commander: "xr_commander" },
+              add_links: { motor_health: ["follower_inst"], alerts: ["follower_inst"] } },
+            // An episode also starts from the MCP endpoint.
+            { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
+              add_links: { recorder: ["recorder_inst"] } },
+            // Dataset identity.
+            { target: "recorder_inst",
+              set_arguments: { robot_type: "so101", storage_root: "/tmp/lerobot_so101" } },
+            // Under the MCP commander, the moves a model drives it by.
+            { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+            // The recorder films the rig; binding order fixes the dataset's
+            // feature order.
+            { target: "recorder_inst", when: { camera_rig: "cameras" },
+              add_links: { color_cameras: ["front"] } },
+            // The headset shows the rig in its panels.
+            { target: "commander_inst", when: { camera_rig: "cameras", robot_commander: "xr_commander" },
+              add_links: { color_cameras: ["front"] } },
+            // Listed on the MCP endpoint; the uvc node describes no profile and
+            // refuses every geometry call, so neither is listed on hardware.
+            { target: "robot_control_inst", when: { camera_rig: "cameras", robot_commander: "mcp_commander" },
+              add_links: { camera: ["front"] } },
+          ],
+        },
       },
     },
   ],

@@ -1,5 +1,6 @@
-// Reusable WebXR commander. Each robot's fragment supplies its
-// command rate, gripper opening, and robot-side bindings.
+// Reusable WebXR commander. The launcher supplies its command rate,
+// gripper opening and robot-side bindings under the option that selects
+// the robot; its record button binds here.
 // The node generates a TLS certificate and serves HTTPS on port 4443;
 // accept its certificate in the headset browser. Override https_port for
 // colocated commanders. Headset access requires a reachable host port.
@@ -14,5 +15,11 @@
         },
       ],
     },
+  ],
+
+  adjustments: [
+    // The record button: the recorder fills this slot when both run.
+    { target: "commander_inst", when: { recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
   ],
 }

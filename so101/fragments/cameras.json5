@@ -1,7 +1,6 @@
-// One scene camera for episode video. The adjustments below bind it into
-// whichever recorder was selected, relay it into the headset when the XR
-// commander was, and list it on the stack's MCP endpoint under the MCP
-// commander.
+// One scene camera for episode video. The launcher binds it to the
+// recorder, the headset and the MCP endpoint under the robot's option, by
+// the instance id written here.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -27,20 +26,5 @@
         },
       ],
     },
-  ],
-
-  adjustments: [
-    // Bind the camera into the recorder when one was selected; with no
-    // recorder the instance is absent and the adjustment simply skips.
-    { target: "recorder_inst", add_links: { color_cameras: ["front"] } },
-    // And relay it into the headset: only the XR commander has camera slots
-    // of its own, so this one is guarded on it.
-    { target: "commander_inst", when: { robot_commander: "xr_commander" },
-      add_links: { color_cameras: ["front"] } },
-    // Under the MCP commander the camera is listed on the stack's MCP
-    // endpoint as this robot's. The uvc node describes no profile or
-    // geometry, so those two targets stay unfilled on hardware.
-    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
-      add_links: { camera: ["front"] } },
   ],
 }

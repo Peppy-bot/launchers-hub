@@ -1,6 +1,6 @@
 // The browser command panel: joint-led teleop from any device with a
-// browser. A v1 robot sets hardware_version; the governor band and launch
-// cap mirror the backbone's.
+// browser. It loads the model of the generation it leads; the governor band
+// and launch cap mirror the backbone's.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -12,7 +12,7 @@
           instance_id: "commander_inst",
           // Governor launch defaults the panel then streams live, kept in
           // step with the backbone; conservative EE-speed cap for the real
-          // arm (the simulated robots raise it).
+          // arm, which the simulation launchers raise under the robot's option.
           arguments: {
             command_rate_hz: 100,
             collision_governor_enabled: true,
@@ -42,7 +42,7 @@
             observed_left_gripper: "backbone_inst/left_gripper",
             observed_right_gripper: "backbone_inst/right_gripper",
             // Per-motor health and operator alerts come from real drivers,
-            // so the physical robots add those bindings.
+            // so physical.json5 adds those bindings under the robot.
           },
         },
       ],
@@ -50,11 +50,11 @@
   ],
 
   adjustments: [
-    // The panel streams joint setpoints into the four leader sockets,
-    // released here for it to pair into, and supplies the operator's
-    // governor toggle.
-    { target: "backbone_inst",
-      set_links: { collision_ctrl: "commander_inst" },
-      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
+    // The record button: the recorder fills this slot when both run.
+    { target: "commander_inst", when: { recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
+    // Leading a v1, it loads the v1 model.
+    { target: "commander_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1" } },
   ],
 }

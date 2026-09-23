@@ -490,7 +490,7 @@ class CombinationsTests(unittest.TestCase):
         arguments = waldo["deployments"][0]["instances"][0]["arguments"]
         self.assertEqual(
             (arguments["world"], arguments["debug_inspector"], arguments["plugins"]),
-            ("stage", True, "robot_names,hand_teleop"),
+            ("stage", True, "connection_status,frame_rate,robot_names,hand_teleop,contact_markers,dark_mode,viewer_hint"),
         )
         for adjustment in waldo.get("adjustments", []):
             self.assertFalse(pinned & set(adjustment.get("set_arguments", {})))

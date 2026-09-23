@@ -1,0 +1,4 @@
+// The empty option: it deploys nothing, so an axis carrying it is switched
+// off by selecting it. A `one` axis, on by default, is switchable this way,
+// with `--with <axis>=none` at launch or `none` in a copy's `with`.
+{ peppy_schema: "launcher_fragment/v1" }

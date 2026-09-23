@@ -328,7 +328,8 @@ results.
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5`, `so101/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs, and their cameras on the `robot_control` endpoint under `mcp_commander` |
 | `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, and its tools on the `robot_control` endpoint |
 | `recording/fragments/` | Reusable recorder deployment and the recorder on the `robot_control` endpoint; the family's control wires its record button |
-| `simulation/fragments/` | The simulations, the Isaac viewer, the scene commander, with the lighting and materials slots it binds on Waldo, and `none.json5`, the empty option of an axis a launch can switch off |
+| `simulation/fragments/` | The simulations, the Isaac viewer, the scene commander, with the lighting and materials slots it binds on Waldo |
+| `common/fragments/none.json5` | The empty option, which deploys nothing, so an axis carrying it can be switched off |
 | `mcp/` | The two MCP endpoints, the robots' (`fragments/robot_control.json5`) and the simulated world's (`fragments/world_control.json5`), the launcher whose robots are driven over MCP by default, and the guide to the endpoints and clients |
 
 OpenArm's web commander references OpenArm interfaces, so its fragment
@@ -336,7 +337,8 @@ stays under `openarm/fragments/`. The headset and the MCP commander are
 shared by both robots. Both MCP endpoints are served by the server built into peppy, so their
 fragments sit together under `mcp/fragments/`. A launcher
 whose command surface is MCP lives under `mcp/` and composes the same robot
-and simulation fragments as the others.
+and simulation fragments as the others. Any axis can carry the empty option,
+so it sits under `common/fragments/`.
 
 Fragment paths are relative to the file that names them: the launcher's
 directory for its options, the fragment's for the options of its own axes.

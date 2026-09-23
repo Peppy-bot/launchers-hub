@@ -64,7 +64,7 @@
       cardinality: "one",
       options: {
         robot_control: "fragments/robot_control.json5",
-        none: "../simulation/fragments/none.json5",
+        none: "../common/fragments/none.json5",
       },
     },
     // The simulated world's MCP endpoint, deployed by this file; `--with
@@ -76,7 +76,7 @@
       cardinality: "one",
       options: {
         world_control: "fragments/world_control.json5",
-        none: "../simulation/fragments/none.json5",
+        none: "../common/fragments/none.json5",
       },
     },
     // Every simulated robot, an option of the same name in every simulation

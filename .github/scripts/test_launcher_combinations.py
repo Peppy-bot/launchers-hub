@@ -362,7 +362,7 @@ class CombinationsTests(unittest.TestCase):
             "simulation/fragments/waldo.json5",
             "simulation/fragments/web_scene_commander.json5",
             "mcp/fragments/world_control.json5",
-            "simulation/fragments/none.json5",
+            "common/fragments/none.json5",
         ]:
             self.assertIn(reference, references)
     def test_fragment_files_are_named_for_their_option(self):
@@ -649,7 +649,7 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(axes["robot_control"]["cardinality"], "one" if deployed else "zero_or_one")
                 options = {"robot_control": "fragments/robot_control.json5" if deployed else f"{prefix}mcp/fragments/robot_control.json5"}
                 if deployed:
-                    options["none"] = f"{prefix}simulation/fragments/none.json5"
+                    options["none"] = f"{prefix}common/fragments/none.json5"
                 self.assertEqual(axes["robot_control"]["options"], options)
                 self.assertEqual(combinations.option_entries(document, path).get("robot_control"), "robot_control" if deployed else None)
                 self.assertEqual(axes["robot"]["cardinality"], "zero_or_more")
@@ -720,7 +720,7 @@ class CombinationsTests(unittest.TestCase):
         axes = {axis["name"]: axis for axis in document["components"]}
         self.assertEqual(axes["world_control"], {
             "name": "world_control", "cardinality": "one",
-            "options": {"world_control": "fragments/world_control.json5", "none": "../simulation/fragments/none.json5"},
+            "options": {"world_control": "fragments/world_control.json5", "none": "../common/fragments/none.json5"},
         })
         self.assertEqual(combinations.option_entries(document, path)["world_control"], "world_control")
         self.assertEqual(document["constraints"], [{
@@ -739,7 +739,7 @@ class CombinationsTests(unittest.TestCase):
                 self.assertNotIn("world_control", [axis["name"] for axis in document["components"]])
         # `none` is the empty option that switches an axis off.
         self.assertEqual(
-            combinations.load_json5(root / "simulation/fragments/none.json5", "none"),
+            combinations.load_json5(root / "common/fragments/none.json5", "none"),
             {"peppy_schema": "launcher_fragment/v1"})
 
     def test_every_robot_offers_the_shared_mcp_commander_and_the_leaders_release_their_sockets(self):
@@ -777,7 +777,7 @@ class CombinationsTests(unittest.TestCase):
         physical = combinations.load_json5(root / "so101/fragments/so101.json5", "so101")
         self.assertEqual(
             {axis["name"]: axis for axis in physical["components"]}["robot_commander"]["options"]["none"],
-            "../../simulation/fragments/none.json5")
+            "../../common/fragments/none.json5")
         simulated = combinations.load_json5(root / "so101/fragments/so101_sim.json5", "so101_sim")
         self.assertNotIn("robot_commander", combinations.option_entries(simulated, "so101_sim"))
         # An episode needs a trigger, which the KER and SO-101 leaders lack:

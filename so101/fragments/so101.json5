@@ -45,7 +45,7 @@
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
         mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
         // An action-only session: no teleop surface, actions still drive it.
-        none: "../../simulation/fragments/none.json5",
+        none: "../../common/fragments/none.json5",
       },
     },
     {

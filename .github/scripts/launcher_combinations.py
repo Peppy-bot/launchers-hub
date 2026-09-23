@@ -56,10 +56,12 @@ COMBINATION_CEILING = 4096
 # refused by design from a launcher that is broken.
 CONSTRAINT_REFUSAL_MARK = "which this selection"
 
-# A join refused because the copy writes a stack instance differently from
-# how it runs (`joining NAME would change INSTANCE, which already runs`)
-# carries this phrase. Such a copy runs only when the file deploys it at
-# launch, which the repository check covers; it is not a broken launcher.
+# A copy named on the command line is composed as a join, so it is refused
+# where it writes a stack instance differently from how that instance runs
+# (`joining NAME would change INSTANCE, which already runs`); the refusal
+# carries this phrase. Such a copy runs where the launcher's file deploys
+# it, whose selections this check covers as launch words; it is not a broken
+# launcher.
 JOIN_CHANGE_MARK = "would change"
 
 # `stack resolve` holds the flat plan to the launch-time link rules only where
@@ -622,6 +624,12 @@ class Candidate:
         return (self.launcher, self.words, self.launch_joins, "", "")
 
     @property
+    def names_a_copy(self):
+        """The combination names a copy on the command line, with the launch
+        or on a `stack join` after it."""
+        return bool(self.launch_joins or self.join_option)
+
+    @property
     def label(self):
         return combination_label(
             self.launcher, self.words, self.join_option, self.join_words, self.local,
@@ -838,8 +846,8 @@ class Verdict(enum.Enum):
     REFUSED = "refused"
     #: A deployed node needs what the runner lacks, per the skip file.
     SKIPPED = "skipped"
-    #: The copy runs only where the file deploys it at launch.
-    LAUNCH_ONLY = "launch-only"
+    #: The copy runs only where the launcher's file deploys it.
+    FILE_ONLY = "file-only"
     #: It resolves, but this machine's caches lack a manifest the link rules
     #: read, so the resolve proves less than it looks like it proves.
     UNCHECKED = "unchecked"
@@ -964,16 +972,15 @@ def previewed_words(join_words):
 
 
 def resolve_command(path, words, join_option, join_words, launch_joins=()):
-    """The preview of one combination: the launch, the copies it starts
-    with `--join`, and the copy joined afterwards under its own words."""
+    """The preview of one combination: the launch, and each copy it names
+    with `--join` under that copy's own words."""
     argv = ["peppy", "stack", "resolve", path]
     selection = ",".join(part for part in (words, previewed_words(join_words)) if part)
     if selection:
         argv += ["--with", selection]
-    for option in launch_joins:
+    named = (*launch_joins, join_option) if join_option else launch_joins
+    for option in named:
         argv += ["--join", f"{option}:{COPY_NAME}"]
-    if join_option:
-        argv += ["--then-join", f"{join_option}:{COPY_NAME}"]
     return argv
 
 
@@ -1000,8 +1007,8 @@ def resolve_candidate(root, candidate, skips):
         output = (resolve.stderr + resolve.stdout).strip()
         if CONSTRAINT_REFUSAL_MARK in output:
             return Resolution(Verdict.REFUSED, output)
-        if candidate.join_option and JOIN_CHANGE_MARK in output:
-            return Resolution(Verdict.LAUNCH_ONLY, output)
+        if candidate.names_a_copy and JOIN_CHANGE_MARK in output:
+            return Resolution(Verdict.FILE_ONLY, output)
         return Resolution(Verdict.BROKEN, output)
     unchecked = [
         line for line in resolve.stderr.splitlines() if LINK_RULES_UNCHECKED_MARK in line
@@ -1211,7 +1218,7 @@ class Launch:
             COPY_NAME if candidate.join_option else "",
             candidate.join_words,
             candidate.local,
-            copy_instances(resolution.plan, COPY_NAME) if candidate.join_option or candidate.launch_joins else [],
+            copy_instances(resolution.plan, COPY_NAME) if candidate.names_a_copy else [],
             list(candidate.launch_joins),
         )
 
@@ -1391,7 +1398,7 @@ def plan_summary(candidates, in_scope, resolutions, launchable, selected, units_
     for verdict, title, column in (
         (Verdict.REFUSED, "❌ Refused by the launcher's own constraints", "refusal"),
         (Verdict.SKIPPED, "⏭️ Skipped: hardware or rollout dependencies", "deploys"),
-        (Verdict.LAUNCH_ONLY, "🧷 Copies a launch starts, refused as a join", "join refusal"),
+        (Verdict.FILE_ONLY, "🧷 Copies only the launcher's file deploys", "refusal"),
     ):
         rows = [
             (

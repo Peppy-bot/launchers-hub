@@ -86,11 +86,11 @@ def write_repository(root, launchers):
 
 class FakeResolve:
     """Stands in for `peppy stack resolve`: answers each tree's combinations
-    from `(launcher path, launch words, options started with the launch,
-    joined option, join words)`, an empty plan where a tree names none, and
-    keeps the calls it received. A previewed join's own words ride the
-    selection under its copy's name, so the words carrying that name read
-    back as the join's."""
+    from `(launcher path, launch words, the options it names a copy of with
+    `--join`, that copy's own words)`, an empty plan where a tree names none,
+    and keeps the calls it received. A named copy's own words ride the
+    selection under its name, so the words carrying that name read back as
+    the copy's."""
 
     def __init__(self, **answers_by_tree):
         self.answers_by_tree = answers_by_tree
@@ -99,15 +99,12 @@ class FakeResolve:
     def __call__(self, argv, **kwargs):
         self.calls.append((argv, kwargs))
         flags = list(zip(argv[4::2], argv[5::2]))
-        options = dict(flags)
-        started = ",".join(value.split(":")[0] for flag, value in flags if flag == "--join")
         scope = f"{combinations.COPY_NAME}."
-        selection = [word for word in options.get("--with", "").split(",") if word]
+        selection = [word for word in dict(flags).get("--with", "").split(",") if word]
         key = (
             argv[3],
             ",".join(word for word in selection if not word.startswith(scope)),
-            started,
-            options.get("--then-join", "").split(":")[0],
+            ",".join(value.split(":")[0] for flag, value in flags if flag == "--join"),
             ",".join(word.removeprefix(scope) for word in selection if word.startswith(scope)),
         )
         answers = self.answers_by_tree.get(Path(kwargs["cwd"]).name, {})
@@ -1141,14 +1138,14 @@ UNCHECKED = completed(
 class ResolveTests(unittest.TestCase):
     def test_plan_previews_the_launch_and_its_join_and_launches_the_same(self):
         answers = {
-            ("fleet.json5", "", "", "openarm_v2", "recorder=lerobot_recorder"):
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"):
                 resolved_plan("sim_mujoco:v1", "lerobot_recorder:v1"),
         }
         with planned({"fleet": fleet_launcher()}, answers) as (resolve, labels, plan, _):
             self.assertIn([
                 "peppy", "stack", "resolve", "fleet.json5",
                 "--with", f"{combinations.COPY_NAME}.recorder=lerobot_recorder",
-                "--then-join", f"openarm_v2:{combinations.COPY_NAME}",
+                "--join", f"openarm_v2:{combinations.COPY_NAME}",
             ], [argv for argv, _ in resolve.calls])
             # The preview reads the plan as JSON5, so peppy logs errors only.
             self.assertTrue(all(kwargs["env"]["RUST_LOG"] == "error" for _, kwargs in resolve.calls))
@@ -1170,7 +1167,7 @@ class ResolveTests(unittest.TestCase):
             {"source": {"name": "openarm_backbone", "tag": "v1"},
              "instances": [{"instance_id": "bravo_backbone_inst", "core_node": "bravo"}]},
         ]}))
-        answers = {("fleet.json5", "", "openarm_v2", "", ""): started}
+        answers = {("fleet.json5", "", "openarm_v2", ""): started}
         with planned({"fleet": fleet_launcher(at_launch=True)}, answers) as (resolve, labels, plan, _):
             self.assertIn(
                 ["peppy", "stack", "resolve", "fleet.json5", "--join", "openarm_v2:bravo"],
@@ -1184,7 +1181,7 @@ class ResolveTests(unittest.TestCase):
     def test_plan_previews_a_deployed_copys_launch_words_without_a_join(self):
         words = "alpha.recorder=lerobot_recorder"
         answers = {
-            ("fleet.json5", words, "", "", ""): resolved_plan("sim_mujoco:v1", "lerobot_recorder:v1"),
+            ("fleet.json5", words, "", ""): resolved_plan("sim_mujoco:v1", "lerobot_recorder:v1"),
         }
         with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (resolve, labels, plan, _):
             self.assertIn(
@@ -1204,24 +1201,24 @@ class ResolveTests(unittest.TestCase):
             self.assertTrue(plan[0].local)
 
     def test_a_selection_the_launchers_constraints_refuse_is_reported_not_launched(self):
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): REFUSAL}
+        answers = {("sim.json5", "simulation=waldo", "", ""): REFUSAL}
         with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, ["sim (simulation=mujoco)"])
             self.assertIn("Refused by the launcher's own constraints (1)", summary)
             self.assertIn("| sim (simulation=waldo) | camera_rig=cameras_sim requires", summary)
 
     def test_a_combination_deploying_a_node_the_runner_cannot_run_is_skipped(self):
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): resolved_plan("waldo:v1", "zed_camera:v1")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1", "zed_camera:v1")}
         with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, ["sim (simulation=mujoco)"])
             self.assertIn("Skipped: hardware or rollout dependencies (1)", summary)
             self.assertIn("| sim (simulation=waldo) | deploys zed_camera: the runner has no ZED camera |", summary)
 
-    def test_a_join_refused_for_changing_what_runs_is_launch_only(self):
-        answers = {("fleet.json5", "", "", "openarm_v2", ""): JOIN_REFUSAL}
+    def test_a_copy_refused_for_changing_what_runs_runs_from_the_file_alone(self):
+        answers = {("fleet.json5", "", "openarm_v2", ""): JOIN_REFUSAL}
         with planned({"fleet": fleet_launcher()}, answers) as (_, labels, _plan, summary):
             self.assertNotIn("fleet + join openarm_v2", labels)
-            self.assertIn("refused as a join (1)", summary)
+            self.assertIn("Copies only the launcher's file deploys (1)", summary)
             self.assertIn("| fleet + join openarm_v2 | joining bravo would change simulation_inst", summary)
 
     def test_a_join_comes_up_beside_the_files_copy(self):
@@ -1235,9 +1232,9 @@ class ResolveTests(unittest.TestCase):
             ]}))
 
         answers = {
-            ("fleet.json5", "", "", "", ""): plan_of("alpha"),
-            ("fleet.json5", "", "", "openarm_v2", ""): plan_of("alpha", "bravo"),
-            ("fleet.json5", "", "", "openarm_v2", "recorder=lerobot_recorder"): plan_of("alpha", "bravo"),
+            ("fleet.json5", "", "", ""): plan_of("alpha"),
+            ("fleet.json5", "", "openarm_v2", ""): plan_of("alpha", "bravo"),
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"): plan_of("alpha", "bravo"),
         }
         with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (_, labels, plan, summary):
             # Every simulation stands the joined copy beside the file's.
@@ -1247,7 +1244,7 @@ class ResolveTests(unittest.TestCase):
 
     def test_a_run_reaching_only_refused_combinations_launches_nothing(self):
         refusal_with_a_pipe = completed(returncode=1, stderr=REFUSAL.stderr + " (a|b)")
-        answers = {("sim.json5", "", "", "", ""): refusal_with_a_pipe}
+        answers = {("sim.json5", "", "", ""): refusal_with_a_pipe}
         with planned({"sim": simulation_launcher("mujoco")}, answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, [])
             self.assertIn("Launching nothing: every combination this change reaches is refused or skipped", summary)
@@ -1255,7 +1252,7 @@ class ResolveTests(unittest.TestCase):
             self.assertIn("does not satisfy (a\\|b) |", summary)
 
     def test_a_combination_nothing_refuses_and_nothing_resolves_fails_the_plan(self):
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): completed(returncode=1, stderr="Error: no such fragment")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): completed(returncode=1, stderr="Error: no such fragment")}
         with self.assertRaises(SystemExit) as failure, contextlib.redirect_stderr(io.StringIO()):
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
                 pass
@@ -1265,7 +1262,7 @@ class ResolveTests(unittest.TestCase):
         """With the caches filled, a resolve that reports the link rules
         unchecked names a manifest the run should have had, so peppy's report
         line stops it."""
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): UNCHECKED}
+        answers = {("sim.json5", "simulation=waldo", "", ""): UNCHECKED}
         with self.assertRaises(SystemExit) as failure:
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
                 pass
@@ -1277,7 +1274,7 @@ class ResolveTests(unittest.TestCase):
         """A fork's pull request is given no deploy key for the private hub,
         so the step that fills the caches reports them short and the run
         carries on, naming the combinations it left unproven."""
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): UNCHECKED}
+        answers = {("sim.json5", "simulation=waldo", "", ""): UNCHECKED}
         reason = "the private hub is not registered"
         with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers,
                      unprovable=reason) as (_, labels, _plan, summary):
@@ -1286,8 +1283,8 @@ class ResolveTests(unittest.TestCase):
             self.assertIn(f"checked no link rule over these plans: {reason}.", summary)
             self.assertIn("- sim (simulation=waldo)", summary)
 
-    def test_a_refusal_that_is_no_join_is_not_mistaken_for_a_launch_only_copy(self):
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): JOIN_REFUSAL}
+    def test_a_refusal_naming_no_copy_is_not_mistaken_for_a_file_only_one(self):
+        answers = {("sim.json5", "simulation=waldo", "", ""): JOIN_REFUSAL}
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
                 pass
@@ -1422,18 +1419,18 @@ class SimulatedSo101Tests(unittest.TestCase):
             ["bravo_backbone_inst", "bravo_front", "bravo_init_inst"])
         # Its rig turns rendering on, which a join cannot: the daemon refuses
         # it as a change to the running simulation, and the planner reports
-        # the copy as one a launch has to start.
+        # the copy as one only a launcher file deploys.
         _, resolution = self.resolved(
             JOIN_REFUSAL, WALDO_MCP, "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim")
-        self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH_ONLY)
+        self.assertIs(resolution.verdict, combinations.Verdict.FILE_ONLY)
 
 
 class CoverageTests(unittest.TestCase):
     def test_a_combination_whose_instances_all_run_in_another_launch_is_not_launched(self):
         answers = {
-            ("fleet.json5", "", "", "", ""): resolved_plan("sim_mujoco:v1"),
-            ("fleet.json5", "", "", "openarm_v2", ""): resolved_plan("sim_mujoco:v1", "openarm_backbone:v1"),
-            ("fleet.json5", "", "", "openarm_v2", "recorder=lerobot_recorder"):
+            ("fleet.json5", "", "", ""): resolved_plan("sim_mujoco:v1"),
+            ("fleet.json5", "", "openarm_v2", ""): resolved_plan("sim_mujoco:v1", "openarm_backbone:v1"),
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"):
                 resolved_plan("sim_mujoco:v1", "openarm_backbone:v1", "lerobot_recorder:v1"),
         }
         with planned({"fleet": fleet_launcher()}, answers) as (_, labels, _plan, summary):
@@ -1451,9 +1448,9 @@ class CoverageTests(unittest.TestCase):
         # Two launches would run every instance once; the third is the only
         # one running the camera beside the recorder.
         answers = {
-            ("sim.json5", "simulation=a", "", "", ""): resolved_plan("backbone:v1", "camera:v1"),
-            ("sim.json5", "simulation=b", "", "", ""): resolved_plan("backbone:v1", "recorder:v1"),
-            ("sim.json5", "simulation=c", "", "", ""): resolved_plan("camera:v1", "recorder:v1"),
+            ("sim.json5", "simulation=a", "", ""): resolved_plan("backbone:v1", "camera:v1"),
+            ("sim.json5", "simulation=b", "", ""): resolved_plan("backbone:v1", "recorder:v1"),
+            ("sim.json5", "simulation=c", "", ""): resolved_plan("camera:v1", "recorder:v1"),
         }
         with planned({"sim": simulation_launcher("a", "b", "c")}, answers) as (_, labels, _plan, _summary):
             self.assertEqual(labels, ["sim (simulation=a)", "sim (simulation=b)", "sim (simulation=c)"])
@@ -1466,9 +1463,9 @@ class CoverageTests(unittest.TestCase):
             }]}))
 
         answers = {
-            ("sim.json5", "simulation=a", "", "", ""): simulation("openarm_v1"),
-            ("sim.json5", "simulation=b", "", "", ""): simulation("openarm_v2"),
-            ("sim.json5", "simulation=c", "", "", ""): simulation("openarm_v2"),
+            ("sim.json5", "simulation=a", "", ""): simulation("openarm_v1"),
+            ("sim.json5", "simulation=b", "", ""): simulation("openarm_v2"),
+            ("sim.json5", "simulation=c", "", ""): simulation("openarm_v2"),
         }
         with planned({"sim": simulation_launcher("a", "b", "c")}, answers) as (_, labels, _plan, _summary):
             self.assertEqual(labels, ["sim (simulation=a)", "sim (simulation=b)"])
@@ -1653,7 +1650,7 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(combinations.select_launches(units), ["spelled", "plain"])
 
     def test_a_join_whose_own_launch_does_not_resolve_fails_the_plan(self):
-        answers = {("fleet.json5", "", "", "", ""): REFUSAL}
+        answers = {("fleet.json5", "", "", ""): REFUSAL}
         with self.assertRaises(SystemExit) as failure:
             with planned({"fleet": fleet_launcher()}, answers):
                 pass
@@ -1726,8 +1723,8 @@ class ScopeTests(unittest.TestCase):
 
     def test_only_the_combinations_the_change_moves_are_launched(self):
         launchers = {"sim": simulation_launcher("mujoco", "waldo")}
-        answers = {("sim.json5", "simulation=waldo", "", "", ""): resolved_plan("waldo:v2")}
-        base_answers = {("sim.json5", "simulation=waldo", "", "", ""): resolved_plan("waldo:v1")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v2")}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1")}
         with planned(launchers, answers, CHANGED, launchers, base_answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, ["sim (simulation=waldo)"])
             self.assertIn("1 launchable combinations resolve to the plan the base tree gives them", summary)
@@ -1740,7 +1737,7 @@ class ScopeTests(unittest.TestCase):
 
     def test_a_combination_the_change_makes_launchable_is_launched(self):
         launchers = {"sim": simulation_launcher("mujoco", "waldo")}
-        base_answers = {("sim.json5", "simulation=waldo", "", "", ""): REFUSAL}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): REFUSAL}
         with planned(launchers, scope=CHANGED, base_launchers=launchers,
                      base_answers=base_answers) as (_, labels, _plan, _summary):
             self.assertEqual(labels, ["sim (simulation=waldo)"])

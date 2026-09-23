@@ -8,6 +8,9 @@
 // downstream links after the limbs, left_arm, right_arm, left_gripper and
 // right_gripper, and what is observed of the robot is named by that end of
 // each pair, which is the same whatever holds the far end.
+// The launcher that offers this control declares a robot_control axis: the
+// recorder's trigger rule names it, and the robot's listing is added on its
+// robot_control_inst.
 {
   peppy_schema: "launcher_fragment/v1",
 

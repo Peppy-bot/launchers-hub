@@ -6,6 +6,8 @@
 // are listed there under any commander. The family's control leaves the
 // backbone's leader sockets vacant, so this part touches the backbone not
 // at all.
+// The launcher that offers this commander declares a robot_control axis: the
+// requirement names it, and the moves are added on its robot_control_inst.
 {
   peppy_schema: "launcher_fragment/v1",
 

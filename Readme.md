@@ -34,6 +34,9 @@ declares `robot_control`, the robots' MCP endpoint, and `world_control`, the sim
 world's, that way; `--with robot_control=none` and
 `--with world_control=none` turn them off. The other launchers declare `robot_control`
 as a `zero_or_one` axis, and `--with robot_control` turns it on.
+Every launcher that runs robots declares a `robot_control` axis: the robots'
+fragments add their links on `robot_control_inst`, and the recorder's trigger
+rule and the MCP commander's requirement name the axis.
 
 ## Launchers
 

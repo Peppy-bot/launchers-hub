@@ -140,11 +140,11 @@ peppy stack join openarm_v1 -i charlie --with mcp_commander,cameras --place jets
 
 A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
 serving `item_perception` and `item_manipulation` over the backbone's
-`limb_motion`. It composes with any commander: the operator and the brain
-send the same kind of goal to the same producer. Whenever the stack serves
-the `robot_control` endpoint, the brain's tools are listed under the
-robot's name there, and so are the recorder's episodes, whatever the
-robot's commander.
+`limb_motion`. It composes with the selected commander: the operator and
+the brain send the same kind of goal to the same producer. Under
+`mcp_commander` the brain's tools are listed under the robot's name on the
+`robot_control` endpoint, beside the direct moves. The recorder's episodes
+are listed there under any commander.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras

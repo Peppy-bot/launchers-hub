@@ -582,7 +582,8 @@ class CombinationsTests(unittest.TestCase):
         }])
         brain = combinations.load_json5(root / "openarm/fragments/ai_brain.json5", "ai_brain")
         self.assertEqual(brain["adjustments"], [
-            {"target": SERVER, "add_links": {"item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]}},
+            {"target": SERVER, "when": {"robot_commander": "mcp_commander"},
+             "add_links": {"item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]}},
         ])
         recorder = combinations.load_json5(
             root / "recording/fragments/lerobot_recorder.json5", "lerobot_recorder")

@@ -45,16 +45,19 @@ Each endpoint is an axis of the file that owns what it publishes:
   [so101](../so101/fragments/control_common.json5)) lists the robot with
   its initializer for its identity and its backbone for its limb state and
   collision readout, so every robot of the stack is listed with what it is
-  and how it stands. The [brain](../openarm/fragments/ai_brain.json5) and
-  the [recorder](../recording/fragments/lerobot_recorder.json5) list
-  themselves whenever they run. The
+  and how it stands. The
+  [recorder](../recording/fragments/lerobot_recorder.json5) lists itself
+  whenever it runs, so an episode starts over the endpoint under any
+  commander. The
   [mcp_commander](../robot_commanders/fragments/mcp_commander.json5)
-  option adds the backbone's moves, and the rig
+  option adds the backbone's moves, and under that option the
+  [brain](../openarm/fragments/ai_brain.json5) adds its actions and the rig
   ([cameras](../openarm/fragments/cameras.json5),
-  [cameras_sim](../openarm/fragments/cameras_sim.json5)) adds the cameras
-  under that option, so a robot under the browser panel or the headset is
-  listed with its brain and recorder tools and no moves, and a robot
-  without a rig with no camera. A join adds its robot's instances to the
+  [cameras_sim](../openarm/fragments/cameras_sim.json5)) adds the cameras:
+  everything that moves the robot's arms is listed under one option, so a
+  robot under the browser panel or the headset is listed with its state and
+  its recorder and no way to move it, and a robot without a rig with no
+  camera. A join adds its robot's instances to the
   running server and a removal takes them out: the robot is listed when the
   join returns and gone when the remove returns. `--with robot_control=none` launches
   `simulation_mcp` without it, and a robot's `mcp_commander` is refused

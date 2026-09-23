@@ -126,7 +126,7 @@ discovery and host setup.
 | `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`), `xr_commander`, and `mcp_commander`, which adds the arm's moves, and with a rig the front camera, to the stack's `robot_control` endpoint; `none` on `so101` and the unfilled `zero_or_one` axis on `so101_sim` run the robot on actions alone |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or the headset, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2 and a simulated SO-101; requires a consumer: a recorder, XR or `mcp_commander`, which lists the cameras on the `robot_control` endpoint |
-| `brain` | the v2 robots | `ai_brain`, whose tools are listed under the robot's name on the `robot_control` endpoint whenever the stack serves it, whatever the commander |
+| `brain` | the v2 robots | `ai_brain`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
 
 A copy selects one option per axis of its robot. `stack resolve` previews any
 launch, and a join onto it, without starting nodes:

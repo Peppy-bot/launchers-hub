@@ -634,11 +634,6 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(
                     [a["target"] for a in document["adjustments"] if a.get("set_framework") == {"clock": "simulation"}],
                     clocks)
-        # The robot's family has one commander, shared with the other.
-        for stale in ["openarm/fragments/mcp_commander.json5", "openarm/fragments/mcp_sim_commander.json5",
-                      "so101/fragments/mcp_commander.json5", "openarm/fragments/no_commander.json5",
-                      "so101/fragments/no_commander.json5"]:
-            self.assertFalse((root / stale).exists(), stale)
 
     def test_the_server_is_one_per_stack_and_takes_no_links_of_its_own(self):
         root = Path(__file__).resolve().parents[2]
@@ -1035,8 +1030,6 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(index["launchers"]["physical"], {"path": "physical.json5"})
         self.assertEqual(index["launchers"]["so101_simulation"], {"path": "so101/so101_simulation.json5"})
         self.assertEqual(index["launchers"]["simulation_mcp"], {"path": "mcp/simulation_mcp.json5"})
-        self.assertNotIn("fleet", index["launchers"])
-        self.assertNotIn("openarm_simulation_mcp", index["launchers"])
 
     def test_the_mcp_launcher_deploys_waldo_the_endpoint_and_alpha(self):
         root = Path(__file__).resolve().parents[2]

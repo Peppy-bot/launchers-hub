@@ -48,13 +48,13 @@ axes:
 
 ```sh
 peppy stack launch physical
-peppy stack join so101 -i alpha                                          # leader-arm teleop
-peppy stack join so101 -i alpha --with xr_commander,lerobot_recorder     # headset + recording
-peppy stack join so101 -i alpha --with xr_commander,lerobot_recorder,cameras
-peppy stack join so101 -i alpha --with robot_commander=none              # actions only
+peppy stack join so101:alpha                                             # leader-arm teleop
+peppy stack join so101:alpha --with xr_commander,lerobot_recorder        # headset + recording
+peppy stack join so101:alpha --with xr_commander,lerobot_recorder,cameras
+peppy stack join so101:alpha --with robot_commander=none                 # actions only
 peppy stack launch physical --with robot_control                                   # the robots' MCP endpoint
-peppy stack join so101 -i alpha --with mcp_commander,cameras             # driven over MCP, its camera served
-peppy stack resolve physical --then-join so101 --then-join-name alpha --then-join-with xr_commander   # inspect the flattened stack
+peppy stack join so101:alpha --with mcp_commander,cameras                # driven over MCP, its camera served
+peppy stack resolve physical --then-join so101:alpha --with alpha.xr_commander   # inspect the flattened stack
 ```
 
 Recording needs a trigger: episodes start via the recorder's
@@ -80,8 +80,8 @@ axis too:
 peppy stack launch so101_simulation                                         # Waldo and one SO-101
 peppy stack launch so101_simulation --with mujoco                           # the same robot, alone in MuJoCo
 peppy stack launch so101_simulation --with isaac_sim
-peppy stack join so101_sim -i charlo                                        # a second SO-101 beside alpha
-peppy stack join openarm_v2_sim -i bravo                                    # an OpenArm v2 beside them
+peppy stack join so101_sim:charlo                                           # a second SO-101 beside alpha
+peppy stack join openarm_v2_sim:bravo                                       # an OpenArm v2 beside them
 peppy stack remove alpha                                                    # the simulation keeps running
 ```
 
@@ -90,7 +90,7 @@ names one beside the OpenArm:
 
 ```sh
 peppy stack launch openarm_simulation
-peppy stack join so101_sim -i charlo                 # an SO-101 beside the OpenArm alpha
+peppy stack join so101_sim:charlo                    # an SO-101 beside the OpenArm alpha
 peppy stack launch openarm_simulation --join so101_sim:charlo
 ```
 
@@ -101,7 +101,7 @@ join words:
 peppy stack launch so101_simulation --with alpha.so101_leader
 peppy stack launch so101_simulation --with alpha.xr_commander,alpha.lerobot_recorder,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
-peppy stack resolve so101_simulation --with mujoco --then-join so101_sim --then-join-name charlo   # inspect the flattened stack
+peppy stack resolve so101_simulation --with mujoco --then-join so101_sim:charlo   # inspect the flattened stack
 ```
 
 - `so101_leader` is a real leader arm driving the simulated follower:
@@ -151,7 +151,7 @@ The limits:
 
   ```sh
   peppy stack launch simulation_mcp --join so101_sim:charlie   # an SO-101 over MCP beside alpha, with its front camera
-  peppy stack join so101_sim -i delta                          # another, listed on the same URL when the join returns
+  peppy stack join so101_sim:delta                             # another, listed on the same URL when the join returns
   ```
 
 CI launches the simulated SO-101 where it opens no device: the plain join

@@ -88,7 +88,9 @@ class FakeResolve:
     """Stands in for `peppy stack resolve`: answers each tree's combinations
     from `(launcher path, launch words, options started with the launch,
     joined option, join words)`, an empty plan where a tree names none, and
-    keeps the calls it received."""
+    keeps the calls it received. A previewed join's own words ride the
+    selection under its copy's name, so the words carrying that name read
+    back as the join's."""
 
     def __init__(self, **answers_by_tree):
         self.answers_by_tree = answers_by_tree
@@ -99,9 +101,14 @@ class FakeResolve:
         flags = list(zip(argv[4::2], argv[5::2]))
         options = dict(flags)
         started = ",".join(value.split(":")[0] for flag, value in flags if flag == "--join")
+        scope = f"{combinations.COPY_NAME}."
+        selection = [word for word in options.get("--with", "").split(",") if word]
         key = (
-            argv[3], options.get("--with", ""), started,
-            options.get("--then-join", ""), options.get("--then-join-with", ""),
+            argv[3],
+            ",".join(word for word in selection if not word.startswith(scope)),
+            started,
+            options.get("--then-join", "").split(":")[0],
+            ",".join(word.removeprefix(scope) for word in selection if word.startswith(scope)),
         )
         answers = self.answers_by_tree.get(Path(kwargs["cwd"]).name, {})
         return answers.get(key, resolved_plan())
@@ -1137,8 +1144,8 @@ class ResolveTests(unittest.TestCase):
         with planned({"fleet": fleet_launcher()}, answers) as (resolve, labels, plan, _):
             self.assertIn([
                 "peppy", "stack", "resolve", "fleet.json5",
-                "--then-join", "openarm_v2", "--then-join-name", combinations.COPY_NAME,
-                "--then-join-with", "recorder=lerobot_recorder",
+                "--with", f"{combinations.COPY_NAME}.recorder=lerobot_recorder",
+                "--then-join", f"openarm_v2:{combinations.COPY_NAME}",
             ], [argv for argv, _ in resolve.calls])
             # The preview reads the plan as JSON5, so peppy logs errors only.
             self.assertTrue(all(kwargs["env"]["RUST_LOG"] == "error" for _, kwargs in resolve.calls))
@@ -1823,7 +1830,7 @@ class LaunchTests(unittest.TestCase):
         outcomes, _ = launched([a_launch(join_option="openarm_v2", join_words="recorder=lerobot_recorder")], peppy)
         self.assertEqual(peppy.commands, [
             ["peppy", "stack", "launch", "fleet", *IDLE],
-            ["peppy", "stack", "join", "openarm_v2", "-i", "bravo", "--with", "recorder=lerobot_recorder", *IDLE],
+            ["peppy", "stack", "join", "openarm_v2:bravo", "--with", "recorder=lerobot_recorder", *IDLE],
             ["peppy", "stack", "list", "--json"],
             ["peppy", "stack", "list"],
             ["peppy", "stack", "remove", "bravo"],
@@ -1891,7 +1898,7 @@ class LaunchTests(unittest.TestCase):
     def test_a_join_without_words_passes_none(self):
         peppy = FakePeppy()
         launched([a_launch(join_option="openarm_v2")], peppy)
-        self.assertIn(["peppy", "stack", "join", "openarm_v2", "-i", "bravo", *IDLE], peppy.commands)
+        self.assertIn(["peppy", "stack", "join", "openarm_v2:bravo", *IDLE], peppy.commands)
 
     def test_a_failed_launch_is_named_reset_and_followed_by_the_next(self):
         peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]])
@@ -1912,7 +1919,7 @@ class LaunchTests(unittest.TestCase):
         peppy = FakePeppy(failing=[["peppy", "stack", "join"]])
         outcomes, _ = launched([a_launch(join_option="openarm_v2")], peppy)
         self.assertEqual(peppy.commands[-2:], [
-            ["peppy", "stack", "join", "openarm_v2", "-i", "bravo", *IDLE],
+            ["peppy", "stack", "join", "openarm_v2:bravo", *IDLE],
             ["peppy", "stack", "reset"],
         ])
         self.assertIn("`peppy stack join openarm_v2", outcomes[0].detail)

@@ -935,18 +935,24 @@ def read_node_reasons(path):
     return reasons
 
 
+def previewed_words(join_words):
+    """A previewed join's own selection, as the launch words that name its
+    copy: `bravo.axis=option`, the way a word selects the own axis of a copy
+    the file deploys."""
+    return ",".join(f"{COPY_NAME}.{word}" for word in join_words.split(",") if word)
+
+
 def resolve_command(path, words, join_option, join_words, launch_joins=()):
     """The preview of one combination: the launch, the copies it starts
-    with `--join`, and the copy joined afterwards."""
+    with `--join`, and the copy joined afterwards under its own words."""
     argv = ["peppy", "stack", "resolve", path]
-    if words:
-        argv += ["--with", words]
+    selection = ",".join(part for part in (words, previewed_words(join_words)) if part)
+    if selection:
+        argv += ["--with", selection]
     for option in launch_joins:
         argv += ["--join", f"{option}:{COPY_NAME}"]
     if join_option:
-        argv += ["--then-join", join_option, "--then-join-name", COPY_NAME]
-        if join_words:
-            argv += ["--then-join-with", join_words]
+        argv += ["--then-join", f"{join_option}:{COPY_NAME}"]
     return argv
 
 
@@ -1455,7 +1461,7 @@ def launch_command(launch, rebuild):
 
 
 def join_command(launch):
-    argv = ["peppy", "stack", "join", launch.join_option, "-i", launch.join_name]
+    argv = ["peppy", "stack", "join", f"{launch.join_option}:{launch.join_name}"]
     if launch.join_words:
         argv += ["--with", launch.join_words]
     return argv + BUILD_IDLE_TIMEOUT

@@ -16,7 +16,7 @@ join`.
 |---|---|---|---|
 | `one` | `{ simulation: "waldo" }` | `--with mujoco` swaps it | fixed for the stack's life |
 | `zero_or_one` | not deployed | `--with web_scene_commander` turns it on | fixed |
-| `zero_or_more` | `{ robot: "openarm_v2_sim", instances: [{ instance_id: "alpha" }] }`, or the entry alone, `{ robot: "openarm_v2_sim" }`, saying how every copy of the option is set up | the listed copies start, and `--join openarm_v2_sim:bravo` names another | `stack join openarm_v2_sim -i charlie`, `stack remove charlie` |
+| `zero_or_more` | `{ robot: "openarm_v2_sim", instances: [{ instance_id: "alpha" }] }`, or the entry alone, `{ robot: "openarm_v2_sim" }`, saying how every copy of the option is set up | the listed copies start, and `--join openarm_v2_sim:bravo` names another | `stack join openarm_v2_sim:charlie`, `stack remove charlie` |
 
 An option's fragment declares axes of its own. A robot's fragment declares
 its robot commander, its recorder and its camera rig, selected per copy with
@@ -81,21 +81,21 @@ simulation. The [OpenArm guide](openarm/README.md) and the
 ```sh
 peppy stack launch openarm_simulation --with mujoco                         # MuJoCo and alpha
 peppy stack remove alpha                                                    # the simulation keeps running
-peppy stack join openarm_v2_sim -i bravo --with xr_commander --set-arguments commander_inst.https_port=4444
+peppy stack join openarm_v2_sim:bravo --with xr_commander --set-arguments commander_inst.https_port=4444
 peppy stack list
 peppy stack launch so101_simulation                                         # Waldo and one SO-101
 peppy stack launch so101_simulation --with mujoco                           # the same robot, alone in MuJoCo
 peppy stack launch so101_simulation --with isaac_sim
 peppy stack launch openarm_simulation --join so101_sim:charlo               # alpha and an SO-101 named at launch
-peppy stack join so101_sim -i delta                                         # another SO-101 beside them
+peppy stack join so101_sim:delta                                            # another SO-101 beside them
 peppy stack launch simulation                                               # a simulation with no robot
 peppy stack launch physical                                                 # a new stack with no robot
-peppy stack join openarm_v2 -i alpha --place jetson-1
-peppy stack join so101 -i bravo
+peppy stack join openarm_v2:alpha --place jetson-1
+peppy stack join so101:bravo
 peppy stack launch simulation_mcp                                           # Waldo, the two endpoints and alpha over MCP
 peppy stack launch simulation_mcp --join so101_sim:charlie                  # alpha and an SO-101 over MCP
-peppy stack join openarm_v2_sim -i bravo                                    # a second OpenArm, listed on the same URL when the join returns
-peppy stack join so101_sim -i delta                                         # an SO-101, its arm and front camera on the same URL
+peppy stack join openarm_v2_sim:bravo                                       # a second OpenArm, listed on the same URL when the join returns
+peppy stack join so101_sim:delta                                            # an SO-101, its arm and front camera on the same URL
 ```
 
 A simulation stands a robot when it holds the robot's model in its scene and
@@ -133,10 +133,10 @@ launch, and a join onto it, without starting nodes:
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --then-join openarm_v2 --then-join-name bravo --then-join-with xr_commander,lerobot_recorder
+peppy stack resolve physical --then-join openarm_v2:bravo --with bravo.xr_commander,bravo.lerobot_recorder
 peppy stack resolve simulation_mcp --join so101_sim:charlie --with web_scene_commander
-peppy stack resolve so101_simulation --then-join so101_sim --then-join-name charlo
-peppy stack resolve simulation_mcp --then-join so101_sim --then-join-name delta
+peppy stack resolve so101_simulation --then-join so101_sim:charlo
+peppy stack resolve simulation_mcp --then-join so101_sim:delta
 ```
 
 ### What a copy can change
@@ -244,10 +244,10 @@ commander, its ids under the copy's name (`alpha_follower_inst`,
 
 ```sh
 peppy stack launch physical
-peppy stack join so101 -i alpha
-peppy stack join so101 -i alpha --with xr_commander,lerobot_recorder,cameras
+peppy stack join so101:alpha
+peppy stack join so101:alpha --with xr_commander,lerobot_recorder,cameras
 peppy stack launch physical --with robot_control                                    # the robots' MCP endpoint
-peppy stack join so101 -i alpha --with mcp_commander,cameras              # driven over MCP, its camera served
+peppy stack join so101:alpha --with mcp_commander,cameras                 # driven over MCP, its camera served
 ```
 
 The simulated SO-101 is the `so101_sim` option of every simulation launcher,
@@ -264,7 +264,7 @@ peppy stack launch so101_simulation                                         # Wa
 peppy stack launch so101_simulation --with mujoco                           # the same robot, alone in MuJoCo
 peppy stack launch so101_simulation --with isaac_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
-peppy stack join so101_sim -i charlo                                        # an SO-101 beside the copies already standing
+peppy stack join so101_sim:charlo                                           # an SO-101 beside the copies already standing
 ```
 
 Over MCP a model drives the SO-101's arm and gripper and sees through its
@@ -274,7 +274,7 @@ and, on `simulation_mcp`, moves its base through the `simulation` endpoint.
 ## Inspecting and testing
 
 ```sh
-peppy stack resolve openarm_simulation --with mujoco --then-join openarm_v2_sim --then-join-name bravo --then-join-with xr_commander
+peppy stack resolve openarm_simulation --with mujoco --then-join openarm_v2_sim:bravo --with bravo.xr_commander
 peppy repo index --check .
 python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 ```

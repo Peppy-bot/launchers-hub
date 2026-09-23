@@ -124,10 +124,10 @@ from the operating system when it is held, printing the one it took under
 peppy stack launch simulation_mcp                                                  # Waldo, the two endpoints, alpha listed
 peppy stack launch simulation_mcp --join so101_sim:charlie                         # alpha and an SO-101
 peppy stack launch simulation_mcp --join openarm_v2_sim:bravo --join so101_sim:charlie   # two OpenArms and an SO-101
-peppy stack join openarm_v2_sim -i bravo                                           # a second OpenArm, listed when the join returns
-peppy stack join so101_sim -i foxtrot                                              # another SO-101, with its front camera
-peppy stack join openarm_v2_sim -i delta --with ai_brain                           # an OpenArm with a brain, its brain tools on the same URL
-peppy stack join openarm_v2_sim -i echo --with xr_commander                        # one under the headset, listed with no moves
+peppy stack join openarm_v2_sim:bravo                                              # a second OpenArm, listed when the join returns
+peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its front camera
+peppy stack join openarm_v2_sim:delta --with ai_brain                              # an OpenArm with a brain, its brain tools on the same URL
+peppy stack join openarm_v2_sim:echo --with xr_commander                           # one under the headset, listed with no moves
 peppy stack remove bravo                                                           # gone from the listing when the remove returns
 peppy stack remove alpha                                                           # the endpoints keep running, listing the rest
 ```
@@ -181,8 +181,8 @@ endpoint, joining each robot with its MCP option and rig:
 
 ```sh
 peppy stack launch physical --with robot_control
-peppy stack join openarm_v2 -i alpha --with mcp_commander,cameras --place jetson-1
-peppy stack join so101 -i bravo --with mcp_commander,cameras
+peppy stack join openarm_v2:alpha --with mcp_commander,cameras --place jetson-1
+peppy stack join so101:bravo --with mcp_commander,cameras
 ```
 
 The server reads one clock: the simulation's beside a simulation and wall
@@ -255,7 +255,7 @@ peppy stack launch simulation_mcp --with mujoco,world_control=none
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm_v2 -i alpha --with mcp_commander,cameras
+peppy stack join openarm_v2:alpha --with mcp_commander,cameras
 ```
 
 The first is the browser scene commander on Waldo with `alpha` under the

@@ -11,7 +11,7 @@
 //   peppy stack launch so101_simulation --with mujoco                       # the same robot, alone in MuJoCo
 //   peppy stack launch so101_simulation --with alpha.so101_leader           # a real leader arm driving the simulated follower
 //   peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim   # driven over MCP, its front camera served
-//   peppy stack join openarm_v2_sim -i bravo                                # an OpenArm v2 beside alpha, with the browser panel
+//   peppy stack join openarm_v2_sim:bravo                                   # an OpenArm v2 beside alpha, with the browser panel
 //
 // The robot axis offers every simulated robot, so an OpenArm joins beside
 // the SO-101; every simulation stands as many robots as the machines can

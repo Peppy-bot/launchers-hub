@@ -9,7 +9,7 @@
 //
 // It comes up with no commander, so it runs on a machine with no SO-101
 // hardware: a CI runner, a development host, a plain
-// `peppy stack join so101_sim -i charlo`, with actions driving the arm. A
+// `peppy stack join so101_sim:charlo`, with actions driving the arm. A
 // copy's `with` or a join word selects a command surface.
 {
   peppy_schema: "launcher_fragment/v1",

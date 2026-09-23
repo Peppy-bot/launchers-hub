@@ -32,7 +32,7 @@
 //   peppy stack launch simulation_mcp                                            # Waldo, the two endpoints, alpha listed
 //   peppy stack launch simulation_mcp --join so101_sim:charlie                   # alpha and an SO-101
 //   peppy stack launch simulation_mcp --with mujoco,world_control=none               # the robots' endpoint alone, under MuJoCo
-//   peppy stack join openarm_v2_sim -i bravo                                     # a second OpenArm, on the same URL when the join returns
+//   peppy stack join openarm_v2_sim:bravo                                        # a second OpenArm, on the same URL when the join returns
 //   peppy stack remove alpha                                                     # the endpoints keep running, listing nothing
 //
 // A `--with` word on a join wins on its own axis and the entry's other axes

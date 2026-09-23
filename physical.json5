@@ -5,12 +5,12 @@
 // alpha_commander_inst.
 //
 //   peppy stack launch physical                                   # a new stack with no robot
-//   peppy stack join openarm_v2 -i alpha --place jetson-1        # a v2 with the browser panel
-//   peppy stack join so101 -i bravo                              # an SO-101 under its leader arm
+//   peppy stack join openarm_v2:alpha --place jetson-1           # a v2 with the browser panel
+//   peppy stack join so101:bravo                                 # an SO-101 under its leader arm
 //   peppy stack remove alpha
 //
 //   peppy stack launch physical --with robot_control                       # the robots' MCP endpoint, waiting for robots
-//   peppy stack join openarm_v2 -i alpha --with mcp_commander,cameras --place jetson-1   # driven over MCP, listed when the join returns
+//   peppy stack join openarm_v2:alpha --with mcp_commander,cameras --place jetson-1      # driven over MCP, listed when the join returns
 //   peppy stack launch physical --join openarm_v2:alpha --join openarm_v1:bravo --place alpha@jetson-1 --place bravo@jetson-2
 {
   peppy_schema: "launcher/v1",

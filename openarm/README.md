@@ -45,9 +45,9 @@ and hardware generation before enabling the buses.
 ```sh
 peppy repo refresh
 peppy stack launch physical
-peppy stack join openarm_v2 -i alpha                     # a v2 with the browser panel, on this machine
-peppy stack join openarm_v2 -i alpha --place jetson-1
-peppy stack join openarm_v1 -i bravo --place jetson-2
+peppy stack join openarm_v2:alpha                        # a v2 with the browser panel, on this machine
+peppy stack join openarm_v2:alpha --place jetson-1
+peppy stack join openarm_v1:bravo --place jetson-2
 peppy stack list
 peppy stack remove alpha
 peppy stack reset --federated
@@ -80,10 +80,10 @@ These are the robot's own axes, declared by its fragments, and selected per
 copy: with `with:` in the file, or `--with` on `stack join`:
 
 ```sh
-peppy stack join openarm_v2 -i bravo --with xr_commander,lerobot_recorder,cameras
-peppy stack join openarm_v1 -i charlie --with xr_commander,cameras --place jetson-2
-peppy stack join openarm_v2 -i delta --with web_commander,ai_brain
-peppy stack join openarm_v2 -i echo --with ker_commander
+peppy stack join openarm_v2:bravo --with xr_commander,lerobot_recorder,cameras
+peppy stack join openarm_v1:charlie --with xr_commander,cameras --place jetson-2
+peppy stack join openarm_v2:delta --with web_commander,ai_brain
+peppy stack join openarm_v2:echo --with ker_commander
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
@@ -135,7 +135,7 @@ client setup and the move from simulation to the real robot are in the
 peppy stack launch simulation_mcp                                                     # Waldo, both endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm_v1 -i charlie --with mcp_commander,cameras --place jetson-2
+peppy stack join openarm_v1:charlie --with mcp_commander,cameras --place jetson-2
 ```
 
 A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
@@ -186,7 +186,7 @@ For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:
 
 ```sh
-peppy stack join openarm_v2 -i bravo --with lerobot_recorder \
+peppy stack join openarm_v2:bravo --with lerobot_recorder \
   --set-arguments 'left_arm_inst.can_interface="bravo_left"' \
   --set-arguments 'left_gripper_inst.can_interface="bravo_left"' \
   --set-arguments 'right_arm_inst.can_interface="bravo_right"' \
@@ -236,10 +236,10 @@ The `robot` axis offers every simulated robot, so an SO-101
 
 ```sh
 peppy stack launch openarm_simulation --with isaac_sim
-peppy stack join openarm_v2_sim -i bravo --with xr_commander
-peppy stack join openarm_v1_sim -i charlie
-peppy stack join so101_sim -i charlo                           # an SO-101 beside the OpenArm alpha
-peppy stack join openarm_v2_sim -i delta --with ker_commander  # the KER against a simulated follower
+peppy stack join openarm_v2_sim:bravo --with xr_commander
+peppy stack join openarm_v1_sim:charlie
+peppy stack join so101_sim:charlo                              # an SO-101 beside the OpenArm alpha
+peppy stack join openarm_v2_sim:delta --with ker_commander     # the KER against a simulated follower
 peppy stack remove bravo
 ```
 
@@ -285,7 +285,7 @@ plugin, and the "Start camera" panel, its `hand_teleop` plugin: webcam hand
 tracking drives an arm of the robot the panel chooses (the first standing
 when none is chosen), ahead of that robot's pairing while a hand is tracked.
 Its `robot_names` plugin has the viewer write `<robot>@<core node>` over every
-robot (`beta@cn-funky-animal` for `peppy stack join openarm_v2_sim -i beta` on
+robot (`beta@cn-funky-animal` for `peppy stack join openarm_v2_sim:beta` on
 the core node `cn-funky-animal`), which tells the robots of one world apart,
 and puts the button hiding and showing those names on the page.
 The fragment
@@ -301,8 +301,8 @@ reach the simulation's machine.
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --then-join openarm_v1 --then-join-name bravo --then-join-with xr_commander
-peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander --then-join openarm_v2_sim --then-join-name bravo --then-join-with xr_commander
+peppy stack resolve physical --then-join openarm_v1:bravo --with bravo.xr_commander
+peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander --then-join openarm_v2_sim:bravo --with bravo.xr_commander
 peppy stack resolve simulation_mcp --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/robot_initializer -sb
 ```

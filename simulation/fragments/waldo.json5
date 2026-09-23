@@ -24,8 +24,7 @@
       source: { name: "waldo", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
-        // Rendering is enabled by a robot's rendered camera rig, or by the
-        // simulation_mcp launcher at launch. plugins is
+        // Rendering is enabled by a robot's rendered camera rig. plugins is
         // the comma-separated list of plugins to run, and all three run
         // whatever else the launch selects; their panels stack on the page
         // in this order. sim_inspector serves the engine's 3D viewer on the

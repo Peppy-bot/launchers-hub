@@ -17,8 +17,7 @@
       source: { name: "sim_mujoco", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
-        // Rendering is enabled by a robot's rendered camera rig, or by the
-        // simulation_mcp launcher at launch.
+        // Rendering is enabled by a robot's rendered camera rig.
         // A robot's nodes start together with its join, and a robot holds
         // its pairs only once its backbone is up: the SO-101's Python
         // backbone takes several seconds to declare them, longer than the

@@ -15,11 +15,11 @@
 //
 // The robot axis offers every simulated robot, so an OpenArm joins beside
 // the SO-101; every simulation stands as many robots as the machines can
-// run, of any model, each joined copy bringing its own. A join cannot turn
-// rendering on: the simulation renders when a copy the launch starts,
-// listed here or named with `--join`, selects its rig, as the fourth
-// command above does, and `--with cameras_sim` on a join is refused on a
-// launch without one.
+// run, of any model, each joined copy bringing its own. A copy named with
+// `--join` is composed as a join, as `stack join` is, and a join cannot
+// turn rendering on: the simulation renders when the copy listed here
+// selects its rig, as the fourth command above does, and `--with
+// cameras_sim` on a join is refused on a launch without one.
 // `--with robot_control` serves the robots' MCP endpoint,
 // http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed
 // and, under mcp_commander, a model drives the SO-101's arm and gripper and

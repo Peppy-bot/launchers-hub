@@ -54,7 +54,7 @@ peppy stack join so101:alpha --with xr_commander,lerobot_recorder,cameras
 peppy stack join so101:alpha --with robot_commander=none                 # actions only
 peppy stack launch physical --with robot_control                                   # the robots' MCP endpoint
 peppy stack join so101:alpha --with mcp_commander,cameras                # driven over MCP, its camera served
-peppy stack resolve physical --then-join so101:alpha --with alpha.xr_commander   # inspect the flattened stack
+peppy stack resolve physical --join so101:alpha --with alpha.xr_commander   # inspect the flattened stack
 ```
 
 Recording needs a trigger: episodes start via the recorder's
@@ -85,8 +85,8 @@ peppy stack join openarm_v2_sim:bravo                                       # an
 peppy stack remove alpha                                                    # the simulation keeps running
 ```
 
-The same join brings an SO-101 into an OpenArm's simulation, and a launch
-names one beside the OpenArm:
+The same join brings an SO-101 into an OpenArm's simulation, whether the
+launch names the copy or `stack join` adds it later:
 
 ```sh
 peppy stack launch openarm_simulation
@@ -101,7 +101,7 @@ join words:
 peppy stack launch so101_simulation --with alpha.so101_leader
 peppy stack launch so101_simulation --with alpha.xr_commander,alpha.lerobot_recorder,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
-peppy stack resolve so101_simulation --with mujoco --then-join so101_sim:charlo   # inspect the flattened stack
+peppy stack resolve so101_simulation --with mujoco --join so101_sim:charlo   # inspect the flattened stack
 ```
 
 - `so101_leader` is a real leader arm driving the simulated follower:
@@ -142,12 +142,13 @@ The limits:
 - Every simulation stands any number of robots at once, each clear of the
   others. Waldo and Isaac Sim place and move them through the scene
   contract.
-- A join cannot turn rendering on, so an SO-101 joined to a plain
+- A copy named with `--join` is composed as a join, as `stack join` is,
+  and a join cannot turn rendering on, so an SO-101 joined to a plain
   `openarm_simulation` or `so101_simulation` has no `front` camera, and
   `--with cameras_sim` on that join is refused. Under `simulation_mcp` a
-  joined SO-101 has its `front` camera, because the launcher turned
-  rendering on at launch, and the rig and the MCP commander are the
-  entry's, for every copy of the option:
+  joined SO-101 has its `front` camera, because the launcher turns
+  rendering on itself, and the rig and the MCP commander are the entry's,
+  for every copy of the option:
 
   ```sh
   peppy stack launch simulation_mcp --join so101_sim:charlie   # an SO-101 over MCP beside alpha, with its front camera

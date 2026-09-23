@@ -128,15 +128,15 @@ discovery and host setup.
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2 and a simulated SO-101; requires a consumer: a recorder, XR or `mcp_commander`, which lists the cameras on the `robot_control` endpoint |
 | `brain` | the v2 robots | `ai_brain`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
 
-A copy selects one option per axis of its robot. `stack resolve` previews any
-launch, and a join onto it, without starting nodes:
+A copy selects one option per axis of its robot. `stack resolve` previews a
+launch and each copy it names, in order, without starting nodes:
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --then-join openarm_v2:bravo --with bravo.xr_commander,bravo.lerobot_recorder
+peppy stack resolve physical --join openarm_v2:bravo --with bravo.xr_commander,bravo.lerobot_recorder
 peppy stack resolve simulation_mcp --join so101_sim:charlie --with web_scene_commander
-peppy stack resolve so101_simulation --then-join so101_sim:charlo
-peppy stack resolve simulation_mcp --then-join so101_sim:delta
+peppy stack resolve so101_simulation --join so101_sim:charlo
+peppy stack resolve simulation_mcp --join so101_sim:delta
 ```
 
 ### What a copy can change
@@ -146,18 +146,19 @@ rendered camera rig turns the simulation's rendering on, the copy's
 instances pair into the simulation's limb and camera slots, which hold any
 number of pairs, and they join the sets the MCP endpoint's targets declare,
 with `add_links` on `robot_control_inst`. Copies deployed together must agree on
-every field they both write, and a join may write to a stack instance only
-what already runs there, its pairs and its set members aside; a join that
-would change a running instance any other way is refused, naming the
-instance and each field that differs, so a join cannot turn rendering on:
-rendered cameras are selected at launch, by a word on a copy the file lists
-or the launch names (`--with alpha.cameras_sim`, `--join so101_sim:charlie
---with charlie.cameras_sim`), or by the launcher itself, as `simulation_mcp`
-does. A robot joined to a plain `openarm_simulation` or `so101_simulation`
-has no rendered camera, an SO-101's `front` included, while one joined to
-`simulation_mcp` has its rig. The
-[planner](.github/scripts/launcher_combinations.py) reports such copies as
-launch-only.
+every field they both write. A copy named on the command line is composed as
+a join, `--join OPTION:NAME` at launch and `stack join OPTION:NAME` later
+alike, so a robot you can name at launch is a robot you can join later. Such
+a copy may write to a stack instance only what already runs there, its pairs
+and its set members aside; one that would change a running instance any
+other way is refused, naming the instance and each field that differs. A
+join therefore cannot turn rendering on: rendered cameras are selected by a
+word on a copy the file lists (`--with alpha.cameras_sim`) or by the
+launcher itself, as `simulation_mcp` does. A robot joined to a plain
+`openarm_simulation` or `so101_simulation` has no rendered camera, an
+SO-101's `front` included, while one joined to `simulation_mcp` has its
+rig. The [planner](.github/scripts/launcher_combinations.py) reports such
+copies as file-only.
 
 ### How a robot reaches a simulation
 
@@ -274,7 +275,7 @@ and, on `simulation_mcp`, moves its base through the `simulation` endpoint.
 ## Inspecting and testing
 
 ```sh
-peppy stack resolve openarm_simulation --with mujoco --then-join openarm_v2_sim:bravo --with bravo.xr_commander
+peppy stack resolve openarm_simulation --with mujoco --join openarm_v2_sim:bravo --with bravo.xr_commander
 peppy repo index --check .
 python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 ```

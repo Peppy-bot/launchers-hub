@@ -82,9 +82,9 @@ message, as the document tells a model to expect.
 both endpoints deployed and every robot driven over MCP by default. It
 lists one robot, `alpha`, an OpenArm v2, and each robot entry states, for
 every copy of its option, the MCP commander, with the rendered rig on the
-v2 and the SO-101, so `alpha`, the robots a launch names with `--join OPTION:NAME` and the robots
-joined later alike are driven over MCP. The launcher turns the simulation's
-rendering on itself, which a join cannot, so the first robot joined onto it
+v2 and the SO-101, so `alpha` and every robot named on the command line, at launch with
+`--join OPTION:NAME` or later with `stack join`, are driven over MCP. The launcher turns the
+simulation's rendering on itself, which a join cannot, so every robot joined onto it
 gets its cameras.
 
 `peppy stack list` reports, for the bare launch:

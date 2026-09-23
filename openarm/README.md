@@ -244,8 +244,9 @@ peppy stack remove bravo
 ```
 
 Every simulation stands any number of robots, so a join comes up beside
-`alpha` whichever one runs. A join cannot turn rendering on, so a robot
-joined to a launch whose copies select no rig has no rendered camera.
+`alpha` whichever one runs. A copy named with `--join` is composed as a
+join, as `stack join` is, and a join cannot turn rendering on, so a robot
+joined to a launch whose listed copy selects no rig has no rendered camera.
 
 Every simulation stands a v1 or a v2, the model the robot's fragment
 names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
@@ -301,8 +302,8 @@ reach the simulation's machine.
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --then-join openarm_v1:bravo --with bravo.xr_commander
-peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander --then-join openarm_v2_sim:bravo --with bravo.xr_commander
+peppy stack resolve physical --join openarm_v1:bravo --with bravo.xr_commander
+peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander --join openarm_v2_sim:bravo --with bravo.xr_commander
 peppy stack resolve simulation_mcp --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/robot_initializer -sb
 ```

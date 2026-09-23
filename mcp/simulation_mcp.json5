@@ -23,11 +23,11 @@
 // What this file adds to openarm_simulation: the robots' endpoint
 // deployed, the world's endpoint on its own axis, rendering on from the
 // launch, and its robot entries: alpha, and for each option the setup of
-// every copy, the MCP commander with the rendered rig, so alpha, the
-// robots a launch names with `--join OPTION:NAME` and a plain `stack join`
-// alike come up driven over MCP, listed on the same URL when the join
-// returns. The stacks this file is meant for, and the same client on the
-// real robots, are in mcp/README.md:
+// every copy, the MCP commander with the rendered rig, so alpha and every
+// robot named on the command line, at launch with `--join OPTION:NAME` or
+// later with a plain `stack join`, come up driven over MCP, listed on the
+// same URL when the join returns. The stacks this file is meant for, and
+// the same client on the real robots, are in mcp/README.md:
 //
 //   peppy stack launch simulation_mcp                                            # Waldo, the two endpoints, alpha listed
 //   peppy stack launch simulation_mcp --join so101_sim:charlie                   # alpha and an SO-101
@@ -93,8 +93,9 @@
   ],
 
   // An entry's `with` selects the robot's own axes for every copy of the
-  // option, alpha, the ones `--join OPTION:NAME` starts with the launch and
-  // the ones a join adds alike: the MCP commander with the rendered rig.
+  // option: alpha, and every copy named on the command line, at launch with
+  // `--join OPTION:NAME` or later with `stack join`, the MCP commander with
+  // the rendered rig.
   deployments: [
     { simulation: "waldo" },
     { robot_control: "robot_control" },

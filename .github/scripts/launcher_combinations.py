@@ -17,9 +17,11 @@ nothing.
 plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
 classifies unavailable hardware and rollout dependencies. A joined copy
-comes up beside the copies the file deploys. Of the launchable combinations
-in scope it keeps the launches that, between them, run every configured node
-instance and every pair of instances that run side by side.
+comes up beside the copies the file deploys. A resolve whose report says the
+link rules went unchecked fails the plan, naming the caches to fill. Of the
+launchable combinations in scope it keeps the launches that, between them,
+run every configured node instance and every pair of instances that run side
+by side.
 
 launch runs the planned launches one after the other on the running daemon,
 resetting the stack between them, holds each joined copy to the instances
@@ -57,6 +59,13 @@ CONSTRAINT_REFUSAL_MARK = "which this selection"
 # carries this phrase. Such a copy runs only when the file deploys it at
 # launch, which the repository check covers; it is not a broken launcher.
 JOIN_CHANGE_MARK = "would change"
+
+# `stack resolve` holds the flat plan to the launch-time link rules only where
+# this machine's caches hold every deployed node's manifest, and writes a
+# report line to stderr opening with this phrase when they do not. A run whose
+# caches are cold resolves every combination without checking one, so the line
+# fails the plan and names the caches to fill.
+LINK_RULES_UNCHECKED_MARK = "link rules not checked"
 
 # The name every previewed and launched copy joins under in CI. A copy name is
 # unique on the stack, and the simulation launchers deploy `alpha`.
@@ -822,6 +831,9 @@ class Verdict(enum.Enum):
     SKIPPED = "skipped"
     #: The copy runs only where the file deploys it at launch.
     LAUNCH_ONLY = "launch-only"
+    #: It resolves, but this machine's caches lack a manifest the link rules
+    #: read, so the resolve proves less than it looks like it proves.
+    UNCHECKED = "unchecked"
     #: It does not resolve and nothing above explains why.
     BROKEN = "broken"
 
@@ -982,6 +994,11 @@ def resolve_candidate(root, candidate, skips):
         if candidate.join_option and JOIN_CHANGE_MARK in output:
             return Resolution(Verdict.LAUNCH_ONLY, output)
         return Resolution(Verdict.BROKEN, output)
+    unchecked = [
+        line for line in resolve.stderr.splitlines() if LINK_RULES_UNCHECKED_MARK in line
+    ]
+    if unchecked:
+        return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
     plan = _Parser(resolve.stdout, "resolved").parse_document()
     nodes = deployed_nodes(plan)
     hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
@@ -1230,6 +1247,11 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
             raise SystemExit(
                 f"{candidate.label} does not resolve and the launcher's constraints "
                 "do not refuse it either"
+            )
+        if resolution.verdict is Verdict.UNCHECKED:
+            raise SystemExit(
+                f"{candidate.label}: {resolution.detail}; register the repositories "
+                "holding those nodes and run `peppy repo refresh` before planning"
             )
 
     in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)

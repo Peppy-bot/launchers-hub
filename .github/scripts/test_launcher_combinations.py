@@ -1258,6 +1258,20 @@ class ResolveTests(unittest.TestCase):
                 pass
         self.assertIn("sim (simulation=waldo) does not resolve", str(failure.exception))
 
+    def test_a_resolve_that_checked_no_link_rule_fails_the_plan(self):
+        """A cold cache resolves every combination and proves none of them,
+        so the report line peppy writes for it stops the run."""
+        unchecked = completed(
+            resolved_plan("waldo:v1").stdout,
+            stderr="link rules not checked: the nodes cache is empty; run `peppy repo refresh`",
+        )
+        answers = {("sim.json5", "simulation=waldo", "", "", ""): unchecked}
+        with self.assertRaises(SystemExit) as failure:
+            with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
+                pass
+        self.assertIn("sim (simulation=waldo): link rules not checked", str(failure.exception))
+        self.assertIn("run `peppy repo refresh` before planning", str(failure.exception))
+
     def test_a_refusal_that_is_no_join_is_not_mistaken_for_a_launch_only_copy(self):
         answers = {("sim.json5", "simulation=waldo", "", "", ""): JOIN_REFUSAL}
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):

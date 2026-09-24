@@ -23,9 +23,9 @@ name: Tests
 # exactly the combinations whose resolved plan differs from the one the base
 # tree gives them, and only those are planned. A change outside every
 # launcher (this workflow, the skips file, the repository index, ...) plans
-# every combination, as does a push to main whose tree no run has tested yet
-# and the weekly run; a Markdown file outside every launcher is the one
-# exception, planning nothing.
+# every combination, as does a push to main whose tree no run has tested
+# yet; a Markdown file outside every launcher is the one exception, planning
+# nothing.
 #
 # Two jobs. `discover` enumerates the launchers and every combination of
 # their axes (printed to its log and the run summary), scopes them to the
@@ -83,7 +83,10 @@ name: Tests
 # concern; a second runner on a box would make its directory shared mutable
 # state and is a reason to revisit it. A run's launches all land on the box
 # its launch job is scheduled on, and find the images earlier runs built on
-# that box.
+# that box. The fingerprint does not cover a def's floating base image tag,
+# so a moved base image reaches a cached node image when that image's
+# fingerprint next changes: at the next peppy release, or at the next change
+# to the node's sources.
 #
 # Every job runs on those runners; no job uses a GitHub-hosted one. A pull
 # request from a fork lands there too, so what keeps fork code off the box is
@@ -92,17 +95,11 @@ name: Tests
 # A push to main runs only when its tree was never tested: a merge whose
 # result is exactly the pull request's tested tree (the branch was up to
 # date with main) is skipped, since the pull request's run is the run of
-# that tree. The weekly run launches its plan with `--rebuild`, ignoring the
-# artifact cache: the fingerprint does not cover a def's floating base image
-# tag, so this is where a moved base image reaches every node, and where a
-# launcher drifting from the published nodes is caught between pushes.
+# that tree.
 on:
   push:
     branches: [main]
   pull_request:
-  schedule:
-    # Mondays 03:00 UTC.
-    - cron: '0 3 * * 1'
 
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
@@ -166,7 +163,7 @@ jobs:
     name: Discover and plan the launcher combinations
     needs: tested-tree
     # Skipped only when the gate above found the tree tested; on a pull
-    # request or the weekly run the gate itself is skipped and this runs.
+    # request the gate itself is skipped and this runs.
     if: ${{ !cancelled() && needs.tested-tree.outputs.tested != 'true' }}
     # The self-hosted runner is x86, and the cache directory below carries
     # the architecture, so moving this repository onto an arm runner starts
@@ -266,10 +263,15 @@ jobs:
       # source the shell parses, and the shape check turns a typo into a
       # named failure rather than a 404 from a URL built out of it.
       #
-      # The binary answers `--version` before building any app context, so
-      # no PEPPY_HOME is needed here. `latest` resolves to a different
-      # release over time, so the log and the run summary both record which
-      # release this run actually executed.
+      # `peppy stack resolve` reads the nodes cache under PEPPY_HOME, and a
+      # release build with no PEPPY_HOME reads the runner user's ~/.peppy,
+      # which outlives the job and differs from box to box. This step gives
+      # the later steps a PEPPY_HOME under RUNNER_TEMP, empty at the start of
+      # every run. That home holds no nodes cache, so the plan step's resolves
+      # check no link rules; the launch job's daemon checks them for every
+      # combination it launches. `latest` resolves to a different release
+      # over time, so the log and the run summary both record which release
+      # this run actually executed.
       - name: Install peppy
         if: steps.scope.outputs.any == 'true'
         env:
@@ -299,6 +301,8 @@ jobs:
             | tar -xzf - -C "$dest"
           chmod +x "$dest/bin/peppy"
           echo "$dest/bin" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/peppy-home"
+          echo "PEPPY_HOME=$RUNNER_TEMP/peppy-home" >> "$GITHUB_ENV"
 
           # $GITHUB_PATH serves the steps after this one; this step names the
           # binary it just extracted by its full path.
@@ -350,9 +354,8 @@ jobs:
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once
     # each, since every launch after the first finds the image in the shared
-    # cache below; warm runs stay far under this. The weekly run rebuilds
-    # every image of every launch, so its budget is the larger one.
-    timeout-minutes: ${{ github.event_name == 'schedule' && 720 || 180 }}
+    # cache below; warm runs stay far under this.
+    timeout-minutes: 180
     permissions:
       contents: read
     steps:
@@ -664,24 +667,16 @@ jobs:
       # themselves, and the build idle budget they raise, are the planner's
       # `launch` command.
       #
-      # The weekly run passes `--rebuild`: every node builds from its staged
-      # sources even when the artifact cache holds its fingerprint, which is
-      # how a def's floating base image tag, outside the fingerprint, reaches
-      # the images the cache serves for the week after.
-      #
       # The plan reaches the shell through the environment rather than a
       # `${{ }}` expansion: its labels and launch words are data the shell
       # reads instead of source the shell parses.
       - name: Launch every planned combination start to end
         env:
           PLAN: ${{ needs.discover.outputs.plan }}
-          REBUILD: ${{ github.event_name == 'schedule' }}
         run: |
           set -euo pipefail
           printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
-          launch_args=(--plan "$RUNNER_TEMP/plan.json")
-          [ "$REBUILD" = "true" ] && launch_args+=(--rebuild)
-          python3 .github/scripts/launcher_combinations.py launch "${launch_args[@]}"
+          python3 .github/scripts/launcher_combinations.py launch --plan "$RUNNER_TEMP/plan.json"
 
       # Every launch ran on the one daemon, so when a launch failed its side
       # of the story is here: the end of the daemon's own log.

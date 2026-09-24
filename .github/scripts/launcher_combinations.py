@@ -1362,14 +1362,12 @@ def copy_instance_states(listing, name):
     }
 
 
-def launch_command(launch, rebuild):
+def launch_command(launch):
     argv = ["peppy", "stack", "launch", launch.launcher]
     if launch.words:
         argv += ["--with", launch.words]
     if launch.local:
         argv.append("--local")
-    if rebuild:
-        argv.append("--rebuild")
     return argv + BUILD_IDLE_TIMEOUT
 
 
@@ -1380,14 +1378,14 @@ def join_command(launch):
     return argv + BUILD_IDLE_TIMEOUT
 
 
-def launch_start_to_end(launch, rebuild, run):
+def launch_start_to_end(launch, run):
     """Launches one combination and returns once every node has signalled
     ready, then joins its copy where it plans one, beside the copies the file
     deploys. The joined copy is held to the instances its preview gave it, so
     a join that comes up as another robot than the one planned fails the
     launch, and every one of them is running once the join returns, so a copy
     whose robot the engine took out during the join fails it too."""
-    checked(run, launch_command(launch, rebuild))
+    checked(run, launch_command(launch))
     if launch.join_option:
         checked(run, join_command(launch))
         listing = checked(run, ["peppy", "stack", "list", "--json"], capture=True)
@@ -1434,13 +1432,13 @@ def workflow_command(name, message, **properties):
     print(f"::{name}{' ' + rendered if rendered else ''}::{escaped(message)}", flush=True)
 
 
-def launch_and_reset(launch, rebuild, run):
+def launch_and_reset(launch, run):
     """One launch inside its log group, and the reset that hands the next
     launch an empty stack. Returns the outcome and whether the stack is
     empty again."""
     workflow_command("group", launch.label)
     try:
-        launch_start_to_end(launch, rebuild, run)
+        launch_start_to_end(launch, run)
         failure = ""
     except LaunchFailed as error:
         failure = str(error)
@@ -1457,7 +1455,7 @@ def launch_and_reset(launch, rebuild, run):
     return Outcome(launch.label, Status.FAILED, failure), stack_is_empty
 
 
-def launch_all(launches, rebuild, run):
+def launch_all(launches, run):
     """Every planned launch, one after the other on the one daemon. A failed
     launch does not stop the ones after it: the stack is reset and the run
     goes on, so a red run names every failing combination. A stack that does
@@ -1465,7 +1463,7 @@ def launch_all(launches, rebuild, run):
     so the remaining launches are reported as not launched."""
     outcomes = []
     for index, launch in enumerate(launches):
-        outcome, stack_is_empty = launch_and_reset(launch, rebuild, run)
+        outcome, stack_is_empty = launch_and_reset(launch, run)
         outcomes.append(outcome)
         if not stack_is_empty:
             reason = f"the stack did not reset after {launch.label}"
@@ -1477,8 +1475,8 @@ def launch_all(launches, rebuild, run):
     return outcomes
 
 
-def command_launch(plan_path, rebuild):
-    outcomes = launch_all(read_plan(plan_path), rebuild, run_peppy)
+def command_launch(plan_path):
+    outcomes = launch_all(read_plan(plan_path), run_peppy)
     rows = [
         (outcome.label, f"{outcome.status.value} {sanitize(outcome.detail)}".strip())
         for outcome in outcomes
@@ -1523,7 +1521,6 @@ def main():
         "launch", help="launch every planned combination start to end on the running daemon"
     )
     launch_parser.add_argument("--plan", required=True, help="the launches `plan` wrote")
-    launch_parser.add_argument("--rebuild", action="store_true")
 
     args = parser.parse_args()
     try:
@@ -1534,7 +1531,7 @@ def main():
         elif args.command == "plan":
             command_plan(args.root, args.scope, args.base_root, args.skips, args.plan)
         else:
-            command_launch(args.plan, args.rebuild)
+            command_launch(args.plan)
     except Json5Error as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1)

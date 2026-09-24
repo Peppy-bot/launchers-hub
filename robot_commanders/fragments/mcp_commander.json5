@@ -1,0 +1,26 @@
+// The MCP command surface, shared by every robot: no leader node at all. A
+// model drives the robot by name on the stack's MCP endpoint, the server
+// built into peppy serving the robot_control:v1 exposure from the MCP hub.
+// This part adds the backbone's moves to the endpoint, and the robot's rig
+// adds its cameras under this option; the robot's identity and limb state
+// are listed there under any commander. The family's control leaves the
+// backbone's leader sockets vacant, so this part touches the backbone not
+// at all.
+// The launcher that offers this commander declares a robot_control axis: the
+// requirement names it, and the moves are added on its robot_control_inst.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [],
+
+  constraints: [
+    // The moves go to the stack's MCP endpoint, which the launcher runs.
+    { requires: [{ robot_control: "robot_control" }],
+      reason: "mcp_commander adds the robot's moves to the stack's MCP endpoint; launch with robot_control" },
+  ],
+
+  adjustments: [
+    { target: "robot_control_inst",
+      add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+  ],
+}

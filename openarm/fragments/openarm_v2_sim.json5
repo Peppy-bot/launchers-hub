@@ -12,8 +12,8 @@
   // The option this robot deploys on its own axes unless a copy's `with`
   // says otherwise.
   deployments: [
-    { control: "control_common" },
     // The commander this robot runs unless a copy's `with` selects another.
+    { control: "control_common" },
     { robot_commander: "web_commander" },
   ],
 
@@ -21,21 +21,20 @@
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`.
   components: [
-    // The initializer and backbone every OpenArm shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
-    // mcp_commander is the robot's own MCP surface, the one the real robot
-    // has: its moves beside its three cameras, which the rendered rig fills
-    // here. The simulated world's MCP endpoint is not this robot's: the
-    // launcher that serves it deploys it (mcp/openarm_simulation_mcp.json5).
+    // Under mcp_commander a model drives the robot by name on the stack's
+    // MCP endpoint, the one the real robot has: its moves beside the
+    // cameras of its rig, the rendered rig here. The option defines no
+    // commander_inst, so an adjustment naming one is skipped under it.
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        mcp_commander: "mcp_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
         ker_commander: "ker_commander.json5",
       },
     },
@@ -55,7 +54,7 @@
     // from the backbone, so it sits beside any robot commander.
     {
       name: "brain", cardinality: "zero_or_one",
-      provides: ["brain_inst", "brain_mcp_inst"],
+      provides: ["brain_inst"],
       options: { ai_brain: "ai_brain.json5" },
     },
   ],
@@ -64,24 +63,13 @@
     // The camera streams need a consumer: the recorder films them, the XR
     // headset shows them in its panels, and the MCP commander publishes
     // them as resources and tools, the model its consumer. The rig must
-    // feed at least one of them. The browser scene commander lists them in
-    // its camera panel too, but its axis belongs to the simulation's
-    // fragment, not to this robot's or the launcher's, so a constraint here
-    // cannot name it: the resolver refuses `scene_commander` as not in
-    // reach. A rig meant for that panel alone selects one of the consumers
-    // above beside it.
+    // feed at least one of them.
     { when: { camera_rig: "cameras_sim" },
       requires: [
         { recorder: "lerobot_recorder" },
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and every target takes a
-    // link, so its camera targets cannot be optional: the rendered rig
-    // must run beside it.
-    { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras_sim" }],
-      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras_sim" },
   ],
 
   adjustments: [
@@ -94,7 +82,6 @@
     { target: "commander_inst", set_framework: { clock: "simulation" } },
     { target: "recorder_inst", set_framework: { clock: "simulation" } },
     { target: "brain_inst", set_framework: { clock: "simulation" } },
-    { target: "brain_mcp_inst", set_framework: { clock: "simulation" } },
     // Who this robot is and where its limbs are: the v2 model, and the
     // simulation's limbs. The initializer joins the simulation as this
     // robot, and the simulation answers for every limb it stands.

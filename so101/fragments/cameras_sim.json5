@@ -16,11 +16,10 @@
 // them.
 //
 // Beside the recorder and the XR headset, the MCP commander reads the rig:
-// it publishes the camera on the robot's own endpoint, its exposure's
-// camera target linked to this relay by the id written here; that link is
-// the commander fragment's own, so nothing below attaches it. The browser
-// scene commander's camera panel reads the cameras from the simulation,
-// which lists every robot's, so the rig links nothing into the stack.
+// under it the rig lists the camera on the stack's MCP endpoint below, with
+// its profile and geometry. The browser scene
+// commander's camera panel reads the cameras from the simulation, which
+// lists every robot's, so the rig links nothing else into the stack.
 //
 // Camera placement, intrinsics and rate live with the simulation, in its
 // so101 model.
@@ -56,5 +55,11 @@
     // Shape guard: only the XR commander has camera slots of its own.
     { target: "commander_inst", when: { robot_commander: "xr_commander" },
       add_links: { color_cameras: ["front"] } },
+    // Under the MCP commander the camera is listed on the stack's MCP
+    // endpoint as this robot's, describing its profile and geometry.
+    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { camera: ["front"],
+                   camera_profile: ["front"],
+                   camera_geometry: ["front"] } },
   ],
 }

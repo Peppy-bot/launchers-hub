@@ -48,4 +48,13 @@
       ],
     },
   ],
+
+  adjustments: [
+    // The panel streams joint setpoints into the four leader sockets,
+    // released here for it to pair into, and supplies the operator's
+    // governor toggle.
+    { target: "backbone_inst",
+      set_links: { collision_ctrl: "commander_inst" },
+      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
+  ],
 }

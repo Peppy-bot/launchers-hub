@@ -1,35 +1,29 @@
-// An SO-101 in a simulation: openarm_simulation with another robot in it.
+// An SO-101 in a simulation: openarm_simulation with another robot first.
 // The simulation is the stack, Waldo unless a launch word selects another,
-// and the robot alpha, a simulated SO-101 with no commander, is the copy
-// the file deploys, its ids minted under its name: alpha_init_inst,
-// alpha_backbone_inst. It opens no device, so it launches on a machine
-// with no SO-101 hardware, and actions drive its arm. `stack remove` takes
-// the copy off and `stack join` adds one, the simulation running
-// throughout.
+// and the robot is a copy, alpha, a simulated SO-101 with no commander,
+// its ids minted under its name: alpha_init_inst, alpha_backbone_inst. It
+// opens no device, so it launches on a machine with no SO-101 hardware,
+// and actions drive its arm. `stack remove` takes a copy off and `stack
+// join` adds one, the simulation running throughout, and `--join
+// OPTION:NAME` names another copy at launch.
 //
-//   peppy stack launch so101_simulation                  # Waldo and one SO-101
-//   peppy stack launch so101_simulation --with mujoco    # the same robot, in MuJoCo
-//   peppy stack launch so101_simulation --with isaac_sim
-//   peppy stack launch so101_simulation --with alpha.so101_leader   # a real leader arm driving the simulated follower
-//   peppy stack launch so101_simulation --with alpha.xr_commander,alpha.lerobot_recorder,alpha.cameras_sim
-//   peppy stack launch so101_simulation --with alpha.mcp_commander,alpha.cameras_sim   # its front camera served over MCP
-//   peppy stack remove alpha                             # the simulation keeps running
+//   peppy stack launch so101_simulation                                     # Waldo and one SO-101
+//   peppy stack launch so101_simulation --with mujoco                       # the same robot, alone in MuJoCo
+//   peppy stack launch so101_simulation --with alpha.so101_leader           # a real leader arm driving the simulated follower
+//   peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim   # driven over MCP, its front camera served
+//   peppy stack join openarm_v2_sim:bravo                                   # an OpenArm v2 beside alpha, with the browser panel
 //
 // The robot axis offers every simulated robot, so an OpenArm joins beside
-// the SO-101. Every simulation stands as many robots as the machines can
-// run, of any model, each joined copy bringing its own:
-//
-//   peppy stack join so101_sim -i charlo                 # a second SO-101 beside alpha
-//   peppy stack join openarm_v2_sim -i bravo             # an OpenArm v2 beside them, with the browser panel
-//   peppy stack join so101_sim -i delta --with mcp_commander,cameras_sim   # its front camera served over MCP
-//
-// Every simulation stands any number of robots at once, so a join comes up
-// beside alpha whichever one runs. A join cannot turn rendering on: the
-// last join above comes up where a copy the file deploys selected its rig
-// at launch, as the fifth and sixth launches do, and is refused on a launch
-// without one. Over MCP a model sees through the SO-101's front camera, at
-// http://127.0.0.1:8903/front_camera/v1/mcp; its arm is not drivable over
-// MCP.
+// the SO-101; every simulation stands as many robots as the machines can
+// run, of any model, each joined copy bringing its own. A copy named with
+// `--join` is composed as a join, as `stack join` is, and a join cannot
+// turn rendering on: the simulation renders when the copy listed here
+// selects its rig, as the fourth command above does, and `--with
+// cameras_sim` on a join is refused on a launch without one.
+// `--with robot_control` serves the robots' MCP endpoint,
+// http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed
+// and, under mcp_commander, a model drives the SO-101's arm and gripper and
+// sees through its front camera.
 {
   peppy_schema: "launcher/v1",
 
@@ -44,10 +38,18 @@
         waldo: "../simulation/fragments/waldo.json5",
       },
     },
-    // Every option of this file's simulation axis stands a so101_sim, so no
-    // constraint pairs the two here: `peppy repo index --check` refuses a
-    // constraint that refuses no selection. fleet.json5, whose simulation
-    // axis may be unfilled, lists the simulations that stand one.
+    // The robots' MCP endpoint, selected with `--with robot_control`. Every robot is
+    // listed on it, and a robot's mcp_commander option adds its moves and
+    // requires it.
+    {
+      name: "robot_control",
+      cardinality: "zero_or_one",
+      options: {
+        robot_control: "../mcp/fragments/robot_control.json5",
+      },
+    },
+    // Every simulated robot, an option of the same name in every simulation
+    // launcher. Every simulation stands any number of them, of any model.
     {
       name: "robot",
       cardinality: "zero_or_more",
@@ -59,17 +61,17 @@
     },
   ],
 
-  // Component deployments: the entry names the component and its option.
-  // `with` selects the robot's own axes, an axis left out taking what the
-  // robot deploys; `arguments` is keyed by the ids written in its fragment.
+  // Component deployments: the entry names the component and its option,
+  // and the robot entry lists the copy the launch starts, set up as its
+  // fragment deploys it; `--join OPTION:NAME` names another.
   deployments: [
     { simulation: "waldo" },
-    {
-      robot: "so101_sim",
-      instances: [
-        { instance_id: "alpha" },
-      ],
-    },
+    { robot: "so101_sim", instances: [{ instance_id: "alpha" }] },
   ],
 
+  adjustments: [
+    // The server reads the simulation's clock, as every instance a robot
+    // copy runs does; each simulated robot's fragment binds its own.
+    { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+  ],
 }

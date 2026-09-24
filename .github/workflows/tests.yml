@@ -34,16 +34,23 @@ name: Tests
 # `peppy stack resolve` splits the combinations into the launchable, the
 # refused (the launcher's own constraints, quoted), and the skipped (a
 # deployed node needs hardware the runner has none of, per
-# .github/unlaunchable-nodes.json5). The launches picked among the
-# launchable ones are the plan the second job runs. `launch` installs a
-# peppy release, boots one isolated daemon, registers this checkout as the
-# launcher repository in its place (the bundled entry points at GitHub main,
-# which would resolve a pull request's launcher to the stale merged copy),
-# and runs the planned launches one after the other: `peppy stack launch`
-# resolves the launcher, adds each deployment's node, builds its container
-# image, and runs it, returning only once every node has signalled ready. A
-# launch that plans a join then runs `peppy stack join`, plain or with its
-# words, beside whatever copies the file deploys: two robots side by side
+# .github/unlaunchable-nodes.json5). The resolve also holds each flat plan to
+# the link rules a launch would reject it for, reading the manifest of every
+# node it deploys, so `discover` boots a daemon of its own and refreshes the
+# hub repositories into this machine's caches before it plans; a resolve
+# reporting those rules unchecked fails the job, except where the caches could
+# not be filled for a reason the workflow already tolerates, which today is a
+# fork's pull request with no deploy key for the private hub: there the run
+# summary names every combination left unproven and the job stays green. The
+# launches picked among the launchable ones are the plan the second job runs.
+# `launch` installs a peppy release, boots one isolated daemon, registers this
+# checkout as the launcher repository in its place (the bundled entry points at
+# GitHub main, which would resolve a pull request's launcher to the stale
+# merged copy), and runs the planned launches one after the other: `peppy stack
+# launch` resolves the launcher, adds each deployment's node, builds its
+# container image, and runs it, returning only once every node has signalled
+# ready. A launch that plans a join then runs `peppy stack join`, plain or with
+# its words, beside whatever copies the file deploys: two robots side by side
 # where it deploys one, and the scene's first robot where it deploys none.
 # One join per launch is what a plan carries, so a simulation standing three
 # robots or more is proven by hand and not here.
@@ -168,10 +175,14 @@ jobs:
     # The self-hosted runner is x86, and the cache directory below carries
     # the architecture, so moving this repository onto an arm runner starts
     # from an empty cache rather than a wrong-arch one. The launch job's base
-    # images are published for both. No daemon and no container runs here,
-    # only the planner and `peppy repo index`.
+    # images are published for both. No container runs here and nothing is
+    # built: the daemon below serves `peppy repo refresh` alone, filling the
+    # caches the resolve reads node manifests out of.
+    #
+    # The budget covers the cold clone of every hub repository on top of the
+    # planner's own work; the trees are a few tens of megabytes between them.
     runs-on: self-hosted
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
     outputs:
@@ -205,8 +216,10 @@ jobs:
             $1 == "launcher" { printf "**%s** — %s\n", $2, $3; next }
             $1 == "combo" {
               selection = ($3 == "" ? "defaults" : $3)
-              if ($4 != "") selection = selection " + join " $4 ($5 == "" ? "" : " (" $5 ")")
-              if ($6 == "local") selection = selection " (--local)"
+              n = split($4, started, ",")
+              for (i = 1; i <= n; i++) selection = selection " --join " started[i] ":bravo"
+              if ($5 != "") selection = selection " + join " $5 ($6 == "" ? "" : " (" $6 ")")
+              if ($7 == "local") selection = selection " (--local)"
               print "- " selection
             }
           ' "$RUNNER_TEMP/inventory.tsv")
@@ -267,11 +280,10 @@ jobs:
       # release build with no PEPPY_HOME reads the runner user's ~/.peppy,
       # which outlives the job and differs from box to box. This step gives
       # the later steps a PEPPY_HOME under RUNNER_TEMP, empty at the start of
-      # every run. That home holds no nodes cache, so the plan step's resolves
-      # check no link rules; the launch job's daemon checks them for every
-      # combination it launches. `latest` resolves to a different release
-      # over time, so the log and the run summary both record which release
-      # this run actually executed.
+      # every run, and the daemon started below fills its caches before the
+      # plan step resolves. `latest` resolves to a different release over
+      # time, so the log and the run summary both record which release this
+      # run actually executed.
       - name: Install peppy
         if: steps.scope.outputs.any == 'true'
         env:
@@ -320,13 +332,120 @@ jobs:
         if: steps.scope.outputs.any == 'true'
         run: peppy repo index --check .
 
+      # The link rules the resolve below holds each flat plan to are checked
+      # against the manifest of every node the plan deploys, read out of this
+      # machine's caches. The waldo simulation node lives in
+      # Peppy-bot/private-nodes-hub, which only an authenticated reader can
+      # clone, so the daemon that fills those caches gets a repository deploy
+      # key: a read-only one, scoped to that repository alone, held as the
+      # PRIVATE_NODES_HUB_DEPLOY_KEY secret. peppy authenticates ssh clones
+      # through the ssh-agent, so the agent's socket is exported through
+      # GITHUB_ENV and the daemon started below inherits it. The agent is this
+      # job's own and dies with the runner.
+      #
+      # github.com's host key is pinned, not trusted on first sight: the scan
+      # must fingerprint exactly GitHub's published ed25519 key, or the job
+      # stops before any private bytes move. It lands in ~/.ssh/known_hosts,
+      # where libgit2, peppy's git transport, checks it.
+      #
+      # A fork's pull request runs without this repository's secrets, so the
+      # key arrives empty, the private hub stays unregistered, and the plan
+      # step names waldo's manifest as one it could not read.
+      - name: Give the daemon the private hub's deploy key
+        if: steps.scope.outputs.any == 'true'
+        env:
+          PRIVATE_NODES_HUB_DEPLOY_KEY: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
+            echo "no deploy key for private-nodes-hub (fork pull request?); skipping"
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          scan="$(ssh-keyscan -t ed25519 github.com 2>/dev/null)"
+          fingerprint="$(ssh-keygen -lf - <<<"$scan" | awk '{print $2}')"
+          if [ "$fingerprint" != "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU" ]; then
+            echo "github.com fingerprints as $fingerprint, not GitHub's published ed25519 key" >&2
+            exit 1
+          fi
+          printf '%s\n' "$scan" >>~/.ssh/known_hosts
+
+          eval "$(ssh-agent -a "$RUNNER_TEMP/private-hub-agent.sock")" >/dev/null
+          key="$(mktemp "$RUNNER_TEMP/private-hub-key.XXXXXX")"
+          printf '%s\n' "${PRIVATE_NODES_HUB_DEPLOY_KEY%$'\n'}" >"$key"
+          chmod 600 "$key"
+          ssh-add "$key"
+          rm -f "$key"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >>"$GITHUB_ENV"
+
+      # `peppy repo add` and `peppy repo refresh` are daemon commands, so the
+      # caches are filled by a daemon of this job's own. Its data root is the
+      # PEPPY_HOME the install step put under RUNNER_TEMP, which is at once
+      # how the CLI finds it and how it stays clear of any other daemon on
+      # the box. It builds and launches nothing, so it takes none of the
+      # launch job's build caches, and its name carries the run id because
+      # core-node names must be unique among daemons that can reach each
+      # other.
+      - name: Start a peppy daemon to fill this machine's caches
+        if: steps.scope.outputs.any == 'true'
+        run: |
+          set -euo pipefail
+          PEPPY_MESSAGING_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+          echo "PEPPY_MESSAGING_PORT=$PEPPY_MESSAGING_PORT" >> "$GITHUB_ENV"
+          export PEPPY_MESSAGING_PORT
+
+          nohup peppy service serve --core-node-name "ci-plan-$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/peppy-serve.log" 2>&1 &
+          echo "PEPPY_DAEMON_PID=$!" >> "$GITHUB_ENV"
+          for _ in $(seq 1 30); do
+            if [ -f "$PEPPY_HOME/daemon_state.json5" ]; then exit 0; fi
+            sleep 1
+          done
+          echo "daemon did not come up; serve log:" >&2
+          cat "$RUNNER_TEMP/peppy-serve.log" >&2
+          exit 1
+
+      # The node manifests and MCP exposure documents every flat plan names:
+      # the bundled defaults publish the nodes, contracts, pairings and
+      # exposures, and the private hub joins them from the reserved id band
+      # whenever the deploy key reached this job. The refresh clones each one
+      # at depth 1 and hands the clone to the checkout cache, which is where
+      # the resolve below reads a git-backed node's manifest from. The
+      # bundled launchers-hub entry stays as it is: the planner resolves every
+      # launcher by its path in this checkout.
+      #
+      # This step is the one that knows whether the private hub was registered,
+      # so where it was not it carries that on to the plan step through
+      # LINK_RULES_UNPROVABLE, whose value is the reason the run summary gives
+      # for every combination it then leaves unproven. A fork's pull request
+      # reaches the plan step this way and stays green.
+      - name: Fill the caches the link rules read
+        if: steps.scope.outputs.any == 'true'
+        env:
+          PRIVATE_NODES_HUB_DEPLOY_KEY: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PRIVATE_NODES_HUB_DEPLOY_KEY" ]; then
+            peppy repo add git@github.com:Peppy-bot/private-nodes-hub.git --ref main --id 2000
+          else
+            echo "LINK_RULES_UNPROVABLE=the private hub is not registered and this machine holds no manifest for the nodes it publishes" >> "$GITHUB_ENV"
+          fi
+          peppy repo refresh
+
       # Resolve every combination against the launcher file it comes from
       # and split it into the launchable, the refused (the launcher's own
       # constraints, quoted), and the skipped (a deployed node needs hardware
       # the runner has none of, per .github/unlaunchable-nodes.json5). Of the
       # launchable ones in scope, the launches that between them run every
       # configured node instance and every pair running side by side leave
-      # as the plan the launch job runs. Needs no daemon; needs peppy.
+      # as the plan the launch job runs. The resolve reads the caches filled
+      # above and talks to no daemon; a combination whose link rules it could
+      # not check fails this step, naming the manifest it could not read,
+      # unless the step above set LINK_RULES_UNPROVABLE, when those
+      # combinations pass, stay out of the plan, and are listed in the run
+      # summary under that reason.
       - name: Plan the combinations this run launches
         id: plan
         if: steps.scope.outputs.any == 'true'
@@ -338,6 +457,12 @@ jobs:
             --skips .github/unlaunchable-nodes.json5 \
             --plan "$RUNNER_TEMP/plan.json"
           echo "plan=$(cat "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+
+      # One box runs one job at a time, so the daemon of this job is stopped
+      # before the launch job boots its own.
+      - name: Stop the daemon
+        if: always() && env.PEPPY_DAEMON_PID != ''
+        run: kill "$PEPPY_DAEMON_PID" 2>/dev/null || true
 
   launch:
     name: Launch the planned combinations

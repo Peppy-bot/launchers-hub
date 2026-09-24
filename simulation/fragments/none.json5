@@ -1,4 +1,0 @@
-// The empty option: a `one` axis is on by default and switchable when one
-// of its options deploys nothing. `simulation_mcp=none` launches without
-// the simulated world's MCP endpoint.
-{ peppy_schema: "launcher_fragment/v1" }

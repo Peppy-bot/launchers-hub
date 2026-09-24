@@ -1,9 +1,9 @@
 // The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
 // default) with a self-signed certificate: the engine's 3D viewer of the
-// running world, streamed over WebTransport on UDP viewer_port, the name tag
-// over every robot with the button hiding them, and the hand teleop panel,
-// all on from the first launch. Its scene_manipulation and
-// object_state contracts take a scene commander. The world opens with no
+// running world, streamed over WebTransport on UDP viewer_port, with the
+// page's controls around it, the name tag over every robot with the button
+// hiding them, and the hand teleop panel, all on from the first launch. Its
+// scene_manipulation and object_state contracts take a scene commander. The world opens with no
 // robot: every robot joins it through its initializer, bringing its own
 // model, and any number stand in it at once, of any model in its
 // catalogue, placed and moved through the scene contract. Each holds its
@@ -24,18 +24,21 @@
       source: { name: "waldo", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
-        // Rendering is enabled by a robot's rendered camera rig. plugins is
-        // the comma-separated list of plugins to run, and all three run
-        // whatever else the launch selects; their panels stack on the page
-        // in this order. sim_inspector serves the engine's 3D viewer on the
-        // HTTPS page (without it the page is blank) and answers the
-        // scene_manipulation and object_state calls of the scene commander;
-        // robot_names has that viewer write `<robot>@<core node>` over every
-        // robot, which tells the robots of a crowded world apart, and is the
-        // page's button hiding and showing those names; hand_teleop is the
-        // page's "Start camera" panel, which tracks the operator's hands on
+        // Rendering is enabled by a robot's rendered camera rig. The debug
+        // inspector and the plugins run whatever else the launch selects.
+        // debug_inspector serves the engine's 3D viewer on the HTTPS page
+        // (without it the page shows no viewer) and answers the
+        // scene_manipulation and object_state calls of the scene commander.
+        // plugins is the comma-separated list of plugins to run, every one
+        // the node accepts: each is a UI element of the page, and within
+        // each place on the page they show in this order (Waldo's
+        // plugins/README.md says what each shows and where). robot_names
+        // has the viewer write `<robot>@<core node>` over every robot,
+        // which tells the robots of a crowded world apart; hand_teleop is
+        // the "Start camera" panel, which tracks the operator's hands on
         // the webcam and drives the arm of the chosen robot ahead of that
-        // robot's pairing while a hand is tracked.
+        // robot's pairing while a hand is tracked. Every plugin but
+        // hand_teleop needs debug_inspector.
         // A robot's nodes start together with its join, and a robot holds
         // its pairs only once its backbone is up: the SO-101's Python
         // backbone takes several seconds to declare them, longer than the
@@ -43,7 +46,7 @@
         // is driven. The lease is also how long a robot whose nodes are gone
         // stays, and how long one paired as another model stays before its
         // stay ends naming both lists.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, plugins: "robot_names,hand_teleop,sim_inspector", world: "stage", robot_lease_ms: 10000 },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,robot_names,hand_teleop,contact_markers,dark_mode,viewer_hint", world: "stage", robot_lease_ms: 10000 },
       }],
     },
   ],

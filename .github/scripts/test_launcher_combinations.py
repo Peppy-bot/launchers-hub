@@ -491,23 +491,29 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(
             [(c.words, c.launch_joins, c.join_option) for c in found],
             [([], (), None), ([], ("openarm_v2",), None), ([], (), "openarm_v2")])
-    def test_waldo_runs_the_inspector_whatever_the_launch_selects(self):
-        # The 3D viewer and the scene services are the inspector's, so the
-        # fragment runs it from the first launch of every launcher deploying
-        # Waldo rather than behind the scene commander selection; no
-        # adjustment of the fragment or of a launcher touches `plugins`.
+
+    def test_waldo_runs_the_debug_inspector_whatever_the_launch_selects(self):
+        # The 3D viewer and the scene services are the debug inspector's, so
+        # the fragment runs it from the first launch of every launcher
+        # deploying Waldo rather than behind the scene commander selection;
+        # no adjustment of the fragment or of a launcher touches
+        # `debug_inspector` or `plugins`.
         # Every robot joins Waldo bringing its own model, so the world it
         # opens, the stage, is the fragment's too, and no launcher sets one.
+        pinned = {"world", "debug_inspector", "plugins"}
         root = Path(__file__).resolve().parents[2]
         for launcher in ROBOT_LAUNCHERS:
             document = combinations.load_json5(root / launcher, launcher)
             for adjustment in document.get("adjustments", []):
-                self.assertFalse({"world", "plugins"} & set(adjustment.get("set_arguments", {})), launcher)
+                self.assertFalse(pinned & set(adjustment.get("set_arguments", {})), launcher)
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
         arguments = waldo["deployments"][0]["instances"][0]["arguments"]
-        self.assertEqual((arguments["world"], arguments["plugins"]), ("stage", "robot_names,hand_teleop,sim_inspector"))
+        self.assertEqual(
+            (arguments["world"], arguments["debug_inspector"], arguments["plugins"]),
+            ("stage", True, "connection_status,frame_rate,robot_names,hand_teleop,contact_markers,dark_mode,viewer_hint"),
+        )
         for adjustment in waldo.get("adjustments", []):
-            self.assertFalse({"world", "plugins"} & set(adjustment.get("set_arguments", {})))
+            self.assertFalse(pinned & set(adjustment.get("set_arguments", {})))
 
     def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
         root = Path(__file__).resolve().parents[2]

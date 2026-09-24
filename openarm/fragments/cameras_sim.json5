@@ -3,24 +3,26 @@
 // dataset image keys a real one does (observation.images.wrist_left /
 // wrist_right / chest, plus chest_depth). The frames come from the
 // simulation, so there are no device paths and no udev rule here; each
-// relay views one camera slot on the simulation and presents the
-// rgb_camera / rgbd_camera contract, exactly as the uvc and zed nodes do,
-// and describes its device through camera_profile.
+// relay pairs into the simulation's slot for its kind of camera,
+// rgb_cameras or rgbd_cameras, and presents the rgb_camera / rgbd_camera
+// contract, exactly as the uvc and zed nodes do, describing its device
+// through camera_profile. Each slot holds any number of pairs: the
+// simulation tells a pair's robot by its copy and its camera by the
+// relay's name in that copy, the instance id written here.
 //
 // Each relay also holds a control slot for the simulation's camera
 // response model (sim_camera_control), which forwards the controls a
-// consumer sets on the camera to the simulation under the slot's name.
+// consumer sets on the camera to the simulation's model of that camera.
 // Waldo implements it, so the relays bind it there; MuJoCo and Isaac Sim
 // have no response model, so the slot is written vacant and every camera
 // control refuses on them.
 //
 // Beside the recorder and the XR headset, the MCP commander reads the rig:
-// it publishes the three cameras on the robot's own endpoint, its
-// exposure's camera targets linked to these relays by the ids written
-// here, as they are to the uvc and zed nodes on hardware; that link is the
-// commander fragment's own, so nothing below attaches it. The browser scene
-// commander's camera panel reads the cameras from the simulation, which
-// lists every robot's, so the rig links nothing into the stack.
+// under it the rig lists its three cameras on the stack's MCP endpoint
+// below, as the physical rig does, the rendered ones with their profile
+// and geometry too. The browser scene commander's camera panel
+// reads the cameras from the simulation, which lists every robot's, so the
+// rig links nothing else into the stack.
 //
 // Camera placement, intrinsics and rates live with the simulation (MuJoCo
 // and Isaac Sim read config/cameras.json5; Waldo's robot MJCF carries the
@@ -39,13 +41,13 @@
       instances: [
         { instance_id: "wrist_left",
           links: {
-            simulation: "simulation_inst/wrist_left",
+            simulation: "simulation_inst/rgb_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
           },
           framework: { clock: "simulation" } },
         { instance_id: "wrist_right",
           links: {
-            simulation: "simulation_inst/wrist_right",
+            simulation: "simulation_inst/rgb_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
           },
           framework: { clock: "simulation" } },
@@ -61,7 +63,7 @@
       instances: [
         { instance_id: "chest",
           links: {
-            simulation: "simulation_inst/chest",
+            simulation: "simulation_inst/rgbd_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
           },
           framework: { clock: "simulation" } },
@@ -92,5 +94,13 @@
     // one producer. Unguarded: skips on its own when no brain was selected.
     { target: "brain_inst",
       set_links: { camera: "chest" } },
+    // Under the MCP commander the cameras are listed on the stack's MCP
+    // endpoint as this robot's, the wrists as color cameras and the chest
+    // as one carrying depth, each describing its profile and geometry.
+    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { camera: ["wrist_left", "wrist_right"],
+                   depth_camera: ["chest"],
+                   camera_profile: ["wrist_left", "wrist_right", "chest"],
+                   camera_geometry: ["wrist_left", "wrist_right", "chest"] } },
   ],
 }

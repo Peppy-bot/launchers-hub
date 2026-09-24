@@ -1,0 +1,37 @@
+// Every robot of the stack over MCP: the server built into peppy serves the
+// robot_control:v1 exposure from the MCP hub on one endpoint,
+// http://127.0.0.1:8900/robot_control/v1/mcp, where every call names its
+// robot. The document is a per-robot surface, so each of its targets is a
+// set the robots fill: this instance takes no links, and the fragments a
+// robot's copy runs add its instances with `add_links` on
+// robot_control_inst. The family's control lists the robot with its
+// identity and limb state, and an OpenArm's collision readout, the brain
+// and the recorder list themselves whenever they run, the mcp_commander
+// option adds the backbone's moves, and the rig adds its cameras under that
+// option. A join adds its robot's instances while the server runs and a
+// removal takes them out, so the endpoint and its URL are the same for one
+// robot or ten and before and after any join.
+//
+// simulation_mcp deploys this option, and physical, openarm_simulation and
+// so101_simulation serve it with `--with robot_control`. The server reads
+// one clock: a simulation launcher binds it to the simulation's clock
+// beside its robots, and physical.json5 leaves it on wall time with the
+// physical robots, so a stack under MCP is real or simulated.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { exposures: ["robot_control:v1"] },
+      instances: [
+        {
+          instance_id: "robot_control_inst",
+          // The derived node's only parameter: the port the server prefers
+          // on 127.0.0.1. One server serves the stack, so the port is the
+          // stack's, beside the simulated world's endpoint on 8902.
+          arguments: { port: 8900 },
+        },
+      ],
+    },
+  ],
+}

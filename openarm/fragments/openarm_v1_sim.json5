@@ -1,40 +1,38 @@
 // A simulated OpenArm v1: the shared OpenArm control, with the simulation
 // standing its limbs. The launcher's simulation axis supplies
 // simulation_inst; this robot's initializer joins it, naming the copy the
-// robot runs as and the v1 model to stand, and the backbone leads the
-// simulation's limb slots on the same pairings it leads a real robot's
-// drivers. Isaac Sim and Waldo hold one pair per robot on those slots, so a
-// stack runs as many robots as its machines can, of either generation;
-// MuJoCo holds one, and loads the generation this robot names.
+// robot runs as and the openarm_v1 model to stand, and the backbone leads
+// the simulation's limb slots, arms and grippers, on the same pairings it
+// leads a real robot's drivers. Each slot holds any number of pairs, so
+// every simulation stands as many robots as its machine can run, of any
+// model.
 {
   peppy_schema: "launcher_fragment/v1",
 
   // The option this robot deploys on its own axes unless a copy's `with`
   // says otherwise.
   deployments: [
-    { control: "control_common" },
     // The commander this robot runs unless a copy's `with` selects another.
+    { control: "control_common" },
     { robot_commander: "web_commander" },
   ],
 
   // The robot's own axes, `one` or `zero_or_one`, filled per copy of this
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`. The simulations render
-  // the camera rig on v2 links only, so a v1 has no camera_rig axis, and
-  // with it no mcp_commander: that option's exposure publishes the robot's
-  // cameras, its list is fixed and every target takes a link, so it runs
-  // only where a rig fills them.
+  // the camera rig on v2 links only, so a v1 has no camera_rig axis; over
+  // MCP it is listed with no camera.
   components: [
-    // The initializer and backbone every OpenArm shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
       },
     },
     {
@@ -51,21 +49,24 @@
     { target: "backbone_inst", set_framework: { clock: "simulation" } },
     { target: "commander_inst", set_framework: { clock: "simulation" } },
     { target: "recorder_inst", set_framework: { clock: "simulation" } },
-    // Where this robot's limbs are: the simulation's. The initializer joins
-    // it as this robot, a v1, and it answers for every limb it stands.
+    // Who this robot is and where its limbs are: the v1 model, and the
+    // simulation's limbs. The initializer joins the simulation as this
+    // robot, and the simulation answers for every limb it stands.
     { target: "init_inst",
       set_links: { simulation: "simulation_inst" },
-      set_arguments: { hardware_version: "v1" } },
-    // The backbone leads the simulation's limb slots: governed commands
-    // flow down each pair and this robot's measured state returns on it.
-    // It governs a v1, with a startup EE-speed cap the simulation, faster
-    // than the real arm, allows.
+      set_arguments: { model: "openarm_v1" } },
+    // The backbone leads the simulation's limb slots, one per kind of limb:
+    // governed commands flow down each pair and this robot's measured state
+    // returns on it. The simulation tells a pair's robot by its copy and
+    // its limb by the backbone link it comes from, so both arms pair into
+    // `arms` and both grippers into `grippers`. It governs a v1, with a
+    // startup EE-speed cap the simulation, faster than the real arm, allows.
     { target: "backbone_inst",
       set_links: {
-        left_arm_link: "simulation_inst/left_arm",
-        right_arm_link: "simulation_inst/right_arm",
-        left_gripper_link: "simulation_inst/left_gripper",
-        right_gripper_link: "simulation_inst/right_gripper",
+        left_arm: "simulation_inst/arms",
+        right_arm: "simulation_inst/arms",
+        left_gripper: "simulation_inst/grippers",
+        right_gripper: "simulation_inst/grippers",
       },
       set_arguments: { hardware_version: "v1", max_ee_velocity_m_s: 0.5 } },
     // Isaac publishes measured state once per rendered frame, capped at 60 Hz.

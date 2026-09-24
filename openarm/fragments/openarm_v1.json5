@@ -61,8 +61,8 @@
         },
       ],
     },
-    { control: "control_common" },
     // The commander this robot runs unless a copy's `with` selects another.
+    { control: "control_common" },
     { robot_commander: "web_commander" },
   ],
 
@@ -70,17 +70,16 @@
   // fragment: `with: { robot_commander: "xr_commander" }` on a copy in the
   // launcher, `--with xr_commander` on `stack join`.
   components: [
-    // The initializer and backbone every OpenArm shares.
     {
       name: "control", provides: ["init_inst", "backbone_inst"],
       options: { control_common: "control_common.json5" },
     },
     {
-      name: "robot_commander", provides: ["commander_inst"],
+      name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        mcp_commander: "mcp_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
       },
     },
     {
@@ -107,34 +106,28 @@
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
-    // The MCP commander's exposure list is fixed and every target takes a
-    // link, so its camera targets cannot be optional: the rig must run
-    // beside it.
-    { when: { robot_commander: "mcp_commander" },
-      requires: [{ camera_rig: "cameras" }],
-      reason: "mcp_commander serves the robot's cameras and its exposure list is fixed, so the camera targets cannot be optional; select cameras" },
   ],
 
   adjustments: [
-    // Where this robot's limbs are: four drivers of its own, each
-    // answering for its limb. It drives its own hardware, so it joins no
-    // simulation. It is a v1.
+    // Who this robot is and where its limbs are: the v1 model, and four
+    // drivers of its own, each answering for its limb. It drives its own
+    // hardware, so it joins no simulation.
     { target: "init_inst",
       set_links: {
         simulation: { vacant: "this robot drives its own limbs" },
         limbs: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"],
       },
-      set_arguments: { hardware_version: "v1" } },
+      set_arguments: { model: "openarm_v1" } },
     // The backbone leads each driver: governed commands flow down each
     // pair and the limb's measured state returns on it. The generation it
     // governs, and a startup EE-speed cap conservative for physical
     // hardware.
     { target: "backbone_inst",
       set_links: {
-        left_arm_link: "left_arm_inst",
-        right_arm_link: "right_arm_inst",
-        left_gripper_link: "left_gripper_inst",
-        right_gripper_link: "right_gripper_inst",
+        left_arm: "left_arm_inst",
+        right_arm: "right_arm_inst",
+        left_gripper: "left_gripper_inst",
+        right_gripper: "right_gripper_inst",
       },
       set_arguments: { hardware_version: "v1", max_ee_velocity_m_s: 0.25 } },
     // Real drivers report per-motor health and emit operator alerts. Only

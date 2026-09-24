@@ -1,19 +1,26 @@
-// The control every OpenArm shares: the initializer that reports the robot
-// ready once its four limbs are up, the backbone that governs them, and
-// the wiring of the robot's commander and recorder into both. Where the
-// limbs are is the robot fragment's to say: on the initializer, the
-// instance that answers for each limb's readiness and the simulation the
-// robot joins, if any; on the backbone, the slot each limb pairing leads
-// to. What is observed of the robot is named by the backbone's end of each
-// pair, which is the same whatever holds the far end.
+// The control every OpenArm shares: the initializer that says who the robot
+// is and reports it ready once its four limbs are up, the backbone that
+// governs them, and the wiring of the robot's commander and recorder into
+// both. Which OpenArm it is and where its limbs are is the robot fragment's
+// to say: on the initializer, the model, the instance that answers for each
+// limb's readiness and the simulation the robot joins, if any; on the
+// backbone, what each limb's link pairs with. The backbone names its
+// downstream links after the limbs, left_arm, right_arm, left_gripper and
+// right_gripper, and what is observed of the robot is named by that end of
+// each pair, which is the same whatever holds the far end.
+// The launcher that offers this control declares a robot_control axis: the
+// recorder's trigger rule names it, and the robot's listing is added on its
+// robot_control_inst.
 {
   peppy_schema: "launcher_fragment/v1",
 
   deployments: [
     {
-      // The initializer reports the robot ready only when all four of its
-      // limbs are, and joins the simulation that stands a simulated robot.
-      source: { name: "openarm_initializer", tag: "v1" },
+      // The identity node every robot runs: it answers robot_identity with
+      // the model the robot fragment names, reports the robot ready only
+      // when all four of its limbs are, and joins the simulation that stands
+      // a simulated robot.
+      source: { name: "robot_initializer", tag: "v1" },
       instances: [ { instance_id: "init_inst" } ],
     },
     {
@@ -37,10 +44,16 @@
           },
           links: {
             robot_init: "init_inst",
-            // The web panel supplies the operator's governor toggle. XR and
-            // MCP use the backbone's launch-time settings and vacate this slot.
-            collision_ctrl: "commander_inst",
-            // Joint mode leaves pose slots vacant; XR pairs into them.
+            // No leader streams by default: the joint and pose sockets stand
+            // vacant, and nothing produces governor_control, so the backbone
+            // keeps its launch-time band, enable and EE-speed caps. A leader
+            // releases the sockets it drives and pairs into them from its
+            // own fragment; the headset block below switches to pose mode.
+            collision_ctrl: { vacant: "no leader produces governor_control: the launch-time band, enable and EE-speed caps stand" },
+            leader_left_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
+            leader_right_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
+            leader_left_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
+            leader_right_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
             leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
             leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
           },
@@ -50,14 +63,26 @@
   ],
 
   constraints: [
-    // Recording starts through the commander's record button and recorder
-    // slot, provided by the web panel and XR headset.
+    // An episode needs a trigger: the record button of the web panel or the
+    // headset, or the recorder.record_episode tool of the stack's MCP
+    // endpoint, where the recorder is listed whenever the endpoint runs.
+    // The KER leader carries none.
     { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: ["web_commander", "xr_commander"] }],
-      reason: "the record button requires web_commander or xr_commander" },
+      requires: [{ robot_commander: ["web_commander", "xr_commander"] }, { robot_control: "robot_control" }],
+      reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode on the MCP endpoint; select one of those commanders or launch with robot_control" },
   ],
 
   adjustments: [
+    // Every robot beside the stack's MCP endpoint is listed on it with what
+    // it is and how it stands: its identity is the initializer's, and its
+    // limb state and collision readout the backbone's. Skipped where the
+    // launch runs no endpoint.
+    { target: "robot_control_inst",
+      add_links: {
+        identity: ["init_inst"],
+        limb_state: ["backbone_inst"],
+        collision: ["backbone_inst"],
+      } },
     {
       target: "commander_inst",
       when: { robot_commander: "xr_commander" },
@@ -72,17 +97,20 @@
         postures: ["backbone_inst"],
       },
     },
+    // The headset streams poses: the backbone follows the pose sockets,
+    // released here for the headset to pair into; the joint sockets stay
+    // vacant.
     {
       target: "backbone_inst",
       when: { robot_commander: "xr_commander" },
       set_arguments: { upstream_mode: "pose" },
-      set_links: {
-        collision_ctrl: { vacant: "xr_commander never produces governor_control" },
-        leader_left_arm: { vacant: "upstream_mode pose: arm commands arrive on the pose slots" },
-        leader_right_arm: { vacant: "upstream_mode pose: arm commands arrive on the pose slots" },
-      },
       unset_links: ["leader_left_arm_pose", "leader_right_arm_pose"],
     },
+    // The record button: the web panel and the headset carry a recorder
+    // slot, and the recorder fills it when both run. The KER carries none.
+    { target: "commander_inst",
+      when: { robot_commander: ["web_commander", "xr_commander"], recorder: "lerobot_recorder" },
+      add_links: { recorder: ["recorder_inst"] } },
     {
       target: "recorder_inst",
       // Each source is sampled onto this fps grid.
@@ -91,12 +119,12 @@
         // Read-only observations of each limb's measured state, in robot
         // limb order, named by the backbone's end of the pair, so the
         // dataset holds this robot's limbs and no other robot's.
-        observed_joints: ["backbone_inst/left_arm_link", "backbone_inst/right_arm_link"],
-        observed_grippers: ["backbone_inst/left_gripper_link", "backbone_inst/right_gripper_link"],
+        observed_joints: ["backbone_inst/left_arm", "backbone_inst/right_arm"],
+        observed_grippers: ["backbone_inst/left_gripper", "backbone_inst/right_gripper"],
         // Record the backbone's governed commands, paired positionally with
         // the measured lists above: each action matches its follower.
-        commanded_joints: ["backbone_inst/left_arm_link", "backbone_inst/right_arm_link"],
-        commanded_grippers: ["backbone_inst/left_gripper_link", "backbone_inst/right_gripper_link"],
+        commanded_joints: ["backbone_inst/left_arm", "backbone_inst/right_arm"],
+        commanded_grippers: ["backbone_inst/left_gripper", "backbone_inst/right_gripper"],
       },
     },
   ],

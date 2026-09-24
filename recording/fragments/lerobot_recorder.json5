@@ -1,7 +1,9 @@
-// Dataset recording and the record button on commander_inst. The robot's
-// fragment requires a commander with a recorder slot (the web panel or XR
-// headset) and supplies the ordered limb observations and actions, dataset
-// rate, robot_type, and storage_root.
+// Dataset recording: the record button on a commander with a recorder slot
+// (the web panel or XR headset), which the family's control wires, and the
+// episode recording a model starts on the stack's MCP endpoint, where the
+// recorder is listed as its robot's whatever the commander. The family's
+// control supplies the ordered limb observations and actions and the
+// dataset rate, and the robot's fragment robot_type and storage_root.
 //
 // storage_root is bind-mounted into the recorder container; /tmp lasts until
 // reboot, so select durable storage for saved datasets. Setting s3_uri
@@ -19,6 +21,7 @@
   ],
 
   adjustments: [
-    { target: "commander_inst", add_links: { recorder: ["recorder_inst"] } },
+    // Skipped where the launch runs no MCP endpoint.
+    { target: "robot_control_inst", add_links: { recorder: ["recorder_inst"] } },
   ],
 }

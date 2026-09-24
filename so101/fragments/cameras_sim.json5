@@ -1,0 +1,65 @@
+// The rendered counterpart of cameras.json5: the same episode viewpoint and
+// the same instance id, so a simulated session records the dataset image
+// key a real one does (observation.images.front). The frames come from the
+// simulation, so there is no device path and no udev rule here; the relay
+// pairs into the simulation's rgb_cameras slot and presents the rgb_camera
+// contract, exactly as the uvc node does, describing its device through
+// camera_profile. The slot holds any number of pairs: the simulation tells
+// a pair's robot by its copy and its camera by the relay's name in that
+// copy, the instance id written here.
+//
+// The relay also holds a control slot for the simulation's camera response
+// model (sim_camera_control), which forwards the controls a consumer sets
+// on the camera to the simulation's model of that camera. Waldo implements
+// it, so the relay binds it there; MuJoCo and Isaac Sim have no response
+// model, so the slot is written vacant and every camera control refuses on
+// them.
+//
+// Beside the recorder and the XR headset, the MCP commander reads the rig:
+// under it the rig lists the camera on the stack's MCP endpoint below, with
+// its profile and geometry. The browser scene
+// commander's camera panel reads the cameras from the simulation, which
+// lists every robot's, so the rig links nothing else into the stack.
+//
+// Camera placement, intrinsics and rate live with the simulation, in its
+// so101 model.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      // The front camera: the simulation renders the viewpoint over the
+      // front of the workspace and the relay republishes it.
+      source: { name: "sim_rgb_camera", tag: "v1" },
+      instances: [
+        { instance_id: "front",
+          links: {
+            simulation: "simulation_inst/rgb_cameras",
+            control: { vacant: "this simulation has no camera response model; every camera control refuses" },
+          },
+          framework: { clock: "simulation" } },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Rendering costs a frame budget every frame, so the simulation ships
+    // with its camera slots idle and this selection is what turns them on.
+    { target: "simulation_inst",
+      set_arguments: { cameras_enabled: true } },
+    // Waldo models the rendered camera's response after the real device,
+    // so the relay forwards its controls to it.
+    { target: "front", when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
+    // Bind into whichever recorder was selected, as the real fragment does.
+    { target: "recorder_inst", add_links: { color_cameras: ["front"] } },
+    // Shape guard: only the XR commander has camera slots of its own.
+    { target: "commander_inst", when: { robot_commander: "xr_commander" },
+      add_links: { color_cameras: ["front"] } },
+    // Under the MCP commander the camera is listed on the stack's MCP
+    // endpoint as this robot's, describing its profile and geometry.
+    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { camera: ["front"],
+                   camera_profile: ["front"],
+                   camera_geometry: ["front"] } },
+  ],
+}

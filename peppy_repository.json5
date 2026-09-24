@@ -1,20 +1,26 @@
 {
   peppy_schema: "repository/v1",
   launchers: {
-    fleet: {
-      path: "fleet.json5"
+    physical: {
+      path: "physical.json5"
     },
     openarm_simulation: {
       path: "openarm/openarm_simulation.json5"
     },
-    openarm_simulation_mcp: {
-      path: "mcp/openarm_simulation_mcp.json5"
+    simulation_mcp: {
+      path: "mcp/simulation_mcp.json5"
     },
     python_robot: {
       path: "examples/python_robot.json5"
     },
     rust_robot: {
       path: "examples/rust_robot.json5"
+    },
+    simulation: {
+      path: "simulation/simulation.json5"
+    },
+    so101_simulation: {
+      path: "so101/so101_simulation.json5"
     },
     split_compute_manipulation: {
       path: "examples/split_compute_manipulation.json5"

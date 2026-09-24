@@ -40,7 +40,11 @@
     reason: "pairs with an XR headset at runtime; the runner has none",
   },
   {
-    node: "openarm_sim_isaac",
+    node: "openarm_ker",
+    reason: "reads the real KER leader arm over USB (M5Stack CoreS3); the runner has none",
+  },
+  {
+    node: "sim_isaac",
     reason: "requires an NVIDIA GPU; the runner has no GPU",
   },
   {

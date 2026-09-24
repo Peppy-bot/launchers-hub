@@ -25,4 +25,10 @@
       ],
     },
   ],
+
+  adjustments: [
+    // The leader streams joint setpoints into both sockets, released here
+    // for it to pair into.
+    { target: "backbone_inst", unset_links: ["leader_arm", "leader_gripper"] },
+  ],
 }

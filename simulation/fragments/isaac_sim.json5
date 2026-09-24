@@ -1,8 +1,11 @@
 // The Isaac Sim simulation and the browser frontend for its WebRTC
 // livestream. The stage opens empty: every robot joins it through its
 // initializer, bringing its own model, and any number stand in it at once,
-// each holding its own pairs on the simulation's limb and camera slots. Its
-// scene_manipulation and object_state contracts take a scene commander.
+// of any model in its catalogue, placed and moved through the scene
+// contract. Each holds its own pairs on the simulation's four pairing
+// slots, one per kind of pair: arms, grippers, rgb_cameras and
+// rgbd_cameras. Its scene_manipulation and object_state contracts take a
+// scene commander.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -14,11 +17,18 @@
 
   deployments: [
     {
-      source: { name: "openarm_sim_isaac", tag: "v1" },
+      source: { name: "sim_isaac", tag: "v1" },
       instances: [{
         instance_id: "simulation_inst",
         // Rendering is enabled by a robot's rendered camera rig.
-        arguments: { cameras_enabled: false, state_rate_hz: 60 },
+        // A robot's nodes start together with its join, and a robot holds
+        // its pairs only once its backbone is up: the SO-101's Python
+        // backbone takes several seconds to declare them, longer than the
+        // engine's default lease, which would end the stay before the robot
+        // is driven. The lease is also how long a robot whose nodes are gone
+        // stays, and how long one paired as another model stays before its
+        // stay ends naming both lists.
+        arguments: { cameras_enabled: false, state_rate_hz: 60, robot_lease_ms: 10000 },
       }],
     },
     {

@@ -1,9 +1,10 @@
 // The AI brain: the node that serves item_perception and item_manipulation,
 // the environment aware layer above limb_motion. It leads no pairing and reaches the arms only
-// through the backbone's discrete moves, so it composes with whichever
-// commander was selected instead of competing with it: the operator and the
-// brain send the same kind of goal to the same producer, and the governor
-// sizes both on the way down.
+// through the backbone's discrete moves, so it composes with the selected
+// commander: the operator and the brain send the same kind of goal to the
+// same producer, and the governor sizes both on the way down. Under the MCP
+// commander the brain's tools are listed on the stack's endpoint as this
+// robot's, so a model drives it by the robot's name beside the direct moves.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -33,20 +34,13 @@
         },
       ],
     },
-    {
-      // The brain's MCP surface: the server built into peppy serves the
-      // ai_brain:v1 exposure from the MCP hub, both of its targets filled by
-      // the brain instance above, which implements the two contracts. Its
-      // own port, so it runs beside the mcp_commander option's server on
-      // 8900 when both are selected.
-      source: { exposures: ["ai_brain:v1"] },
-      instances: [
-        {
-          instance_id: "brain_mcp_inst",
-          arguments: { port: 8901 },
-          links: { item_perception: "brain_inst", item_manipulation: "brain_inst" },
-        },
-      ],
-    },
+  ],
+
+  adjustments: [
+    // Under the MCP commander the brain's tools are listed on the stack's
+    // endpoint as this robot's: one rule for everything that moves the arms,
+    // so a robot an operator drives answers no brain action.
+    { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
+      add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
   ],
 }

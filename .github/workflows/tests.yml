@@ -23,9 +23,8 @@ name: Tests
 # exactly the combinations whose resolved plan differs from the one the base
 # tree gives them, and only those are planned. A change outside every
 # launcher (this workflow, the skips file, the repository index, ...) plans
-# every combination, as does a push to main whose tree no run has tested
-# yet; a Markdown file outside every launcher is the one exception, planning
-# nothing.
+# every combination, as does every push to main; a Markdown file outside
+# every launcher is the one exception, planning nothing.
 #
 # Two jobs. `discover` enumerates the launchers and every combination of
 # their axes (printed to its log and the run summary), scopes them to the
@@ -71,38 +70,31 @@ name: Tests
 # use, boot an isolated daemon. Node and contract sources keep resolving
 # through the bundled hub repositories at their latest main, which is the
 # point: a launcher must keep launching against the nodes and contracts
-# actually published. The runners are self-hosted and reused, so the
-# rebuildable caches simply outlive the job in one directory per box:
-# apptainer's pulled layers, uv's wheels and interpreters, the daemon's
-# container build cache (the crates.io registry and sccache the Rust nodes
-# compile through), and the daemon's build artifact cache, where every
+# actually published. The rebuildable caches live on the launch job's
+# sticky disk: apptainer's pulled layers, uv's wheels and interpreters, the
+# daemon's container build cache (the crates.io registry and sccache the Rust
+# nodes compile through), and the daemon's build artifact cache, where every
 # built node image sits under the fingerprint of the staged sources it was
 # built from (the node's tree, its def, its generated code and the peppy
 # version). A launch reuses an image whose fingerprint it finds and builds
-# the rest, so a run rebuilds exactly the nodes whose sources moved since
-# some earlier launch built them. Nothing mounts, clones or commits the
-# directory: it is live, so a run reads what the run before it left and
-# writes into what later runs build on. Nothing kept there may therefore be
-# state one run depends on another having written, only what apptainer, uv
-# and the daemon rebuild from scratch, all of it keyed by content, so an
-# entry is either a hit for the same bytes or a miss. Each box runs one
-# runner, which executes one job at a time, so concurrent writers are not a
-# concern; a second runner on a box would make its directory shared mutable
-# state and is a reason to revisit it. A run's launches all land on the box
-# its launch job is scheduled on, and find the images earlier runs built on
-# that box. The fingerprint does not cover a def's floating base image tag,
-# so a moved base image reaches a cached node image when that image's
-# fingerprint next changes: at the next peppy release, or at the next change
-# to the node's sources.
+# the rest, so a run rebuilds exactly the nodes whose sources moved since the
+# launches its snapshot comes from built them. RunsOn restores the disk from
+# the newest snapshot of the same branch, or of main for a branch's first
+# run, and snapshots it after the job. A pull request's run reads main's
+# snapshot but never writes it; every push to main launches every
+# combination, and that run is what keeps main's snapshot current. Nothing
+# kept there may be state one run depends on another having written, only
+# what apptainer, uv and the daemon rebuild from scratch, all of it keyed by
+# content, so an entry is either a hit for the same bytes or a miss. The
+# fingerprint does not cover a def's floating base image tag, so a moved base
+# image reaches a cached node image when that image's fingerprint next
+# changes: at the next peppy release, or at the next change to the node's
+# sources.
 #
-# Every job runs on those runners; no job uses a GitHub-hosted one. A pull
-# request from a fork lands there too, so what keeps fork code off the box is
-# the repository's fork-PR approval gate, not the runner it is scheduled on.
-#
-# A push to main runs only when its tree was never tested: a merge whose
-# result is exactly the pull request's tested tree (the branch was up to
-# date with main) is skipped, since the pull request's run is the run of
-# that tree.
+# Every job runs on a RunsOn runner: an EC2 instance of its own, booted from
+# the peppy-ubuntu24 image for the job and discarded after it, sized by the
+# job's runs-on label. A pull request from a fork runs on the same runners, so
+# what holds fork code is the repository's fork-PR approval gate.
 on:
   push:
     branches: [main]
@@ -113,75 +105,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Whether the pushed tree was already tested. A merge commit whose tree is
-  # the pull request head's tree (main had not moved under the branch), or a
-  # squash of such a branch, carries exactly the files a successful run of
-  # this workflow already launched; a tree nobody ran (the branch was behind
-  # main, a direct push) runs in full. Two trees with the same hash hold the
-  # same bytes, so this is an identity, not a heuristic. The lookup fails
-  # open: an API error reports the tree as untested and the run proceeds.
-  tested-tree:
-    name: Check whether this tree was already tested
-    if: github.event_name == 'push'
-    runs-on: self-hosted
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      tested: ${{ steps.lookup.outputs.tested }}
-    steps:
-      - name: Look for a successful run of this workflow on the same tree
-        id: lookup
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # The workflow file's name, off the ref GitHub reports for this run
-          # (`owner/repo/.github/workflows/tests.yml@refs/heads/main`), so a
-          # renamed file keeps looking at its own runs.
-          WORKFLOW_REF: ${{ github.workflow_ref }}
-        run: |
-          set -uo pipefail
-          workflow="${WORKFLOW_REF%@*}"
-          workflow="${workflow##*/}"
-          tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$GITHUB_SHA" --jq '.tree.sha') || tree=""
-          tested=false
-          if [ -n "$tree" ]; then
-            # Newest first; the run of the pull request just merged is
-            # normally the first one whose head commit shares the tree.
-            while read -r head_sha run_url; do
-              head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head_sha" --jq '.tree.sha' 2>/dev/null) || continue
-              if [ "$head_tree" = "$tree" ]; then
-                tested=true
-                echo "Tree $tree was tested by $run_url (commit $head_sha)."
-                echo "Tree \`${tree:0:12}\` was already tested by [a successful run]($run_url) of commit \`${head_sha:0:12}\`; nothing to launch." >> "$GITHUB_STEP_SUMMARY"
-                break
-              fi
-            done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?status=success&per_page=100" \
-              --jq '.workflow_runs[] | "\(.head_sha) \(.html_url)"' 2>/dev/null | awk '!seen[$1]++')
-          else
-            echo "::warning::could not read the tree of $GITHUB_SHA; running every combination"
-          fi
-          if [ "$tested" = false ]; then
-            echo "Tree ${tree:-?} has no successful run of $workflow; launching every combination."
-          fi
-          echo "tested=$tested" >> "$GITHUB_OUTPUT"
-
   discover:
     name: Discover and plan the launcher combinations
-    needs: tested-tree
-    # Skipped only when the gate above found the tree tested; on a pull
-    # request the gate itself is skipped and this runs.
-    if: ${{ !cancelled() && needs.tested-tree.outputs.tested != 'true' }}
-    # The self-hosted runner is x86, and the cache directory below carries
-    # the architecture, so moving this repository onto an arm runner starts
-    # from an empty cache rather than a wrong-arch one. The launch job's base
-    # images are published for both. No container runs here and nothing is
-    # built: the daemon below serves `peppy repo refresh` alone, filling the
-    # caches the resolve reads node manifests out of.
+    # A light runner: no container runs here and nothing is built. The daemon
+    # below serves `peppy repo refresh` alone, filling the caches the resolve
+    # reads node manifests out of, and the planner resolves every combination.
     #
     # The budget covers the cold clone of every hub repository on top of the
     # planner's own work; the trees are a few tens of megabytes between them.
-    runs-on: self-hosted
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16  # custom Peppy AMI
     timeout-minutes: 25
     permissions:
       contents: read
@@ -277,13 +209,12 @@ jobs:
       # named failure rather than a 404 from a URL built out of it.
       #
       # `peppy stack resolve` reads the nodes cache under PEPPY_HOME, and a
-      # release build with no PEPPY_HOME reads the runner user's ~/.peppy,
-      # which outlives the job and differs from box to box. This step gives
-      # the later steps a PEPPY_HOME under RUNNER_TEMP, empty at the start of
-      # every run, and the daemon started below fills its caches before the
-      # plan step resolves. `latest` resolves to a different release over
-      # time, so the log and the run summary both record which release this
-      # run actually executed.
+      # release build with no PEPPY_HOME reads the runner user's ~/.peppy.
+      # This step gives the later steps a PEPPY_HOME under RUNNER_TEMP, beside
+      # everything else the job writes, and the daemon started below fills
+      # its caches before the plan step resolves. `latest` resolves to a
+      # different release over time, so the log and the run summary both
+      # record which release this run actually executed.
       - name: Install peppy
         if: steps.scope.outputs.any == 'true'
         env:
@@ -382,9 +313,8 @@ jobs:
 
       # `peppy repo add` and `peppy repo refresh` are daemon commands, so the
       # caches are filled by a daemon of this job's own. Its data root is the
-      # PEPPY_HOME the install step put under RUNNER_TEMP, which is at once
-      # how the CLI finds it and how it stays clear of any other daemon on
-      # the box. It builds and launches nothing, so it takes none of the
+      # PEPPY_HOME the install step put under RUNNER_TEMP, which is how the
+      # CLI finds it. It builds and launches nothing, so it takes none of the
       # launch job's build caches, and its name carries the run id because
       # core-node names must be unique among daemons that can reach each
       # other.
@@ -398,7 +328,6 @@ jobs:
 
           nohup peppy service serve --core-node-name "ci-plan-$GITHUB_RUN_ID" \
             > "$RUNNER_TEMP/peppy-serve.log" 2>&1 &
-          echo "PEPPY_DAEMON_PID=$!" >> "$GITHUB_ENV"
           for _ in $(seq 1 30); do
             if [ -f "$PEPPY_HOME/daemon_state.json5" ]; then exit 0; fi
             sleep 1
@@ -458,23 +387,18 @@ jobs:
             --plan "$RUNNER_TEMP/plan.json"
           echo "plan=$(cat "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
 
-      # One box runs one job at a time, so the daemon of this job is stopped
-      # before the launch job boots its own.
-      - name: Stop the daemon
-        if: always() && env.PEPPY_DAEMON_PID != ''
-        run: kill "$PEPPY_DAEMON_PID" 2>/dev/null || true
-
   launch:
     name: Launch the planned combinations
     needs: discover
     # A documentation-only change plans nothing: no plan, no launch job, and
     # the run is green without booting a daemon; so does a change that moves
-    # no launchable combination's plan. Spelled out with `!cancelled()`
-    # because the default condition also skips a job whose chain of needs
-    # holds a skipped job, and the gate ahead of discover is skipped on
-    # every pull request.
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]' }}
-    runs-on: self-hosted
+    # no launchable combination's plan.
+    if: needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]'
+    # 16 vCPU with 4 GB each for the node image builds, on the current AMD
+    # and Intel general-purpose families, a root disk with room for
+    # apptainer's build scratch, and the sticky disk that holds the caches
+    # named below.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=16/ram=64/family=m7a+m7i+m8a+m8i/volume=150gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once
@@ -493,35 +417,37 @@ jobs:
           # credential sitting in .git/config for every later step to inherit.
           persist-credentials: false
 
-      # The rebuildable caches outlive the run in a directory on the
-      # self-hosted runner: apptainer's pulled docker layers for every node
-      # base image, uv's wheels and interpreters, and the two caches the
-      # daemon keeps under its data root, handed to it below. Nothing mounts
-      # or uploads it — the box is reused, so the directory is simply still
-      # there. Every launcher shares the one directory: the images the
-      # combinations launch are largely the same images, and a live directory
-      # lets whichever launch builds one first serve all the others. The name
-      # carries the architecture because the layers and images are built for
-      # the host that built them.
+      # The rebuildable caches live in one directory on the job's sticky disk:
+      # apptainer's pulled docker layers for every node base image, uv's
+      # wheels and interpreters, and the two caches the daemon keeps under its
+      # data root, handed to it below. runs-on/action bind-mounts the
+      # directory onto the disk, which RunsOn restored before the job and
+      # snapshots after it; RunsOn keeps a sticky disk per architecture, so
+      # the layers and images are always the host's own. Every launcher shares
+      # the one directory: the images the combinations launch are largely the
+      # same images, and whichever launch builds one first serves all the
+      # others.
       #
       # The apptainer cache is named too: the daemon this job boots inherits
       # the environment, so every node image it builds pulls its base layers
       # through (and into) the cache.
+      - uses: runs-on/action@efac073ea2507ec18797de3a81704201ade11d9d # v2.3.1
+        with:
+          sticky_cache: custom,path=~/.cache/launchers-hub-ci
+
       - name: Name the caches this run reuses
         run: |
-          echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH" >> "$GITHUB_ENV"
-          echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci-$RUNNER_ARCH/apptainer-cache" >> "$GITHUB_ENV"
+          echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci" >> "$GITHUB_ENV"
+          echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci/apptainer-cache" >> "$GITHUB_ENV"
 
       # Every node image bootstraps from a base on Docker Hub, and an
       # anonymous pull is charged against a quota tied to the address it comes
-      # from. On Blacksmith each job pulled from its own short-lived address,
-      # so the quota was never close. The self-hosted boxes are few and every
-      # repository's jobs share their addresses, so a run that has to build
-      # images the cache does not hold yet exhausts it partway through — and
-      # Docker Hub reports the overage by refusing a token with `unauthorized:
-      # incorrect username or password`, which reads like a credential fault
-      # but is a quota. Authenticating raises the ceiling and charges it to the
-      # account instead of the box.
+      # from, which a run that has to build images the cache does not hold yet
+      # can exhaust partway through. Docker Hub reports the overage by
+      # refusing a token with `unauthorized: incorrect username or password`,
+      # which reads like a credential fault but is a quota. Authenticating
+      # raises the ceiling and charges it to the account instead of the
+      # address.
       #
       # Apptainer reads these two variables for every `docker://` bootstrap,
       # so the daemon this job boots inherits them and every node image it
@@ -543,7 +469,7 @@ jobs:
             } >> "$GITHUB_ENV"
             echo "Base image pulls authenticate as $DOCKER_USERNAME."
           else
-            echo "No Docker Hub credentials in scope; pulls stay anonymous and share the box's quota."
+            echo "No Docker Hub credentials in scope; pulls stay anonymous and count against this runner's address."
           fi
 
       # Installed by extracting the release under RUNNER_TEMP rather than
@@ -597,15 +523,12 @@ jobs:
       # is ready for unprivileged use: `newuidmap` on PATH, and on a kernel
       # that restricts unprivileged user namespaces through AppArmor (Ubuntu
       # 24.04's default) a root-installed profile keyed to the canonical path
-      # of that install's `starter` binary. The VM is fresh, so every run
-      # readies the install it just extracted: `peppy container setup` applies
-      # whatever its fix script needs through sudo when stdin is not a
-      # terminal, and rechecks before exiting 0. The Blacksmith image mounted
-      # no AppArmor securityfs, so the step had nothing to do there; the
-      # self-hosted runner does restrict userns through AppArmor, so this is
-      # what installs the profile the daemon's pre-flight check demands. The
-      # profile is keyed to the install's path under RUNNER_TEMP, so it grants
-      # nothing beyond this run's binary.
+      # of that install's `starter` binary. The runner image keeps that
+      # restriction, and every run extracts its own install, so every run
+      # readies it: `peppy container setup` applies whatever its fix script
+      # needs through sudo when stdin is not a terminal, and rechecks before
+      # exiting 0. The profile is keyed to the install's path under
+      # RUNNER_TEMP, so it grants nothing beyond this run's binary.
       #
       # `apptainer build` runs a def's %post as fakeroot, which needs a
       # subordinate id range for the runner user besides newuidmap. The
@@ -632,33 +555,23 @@ jobs:
       # the daemon executes on ITS OWN PATH, not inside a container; on a
       # developer machine both tools are simply installed. Here they have to
       # be on the PATH the daemon is about to inherit, before the daemon
-      # boots. A runner's service PATH is fixed when the service is installed
-      # and need not hold ~/.local/bin or ~/.cargo/bin, where the standalone
-      # installers put uv and rustup's cargo, so both directories are added
-      # unconditionally: a tool already on the box still has to be reachable
-      # from the daemon this job boots. Each tool is installed only when
-      # absent: the boxes are reused, so every job after the first would
-      # otherwise re-download an installer for nothing. Neither installer
-      # needs root, and rustup is told to leave the shell profiles alone.
-      # uv's cache and its downloaded interpreters go to the shared cache so
-      # a warm run resolves a wheel or a Python it already has instead of
-      # fetching it; cargo's registry stays in ~/.cargo, which outlives the
-      # job on a reused box just the same.
-      - name: Install uv and cargo for the daemon's host-side build commands
+      # boots. The runner image installs uv in ~/.local/bin and rustup's cargo
+      # in ~/.cargo/bin, and both directories are named on the PATH the later
+      # steps and the daemon inherit; a tool missing from the image stops the
+      # job here, named, rather than inside a node build. uv's cache and its
+      # downloaded interpreters go to the sticky disk so a warm run resolves a
+      # wheel or a Python it already has instead of fetching it.
+      - name: Put uv and cargo on the PATH of the daemon's host-side build commands
         run: |
           set -euo pipefail
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-          if command -v uv > /dev/null; then
-            echo "uv already installed: $(uv --version)"
-          else
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-          fi
-          if command -v cargo > /dev/null; then
-            echo "cargo already installed: $(cargo --version)"
-          else
-            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
-              | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
-          fi
+          for tool in uv cargo; do
+            if ! command -v "$tool" > /dev/null; then
+              echo "::error::the runner image has no $tool, which the daemon's host-side build commands run"
+              exit 1
+            fi
+          done
+          echo "$(uv --version), $(cargo --version)"
           {
             echo "$HOME/.local/bin"
             echo "$HOME/.cargo/bin"
@@ -722,7 +635,7 @@ jobs:
       # daemon in one. The name carries the run id because core-node names
       # must be unique among daemons that can reach each other.
       #
-      # Two directories of the data root are the shared cache's, linked in
+      # Two directories of the data root are the sticky disk's, linked in
       # before the daemon creates them: `built_nodes`, the build artifact
       # cache where a launch finds the image of a node whose staged sources
       # it already built, and `cache/container_build`, the crates.io

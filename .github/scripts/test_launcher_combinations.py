@@ -478,6 +478,57 @@ class CombinationsTests(unittest.TestCase):
         )
 
 
+    def test_a_one_or_more_axis_the_file_fills_enumerates_as_zero_or_more_does(self):
+        commander = combinations.Axis("robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+        alpha = combinations.Copy("alpha", "robot", "openarm_v2")
+        found = {
+            cardinality: combinations.launcher_selections(
+                [combinations.Axis("robot", cardinality, ["openarm_v2"], deployed="openarm_v2",
+                                   nested={"openarm_v2": [commander]})],
+                [alpha],
+            )
+            for cardinality in ("zero_or_more", "one_or_more")
+        }
+        self.assertEqual(found["one_or_more"], found["zero_or_more"])
+        # The copy the file deploys meets the floor, so the launch comes bare.
+        self.assertEqual(found["one_or_more"][0], combinations.Combination([]))
+
+    def test_a_one_or_more_axis_the_file_leaves_empty_is_filled_at_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "fleet.json5").write_text(json.dumps({"components": [
+                {"name": "simulation", "cardinality": "zero_or_one", "options": {"waldo": {}}},
+                {"name": "robot", "cardinality": "one_or_more", "options": {"openarm_v1": {}, "openarm_v2": {}}},
+                {"name": "cameras", "cardinality": "zero_or_more", "options": {"wrist": {}}},
+            ], "deployments": [{"robot": "openarm_v2"}, {"cameras": "wrist"}]}))
+            launcher = combinations.read_launcher(directory, "fleet.json5")
+        self.assertEqual(launcher.copies, [])
+        self.assertEqual(launcher.unlisted, ("openarm_v2", "wrist"))
+        found = combinations.launcher_selections(launcher.axes, launcher.copies, launcher.unlisted)
+        # No launch comes bare and none joins onto a running stack: every one
+        # names a robot with `--join`, each option in turn, under every
+        # selection of the stack, alone and with the unlisted camera beside it.
+        self.assertEqual(
+            [(c.words, c.launch_joins, c.join_option) for c in found],
+            [
+                ([("simulation", "waldo")], ("openarm_v1",), None),
+                ([("simulation", "waldo")], ("openarm_v1", "wrist"), None),
+                ([("simulation", "waldo")], ("openarm_v2",), None),
+                ([("simulation", "waldo")], ("openarm_v2", "wrist"), None),
+                ([("simulation", None)], ("openarm_v1",), None),
+                ([("simulation", None)], ("openarm_v1", "wrist"), None),
+                ([("simulation", None)], ("openarm_v2",), None),
+                ([("simulation", None)], ("openarm_v2", "wrist"), None),
+            ],
+        )
+        # An axis the file has no entry for is named at launch all the same.
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "fleet.json5").write_text(json.dumps({"components": [
+                {"name": "robot", "cardinality": "one_or_more", "options": {"openarm_v2": {}}},
+            ]}))
+            launcher = combinations.read_launcher(directory, "fleet.json5")
+        found = combinations.launcher_selections(launcher.axes, launcher.copies, launcher.unlisted)
+        self.assertEqual([(c.words, c.launch_joins) for c in found], [([], ("openarm_v2",))])
+
     def test_an_entry_listing_no_copy_is_an_option_a_launch_names_with_join(self):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "fleet.json5").write_text(json.dumps({"components": [
@@ -1107,14 +1158,15 @@ class CombinationsTests(unittest.TestCase):
                 ]}))
                 with self.assertRaises(combinations.Json5Error):
                     combinations.read_launcher(directory, "fleet.json5")
-        with tempfile.TemporaryDirectory() as directory:
-            Path(directory, "fleet.json5").write_text(json.dumps({"components": [
-                {"name": "robot", "options": {"openarm_v2": {
-                    "components": [{"name": "cameras", "cardinality": "zero_or_more", "options": {"a": {}}}],
-                }}},
-            ]}))
-            with self.assertRaises(combinations.Json5Error):
-                combinations.read_launcher(directory, "fleet.json5")
+        for cardinality in combinations.COPY_CARDINALITIES:
+            with self.subTest(cardinality=cardinality), tempfile.TemporaryDirectory() as directory:
+                Path(directory, "fleet.json5").write_text(json.dumps({"components": [
+                    {"name": "robot", "options": {"openarm_v2": {
+                        "components": [{"name": "cameras", "cardinality": cardinality, "options": {"a": {}}}],
+                    }}},
+                ]}))
+                with self.assertRaisesRegex(combinations.Json5Error, f"{cardinality} inside a fragment"):
+                    combinations.read_launcher(directory, "fleet.json5")
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "fleet.json5").write_text(json.dumps({"components": [
                 {"name": "robot", "options": {"openarm_v2": {

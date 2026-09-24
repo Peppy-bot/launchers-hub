@@ -113,7 +113,7 @@ jobs:
     #
     # The budget covers the cold clone of every hub repository on top of the
     # planner's own work; the trees are a few tens of megabytes between them.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16/family=c8a+c7a+m8a+m7a  # custom Peppy AMI
     timeout-minutes: 25
     permissions:
       contents: read
@@ -405,11 +405,16 @@ jobs:
     # the run is green without booting a daemon; so does a change that moves
     # no launchable combination's plan.
     if: needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]'
-    # 16 vCPU with 2 GB each for the node image builds (a full launch peaks
-    # near 10 GB), on the current AMD and Intel compute-optimized families, a
-    # root disk with room for apptainer's build scratch, and the sticky disk
-    # that holds the caches named below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=16/ram=32/family=c7a+c7i+c8a+c8i/volume=150gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
+    # 16 vCPU with 32 or 64 GB (a full launch peaks near 10 GB) on the AMD
+    # families c8a, c7a, m8a and m7a, where one vCPU is a full core, for about
+    # the price of 16 Intel hyperthreads. A launch keeps 5 cores busy on
+    # average and 12 while it builds node images, and the rest of the cores
+    # are headroom for the running stacks: a starved host misses their
+    # readiness and service timeouts. Four families in each zone give enough
+    # spot pools that a spot instance is found at once. The 50 GB root disk
+    # holds apptainer's build scratch (a full launch writes near 18 GB
+    # there), and the sticky disk holds the caches named below.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=16/ram=32+64/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once

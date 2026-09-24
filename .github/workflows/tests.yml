@@ -311,6 +311,17 @@ jobs:
           rm -f "$key"
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >>"$GITHUB_ENV"
 
+      # The daemon below builds nothing, but it runs the same pre-flight check
+      # as any other and refuses to boot unless the apptainer install beside it
+      # is ready for unprivileged use. The runner image restricts unprivileged
+      # user namespaces through AppArmor (Ubuntu 24.04's default), so
+      # `peppy container setup` installs the profile keyed to this run's
+      # install, through sudo since stdin is not a terminal, as the launch job
+      # does.
+      - name: Ready the bundled apptainer for unprivileged use
+        if: steps.scope.outputs.any == 'true'
+        run: peppy container setup < /dev/null
+
       # `peppy repo add` and `peppy repo refresh` are daemon commands, so the
       # caches are filled by a daemon of this job's own. Its data root is the
       # PEPPY_HOME the install step put under RUNNER_TEMP, which is how the

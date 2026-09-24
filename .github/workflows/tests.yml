@@ -405,11 +405,11 @@ jobs:
     # the run is green without booting a daemon; so does a change that moves
     # no launchable combination's plan.
     if: needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]'
-    # 16 vCPU with 4 GB each for the node image builds, on the current AMD
-    # and Intel general-purpose families, a root disk with room for
-    # apptainer's build scratch, and the sticky disk that holds the caches
-    # named below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=16/ram=64/family=m7a+m7i+m8a+m8i/volume=150gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
+    # 16 vCPU with 2 GB each for the node image builds (a full launch peaks
+    # near 10 GB), on the current AMD and Intel compute-optimized families, a
+    # root disk with room for apptainer's build scratch, and the sticky disk
+    # that holds the caches named below.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=16/ram=32/family=c7a+c7i+c8a+c8i/volume=150gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once

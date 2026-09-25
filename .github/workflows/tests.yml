@@ -252,6 +252,7 @@ jobs:
       # private hub stays unregistered, and the plan step names waldo's
       # manifest as one it could not read.
       - name: Install peppy and register the hub repositories
+        id: peppy
         if: steps.scope.outputs.any == 'true'
         uses: Peppy-bot/peppy/.github/actions/hub-ci-peppy@dev
         with:
@@ -315,16 +316,15 @@ jobs:
       # caches. The planner resolves every launcher by its path in this
       # checkout.
       #
-      # The action registers the private hub exactly when the deploy key is
-      # not empty, so where it is empty this step carries that on to the plan
-      # step through LINK_RULES_UNPROVABLE, whose value is the reason the run
-      # summary gives for every combination it then leaves unproven. A fork's
-      # pull request reaches the plan step this way and stays green. The step
-      # is told only whether the key is empty, never the key itself.
+      # Where the set the action resolved holds no private hub, this step
+      # carries that on to the plan step through LINK_RULES_UNPROVABLE, whose
+      # value is the reason the run summary gives for every combination it
+      # then leaves unproven. A fork's pull request reaches the plan step this
+      # way and stays green.
       - name: Fill the caches the link rules read
         if: steps.scope.outputs.any == 'true'
         env:
-          PRIVATE_NODES_HUB_REGISTERED: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY != '' }}
+          PRIVATE_NODES_HUB_REGISTERED: ${{ fromJSON(steps.peppy.outputs.set).hubs['private-nodes-hub'] != null }}
         run: |
           set -euo pipefail
           if [ "$PRIVATE_NODES_HUB_REGISTERED" != "true" ]; then

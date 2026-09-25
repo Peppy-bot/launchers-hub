@@ -405,16 +405,17 @@ jobs:
     # the run is green without booting a daemon; so does a change that moves
     # no launchable combination's plan.
     if: needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]'
-    # 16 vCPU with 32 or 64 GB (a full launch peaks near 10 GB) on the AMD
-    # families c8a, c7a, m8a and m7a, where one vCPU is a full core, for about
-    # the price of 16 Intel hyperthreads. A launch keeps 5 cores busy on
-    # average and 12 while it builds node images, and the rest of the cores
-    # are headroom for the running stacks: a starved host misses their
-    # readiness and service timeouts. Four families in each zone give enough
-    # spot pools that a spot instance is found at once. The 50 GB root disk
-    # holds apptainer's build scratch (a full launch writes near 18 GB
-    # there), and the sticky disk holds the caches named below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=16/ram=32+64/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
+    # 8 vCPU with 16 or 32 GB (a full launch peaks near 10 GB) on the AMD
+    # families c8a, c7a, m8a and m7a, where one vCPU is a full core. The
+    # launches run one after the other: with the node images in the cache a
+    # run keeps 2 cores busy on average and 3 at its peak, and a run that
+    # rebuilds the images keeps 5 busy on average and 12 at its peak, which
+    # 8 full cores serve about as fast as 16 Intel hyperthreads. Four
+    # families in each zone give enough spot pools that a spot instance is
+    # found at once. The 50 GB root disk holds apptainer's build scratch (a
+    # full launch writes near 18 GB there), and the sticky disk holds the
+    # caches named below.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8/ram=16+32/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once

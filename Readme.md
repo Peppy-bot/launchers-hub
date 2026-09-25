@@ -301,6 +301,14 @@ changes launcher files alone launches from the combinations whose resolved
 plan differs from the base tree's; the run summary names every combination
 left out and the launches that stand for it.
 
+The peppy the workflow launches with, and the hub repositories it launches
+against, come from the shared `hub-ci-peppy` action of the peppy repository:
+every sibling hub at its branch named like the pull request's head branch
+where it has one, and at its `main` otherwise. The peppy release also
+dispatches the workflow, naming the peppy release run whose archive it
+installs and the hub commits the release recorded; that run plans every
+combination. The run summary names the hub commits that ran.
+
 A joined copy comes up beside the copies the file deploys and the one the
 launch names, so a launch of `simulation_mcp` under Waldo ends with
 an MCP robot on the stack's endpoint, and one of `openarm_simulation` with
@@ -376,5 +384,4 @@ in `deployments`) and the matching nodes-hub release with `robot_initializer`,
 their limbs' names, the Waldo release with the same four pairing slots, and
 the MCP hub release with `robot_control:v1`, with refreshed repository
 entries for the scene commander and Isaac viewer.
-Refresh repository caches after upgrading. Rebuild application nodes with the matching SDK. Set the CI
-`PEPPY_VERSION` variable to the compatible release.
+Refresh repository caches after upgrading. Rebuild application nodes with the matching SDK.

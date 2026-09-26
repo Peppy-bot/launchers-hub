@@ -93,7 +93,7 @@
     // The brain looks through the chest camera, colour and depth from
     // one producer. Unguarded: skips on its own when no brain was selected.
     { target: "brain_inst",
-      set_links: { camera: "chest" } },
+      set_links: { camera: "chest", geometry: "chest" } },
     // Under the MCP commander the cameras are listed on the stack's MCP
     // endpoint as this robot's, the wrists as color cameras and the chest
     // as one carrying depth, each describing its profile and geometry.

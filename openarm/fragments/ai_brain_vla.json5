@@ -30,6 +30,10 @@
             // (cameras_sim.json5); without a rig the brain refuses both
             // searches with "no perception source" and serves the rest.
             camera: { vacant: "select cameras_sim to give the brain the chest camera" },
+            // Where that camera's pixels point, from the same camera: the
+            // rig binds it beside `camera`. Vacant, no pixel can become a
+            // position and both searches are refused naming the slot.
+            geometry: { vacant: "select cameras_sim to give the brain the chest camera's geometry" },
           },
         },
       ],

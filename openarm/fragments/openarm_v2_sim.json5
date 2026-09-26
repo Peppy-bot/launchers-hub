@@ -55,21 +55,23 @@
     {
       name: "brain", cardinality: "zero_or_one",
       provides: ["brain_inst"],
-      options: { ai_brain: "ai_brain.json5" },
+      options: { ai_brain_vla: "ai_brain_vla.json5" },
     },
   ],
 
   constraints: [
     // The camera streams need a consumer: the recorder films them, the XR
-    // headset shows them in its panels, and the MCP commander publishes
-    // them as resources and tools, the model its consumer. The rig must
-    // feed at least one of them.
+    // headset shows them in its panels, the MCP commander publishes them
+    // as resources and tools, the model its consumer, and the brain looks
+    // through the chest camera to find items. The rig must feed at least
+    // one of them.
     { when: { camera_rig: "cameras_sim" },
       requires: [
         { recorder: "lerobot_recorder" },
         { robot_commander: ["xr_commander", "mcp_commander"] },
+        { brain: "ai_brain_vla" },
       ],
-      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander, mcp_commander or ai_brain_vla" },
   ],
 
   adjustments: [
@@ -82,6 +84,12 @@
     { target: "commander_inst", set_framework: { clock: "simulation" } },
     { target: "recorder_inst", set_framework: { clock: "simulation" } },
     { target: "brain_inst", set_framework: { clock: "simulation" } },
+    // The simulated robot's brain sees: the simulation runs where a GPU is,
+    // so it names items with the local SAM 3 and SigLIP pipeline against
+    // the node's published gallery. The physical robot keeps the fragment's
+    // "none" until its machine carries a model.
+    { target: "brain_inst", when: { brain: "ai_brain_vla" },
+      set_arguments: { perception_backend: "sam3_siglip" } },
     // Who this robot is and where its limbs are: the v2 model, and the
     // simulation's limbs. The initializer joins the simulation as this
     // robot, and the simulation answers for every limb it stands.

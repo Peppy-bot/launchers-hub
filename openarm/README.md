@@ -82,7 +82,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 ```sh
 peppy stack join openarm_v2:bravo --with xr_commander,lerobot_recorder,cameras
 peppy stack join openarm_v1:charlie --with xr_commander,cameras --place jetson-2
-peppy stack join openarm_v2:delta --with web_commander,ai_brain
+peppy stack join openarm_v2:delta --with web_commander,ai_brain_vla
 peppy stack join openarm_v2:echo --with ker_commander
 ```
 
@@ -138,7 +138,7 @@ peppy stack launch physical --with robot_control
 peppy stack join openarm_v1:charlie --with mcp_commander,cameras --place jetson-2
 ```
 
-A v2 copy's `brain` axis adds `ai_brain`, the environment aware action layer
+A v2 copy's `brain` axis adds `ai_brain_vla`, the environment aware action layer
 serving `item_perception` and `item_manipulation` over the backbone's
 `limb_motion`. It composes with the selected commander: the operator and
 the brain send the same kind of goal to the same producer. Under

@@ -10,7 +10,7 @@
 
   deployments: [
     {
-      source: { name: "openarm_ai_brain", tag: "v1" },
+      source: { name: "openarm_ai_brain_vla", tag: "v1" },
       instances: [
         {
           instance_id: "brain_inst",
@@ -25,6 +25,15 @@
             // arms to move is a misconfiguration, so the launch fails loudly
             // rather than starting a node that can only refuse.
             limb_motion: "backbone_inst",
+            // The camera the brain looks through, optional on the node: the
+            // rig that renders it binds the chest camera here
+            // (cameras_sim.json5); without a rig the brain refuses both
+            // searches with "no perception source" and serves the rest.
+            camera: { vacant: "select cameras_sim to give the brain the chest camera" },
+            // Where that camera's pixels point, from the same camera: the
+            // rig binds it beside `camera`. Vacant, no pixel can become a
+            // position and both searches are refused naming the slot.
+            geometry: { vacant: "select cameras_sim to give the brain the chest camera's geometry" },
           },
         },
       ],

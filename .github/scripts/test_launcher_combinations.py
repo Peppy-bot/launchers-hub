@@ -264,7 +264,7 @@ class CombinationsTests(unittest.TestCase):
             physical,
         )
         self.assertIn(
-            ["combo", "physical", "robot_control=robot_control", "", "openarm_v2", "robot_commander=mcp_commander,camera_rig=cameras,brain=ai_brain", "-"],
+            ["combo", "physical", "robot_control=robot_control", "", "openarm_v2", "robot_commander=mcp_commander,camera_rig=cameras,brain=ai_brain_vla", "-"],
             physical,
         )
         self.assertEqual([c for c in physical if c[3]], [])
@@ -351,7 +351,7 @@ class CombinationsTests(unittest.TestCase):
             robot_control,
         )
         self.assertIn(
-            ["combo", "simulation_mcp", stack, "", "openarm_v2_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim,brain=ai_brain", "-"],
+            ["combo", "simulation_mcp", stack, "", "openarm_v2_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim,brain=ai_brain_vla", "-"],
             robot_control,
         )
         self.assertIn(
@@ -646,7 +646,7 @@ class CombinationsTests(unittest.TestCase):
             "requires": [{"robot_control": "robot_control"}],
             "reason": "mcp_commander adds the robot's moves to the stack's MCP endpoint; launch with robot_control",
         }])
-        brain = combinations.load_json5(root / "openarm/fragments/ai_brain.json5", "ai_brain")
+        brain = combinations.load_json5(root / "openarm/fragments/ai_brain_vla.json5", "ai_brain_vla")
         self.assertEqual(brain["adjustments"], [
             {"target": SERVER, "when": {"robot_commander": "mcp_commander"},
              "add_links": {"item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]}},
@@ -807,13 +807,13 @@ class CombinationsTests(unittest.TestCase):
     def test_every_robot_offers_the_shared_mcp_commander_and_the_leaders_release_their_sockets(self):
         root = Path(__file__).resolve().parents[2]
         shared = "../../robot_commanders/fragments/mcp_commander.json5"
-        for path, cardinality, commanders, rig in [
-            ("openarm/fragments/openarm_v1.json5", None, ["web_commander", "xr_commander", "mcp_commander"], "cameras"),
-            ("openarm/fragments/openarm_v2.json5", None, ["web_commander", "xr_commander", "mcp_commander", "ker_commander"], "cameras"),
-            ("openarm/fragments/openarm_v1_sim.json5", None, ["web_commander", "xr_commander", "mcp_commander"], None),
-            ("openarm/fragments/openarm_v2_sim.json5", None, ["web_commander", "xr_commander", "mcp_commander", "ker_commander"], "cameras_sim"),
-            ("so101/fragments/so101.json5", None, ["so101_leader", "xr_commander", "mcp_commander", "none"], "cameras"),
-            ("so101/fragments/so101_sim.json5", "zero_or_one", ["so101_leader", "xr_commander", "mcp_commander"], "cameras_sim"),
+        for path, cardinality, commanders, rig, brain in [
+            ("openarm/fragments/openarm_v1.json5", None, ["web_commander", "xr_commander", "mcp_commander"], "cameras", None),
+            ("openarm/fragments/openarm_v2.json5", None, ["web_commander", "xr_commander", "mcp_commander", "ker_commander"], "cameras", None),
+            ("openarm/fragments/openarm_v1_sim.json5", None, ["web_commander", "xr_commander", "mcp_commander"], None, None),
+            ("openarm/fragments/openarm_v2_sim.json5", None, ["web_commander", "xr_commander", "mcp_commander", "ker_commander"], "cameras_sim", "ai_brain_vla"),
+            ("so101/fragments/so101.json5", None, ["so101_leader", "xr_commander", "mcp_commander", "none"], "cameras", None),
+            ("so101/fragments/so101_sim.json5", "zero_or_one", ["so101_leader", "xr_commander", "mcp_commander"], "cameras_sim", None),
         ]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
@@ -827,11 +827,19 @@ class CombinationsTests(unittest.TestCase):
                 else:
                     self.assertEqual(list(axes["camera_rig"]["options"]), [rig])
                     # The rig's streams need a consumer: the recorder, the
-                    # headset, or the model behind the MCP commander.
+                    # headset, or the model behind the MCP commander. The
+                    # rendered OpenArm rig also binds the brain's camera slot,
+                    # so there the brain is a consumer too; the physical rig
+                    # does not bind it.
+                    requires = [{"recorder": "lerobot_recorder"}, {"robot_commander": ["xr_commander", "mcp_commander"]}]
+                    consumers = "lerobot_recorder, xr_commander or mcp_commander"
+                    if brain is not None:
+                        requires.append({"brain": brain})
+                        consumers = f"lerobot_recorder, xr_commander, mcp_commander or {brain}"
                     self.assertEqual(robot["constraints"], [{
                         "when": {"camera_rig": rig},
-                        "requires": [{"recorder": "lerobot_recorder"}, {"robot_commander": ["xr_commander", "mcp_commander"]}],
-                        "reason": "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander",
+                        "requires": requires,
+                        "reason": f"camera streams need a consumer; select {consumers}",
                     }])
         # The physical SO-101 runs actions-only under the empty option; the
         # simulated one under its unfilled axis, which its fragment leaves

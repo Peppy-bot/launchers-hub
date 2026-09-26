@@ -125,8 +125,8 @@ discovery and host setup.
 | `robot_commander` | an OpenArm | `web_commander` (deployed), `xr_commander`, and `mcp_commander`, which adds the robot's moves to the stack's `robot_control` endpoint and requires it, the rig adding the cameras; `ker_commander` on the v2 robots |
 | `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`), `xr_commander`, and `mcp_commander`, which adds the arm's moves, and with a rig the front camera, to the stack's `robot_control` endpoint; `none` on `so101` and the unfilled `zero_or_one` axis on `so101_sim` run the robot on actions alone |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or the headset, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
-| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2 and a simulated SO-101; requires a consumer: a recorder, XR or `mcp_commander`, which lists the cameras on the `robot_control` endpoint |
-| `brain` | the v2 robots | `ai_brain`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
+| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2 and a simulated SO-101; requires a consumer: a recorder, XR, `mcp_commander`, which lists the cameras on the `robot_control` endpoint, or on a simulated v2 the brain, which looks through the chest camera |
+| `brain` | the v2 robots | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
 
 A copy selects one option per axis of its robot. `stack resolve` previews a
 launch and each copy it names, in order, without starting nodes:
@@ -335,7 +335,7 @@ results.
 | `so101/fragments/so101.json5`, `so101_sim.json5` | One robot each, on the same pattern: the follower, or the simulation slots the backbone leads, the axes, the default commander, the rig's consumer rule, the clock of the simulated one and its dataset labels |
 | `robot_commanders/fragments/` | The commanders every robot shares: the headset, and the MCP commander, which adds the robot's moves to the `robot_control` endpoint and streams nothing; robot tuning is supplied by the robot fragments. A leader that streams (the panel, the KER, the SO-101 leader arm) releases the backbone sockets it drives from its own fragment |
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5`, `so101/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs, and their cameras on the `robot_control` endpoint under `mcp_commander` |
-| `openarm/fragments/ai_brain.json5` | The environment aware action layer beside a robot commander, and its tools on the `robot_control` endpoint |
+| `openarm/fragments/ai_brain_vla.json5` | The environment aware action layer beside a robot commander, and its tools on the `robot_control` endpoint |
 | `recording/fragments/` | Reusable recorder deployment and the recorder on the `robot_control` endpoint; the family's control wires its record button |
 | `simulation/fragments/` | The simulations, the Isaac viewer, the scene commander, with the lighting and materials slots it binds on Waldo |
 | `common/fragments/none.json5` | The empty option, which deploys nothing, so an axis carrying it can be switched off |

@@ -4,11 +4,13 @@
 enumerate prints launcher paths and fragment references, followed by
 seven-column combo records: kind, launcher, launch words, the options a
 launch names copies of with `--join`, joined option, join words, placement. It covers every state of every axis the launcher and its
-fragments declare, every copy a `zero_or_more` axis can add with
+fragments declare, every copy an axis that runs as copies can add with
 `stack join`, plain and under every selection of its own axes, and every
 state of the axes of each copy the file deploys, written as the
-`NAME.axis=option` launch words that select them. A declared core_nodes list
-requests local placement in CI.
+`NAME.axis=option` launch words that select them. A `one_or_more` axis the
+file leaves without a copy is filled by every launch, one of its options
+named with `--join`. A declared core_nodes list requests local placement in
+CI.
 
 scope decides what a change can reach from the files it touches: every
 combination, the combinations whose resolved plan the change moves, or
@@ -82,7 +84,10 @@ LINK_RULES_UNPROVABLE = "LINK_RULES_UNPROVABLE"
 # unique on the stack, and the simulation launchers deploy `alpha`.
 COPY_NAME = "bravo"
 
-CARDINALITIES = ("one", "zero_or_one", "zero_or_more")
+CARDINALITIES = ("one", "zero_or_one", "one_or_more", "zero_or_more")
+
+# The cardinalities whose axis runs as named copies.
+COPY_CARDINALITIES = ("one_or_more", "zero_or_more")
 
 
 # ---------------------------------------------------------------------------
@@ -276,12 +281,12 @@ class Axis:
 
     @property
     def allows_unfilled(self):
-        return self.cardinality != "one"
+        return self.cardinality in ("zero_or_one", "zero_or_more")
 
     @property
     def repeatable(self):
         """Runs as named copies: the file's `deployments`, then `stack join`."""
-        return self.cardinality == "zero_or_more"
+        return self.cardinality in COPY_CARDINALITIES
 
 
 @dataclass(frozen=True)
@@ -389,10 +394,10 @@ def read_axes(document, label, scope, read_option):
             raise Json5Error(f"{label}: component `{name}` declares no options")
         cardinality = component.get("cardinality", "one")
         if cardinality not in CARDINALITIES:
-            raise Json5Error(f"{label}: use cardinality: one, zero_or_one, or zero_or_more")
-        if scope == "fragment" and cardinality == "zero_or_more":
+            raise Json5Error(f"{label}: use cardinality: {', '.join(CARDINALITIES)}")
+        if scope == "fragment" and cardinality in COPY_CARDINALITIES:
             raise Json5Error(
-                f"{label}: component `{name}` declares zero_or_more inside a fragment; copies "
+                f"{label}: component `{name}` declares {cardinality} inside a fragment; copies "
                 "are the launcher's to deploy"
             )
         nested = {option: read_option(name, option, spec) for option, spec in options.items()}
@@ -550,7 +555,10 @@ def launcher_selections(axes, copies=(), unlisted=()):
     bare, then with each deployed copy's own axes selected by launch word,
     then with each option the file sets up without listing a copy started
     by `--join OPTION:NAME`, then with every copy a repeatable axis can add
-    joined onto it."""
+    joined onto it. A `one_or_more` axis the file leaves without a copy is
+    filled by every launch, which names one of its options with `--join`,
+    each option in turn; a join onto that stack would run under the name the
+    launch's copy holds, so the joins are left out."""
     stack = [axis for axis in axes if not axis.repeatable]
     deployed = [words for copy in copies for words in copy_selections(axes, copy)]
     joined = [
@@ -560,15 +568,30 @@ def launcher_selections(axes, copies=(), unlisted=()):
         for option in axis.options
         for selection in join_selections(axis.nested.get(option, []))
     ]
+    held = [
+        axis
+        for axis in axes
+        if axis.cardinality == "one_or_more" and all(copy.axis != axis.name for copy in copies)
+    ]
+    held_options = {option for axis in held for option in axis.options}
+    others = [option for option in unlisted if option not in held_options]
     combinations = []
     for selection in selections_of(stack):
-        combinations.append(Combination(selection))
-        for words in deployed:
-            combinations.append(Combination(selection + words))
-        for option in unlisted:
-            combinations.append(Combination(selection, launch_joins=(option,)))
-        for option, own in joined:
-            combinations.append(Combination(selection, option, own))
+        if not held:
+            combinations.append(Combination(selection))
+            for words in deployed:
+                combinations.append(Combination(selection + words))
+            for option in unlisted:
+                combinations.append(Combination(selection, launch_joins=(option,)))
+            for option, own in joined:
+                combinations.append(Combination(selection, option, own))
+            continue
+        for names in itertools.product(*(axis.options for axis in held)):
+            combinations.append(Combination(selection, launch_joins=names))
+            for words in deployed:
+                combinations.append(Combination(selection + words, launch_joins=names))
+            for option in others:
+                combinations.append(Combination(selection, launch_joins=names + (option,)))
     return combinations
 
 

@@ -21,9 +21,10 @@ name: Tests
 # The peppy release starts this workflow too, through workflow_dispatch, with
 # two inputs: the peppy release run whose archive the action installs, and
 # the set of hub commits the release recorded, which the action pins in place
-# of the branch lookup. Both jobs then check out the launchers-hub commit of
-# that set, because main can move between the moment the release records the
-# set and the moment this run starts, and every combination is planned.
+# of the branch lookup. `discover` and `launch` then check out the
+# launchers-hub commit of that set, because main can move between the moment
+# the release records the set and the moment this run starts, and every
+# combination is planned.
 #
 # Every combination is resolved on every run; a subset is launched. A launch
 # proves that each node instance it deploys builds, starts and signals ready
@@ -45,12 +46,12 @@ name: Tests
 # release dispatches; a Markdown file outside every launcher is the one
 # exception, planning nothing.
 #
-# Two jobs. `discover` enumerates the launchers and every combination of
-# their axes (printed to its log and the run summary), scopes them to the
-# diff, and plans: `peppy repo index --check` holds every launcher's whole
-# selection space to the structural checks a launch would run, and
-# `peppy stack resolve` splits the combinations into the launchable, the
-# refused (the launcher's own constraints, quoted), and the skipped (a
+# Two jobs do the work. `discover` enumerates the launchers and every
+# combination of their axes (printed to its log and the run summary), scopes
+# them to the diff, and plans: `peppy repo index --check` holds every
+# launcher's whole selection space to the structural checks a launch would
+# run, and `peppy stack resolve` splits the combinations into the launchable,
+# the refused (the launcher's own constraints, quoted), and the skipped (a
 # deployed node needs hardware the runner has none of, per
 # .github/unlaunchable-nodes.json5). The resolve also holds each flat plan to
 # the link rules a launch would reject it for, reading the manifest of every
@@ -60,7 +61,7 @@ name: Tests
 # not be filled for a reason the workflow already tolerates, which today is a
 # fork's pull request with no deploy key for the private hub: there the run
 # summary names every combination left unproven and the job stays green. The
-# launches picked among the launchable ones are the plan the second job runs.
+# launches picked among the launchable ones are the plan `launch` runs.
 # `launch` checks out the commit `discover` planned from, installs peppy,
 # boots one isolated daemon, whose registry resolves a launcher by name to
 # this checkout, and runs the planned launches one after the other: `peppy
@@ -105,6 +106,12 @@ name: Tests
 # image reaches a cached node image when that image's fingerprint next
 # changes: at the next peppy release, or at the next change to the node's
 # sources.
+#
+# The last job, `test`, is the one status check the org ruleset requires on
+# main. It is green only when every other job of this workflow succeeded or
+# was skipped, so every check a pull request must pass is a job of this
+# workflow. merge-set-events.yml names this workflow by its name, Tests, to
+# hand the end of each run to the merge-set bot of peppy.
 #
 # Every job runs on a RunsOn runner: an EC2 instance of its own, booted from
 # the peppy-ubuntu24 image for the job and discarded after it, sized by the
@@ -608,3 +615,26 @@ jobs:
       - name: Show the end of the daemon's log
         if: failure()
         run: tail -n 300 "$RUNNER_TEMP/peppy-serve.log" || true
+
+  # The one status check the org ruleset requires on main. It is green only
+  # when every job above succeeded or was skipped, so a red job blocks the
+  # merge whichever job it ran in.
+  test:
+    needs: [discover, launch]
+    # Runs whatever happened above: on the default condition a failed or
+    # cancelled job would leave this check unreported instead of red.
+    if: always()
+    # The smallest RunsOn runner: the job reads the results of the others.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a  # custom Peppy AMI
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: Report every job's result
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: echo "$RESULTS"
+
+      - name: Fail when any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

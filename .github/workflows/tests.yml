@@ -355,10 +355,15 @@ jobs:
       # value is the reason the run summary gives for every combination it
       # then leaves unproven. A fork's pull request reaches the plan step this
       # way and stays green.
+      #
+      # The runner evaluates the `env` of a step before its `if`, also when an
+      # earlier step failed. When the install step fails, it gives no `set`,
+      # so the expression parses `set` only when it is there: else fromJSON
+      # would fail this step too, with an error that hides the real one.
       - name: Fill the caches the link rules read
         if: steps.scope.outputs.any == 'true'
         env:
-          PRIVATE_NODES_HUB_REGISTERED: ${{ fromJSON(steps.peppy.outputs.set).hubs['private-nodes-hub'] != null }}
+          PRIVATE_NODES_HUB_REGISTERED: ${{ steps.peppy.outputs.set && fromJSON(steps.peppy.outputs.set).hubs['private-nodes-hub'] != null }}
         run: |
           set -euo pipefail
           if [ "$PRIVATE_NODES_HUB_REGISTERED" != "true" ]; then

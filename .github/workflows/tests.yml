@@ -111,7 +111,7 @@ name: Tests
 # main. It is green only when every other job of this workflow succeeded or
 # was skipped, so every check a pull request must pass is a job of this
 # workflow. merge-set-events.yml names this workflow by its name, Tests, to
-# hand the end of each run to the merge-set bot of peppy.
+# hand the start and the end of each run to the merge-set bot of peppy.
 #
 # Every job runs on a RunsOn runner: an EC2 instance of its own, booted from
 # the peppy-ubuntu24 image for the job and discarded after it, sized by the
@@ -142,8 +142,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The peppy dev build that the jobs below install. When peppy and this hub
+  # are pushed at the same time, peppy's CI uploads that build several
+  # minutes after this run starts. This job waits for it (see `wait-only` in
+  # the hub-ci-peppy action), and each job that installs peppy needs this
+  # job, so that only this small runner waits. A job whose peppy is a
+  # release build waits for nothing.
+  wait-for-peppy:
+    name: Wait for the peppy dev build
+    # The smallest RunsOn runner, 1 vCPU: the job only looks for the build.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=1/ram=2+4/family=c8a+c7a+m8a+m7a  # custom Peppy AMI
+    # The action stops its wait after 20 minutes.
+    timeout-minutes: 25
+    permissions:
+      contents: read
+
+    steps:
+      # The inputs of a run the peppy release dispatches, as in the jobs
+      # below: such a run installs the archive of its release run, so it
+      # waits for nothing.
+      - name: Wait for the peppy dev build of the set
+        uses: Peppy-bot/peppy/.github/actions/hub-ci-peppy@dev
+        with:
+          wait-only: true
+          peppy-run-id: ${{ inputs.peppy-run-id }}
+          set: ${{ inputs.set }}
+
   discover:
     name: Discover and plan the launcher combinations
+    needs: wait-for-peppy
     # A light runner: no container runs here and nothing is built. The daemon
     # below serves `peppy repo refresh` alone, filling the caches the resolve
     # reads node manifests out of, and the planner resolves every combination.
@@ -328,10 +355,15 @@ jobs:
       # value is the reason the run summary gives for every combination it
       # then leaves unproven. A fork's pull request reaches the plan step this
       # way and stays green.
+      #
+      # The runner evaluates the `env` of a step before its `if`, also when an
+      # earlier step failed. When the install step fails, it gives no `set`,
+      # so the expression parses `set` only when it is there: else fromJSON
+      # would fail this step too, with an error that hides the real one.
       - name: Fill the caches the link rules read
         if: steps.scope.outputs.any == 'true'
         env:
-          PRIVATE_NODES_HUB_REGISTERED: ${{ fromJSON(steps.peppy.outputs.set).hubs['private-nodes-hub'] != null }}
+          PRIVATE_NODES_HUB_REGISTERED: ${{ steps.peppy.outputs.set && fromJSON(steps.peppy.outputs.set).hubs['private-nodes-hub'] != null }}
         run: |
           set -euo pipefail
           if [ "$PRIVATE_NODES_HUB_REGISTERED" != "true" ]; then
@@ -620,7 +652,7 @@ jobs:
   # when every job above succeeded or was skipped, so a red job blocks the
   # merge whichever job it ran in.
   test:
-    needs: [discover, launch]
+    needs: [wait-for-peppy, discover, launch]
     # Runs whatever happened above: on the default condition a failed or
     # cancelled job would leave this check unreported instead of red.
     if: always()

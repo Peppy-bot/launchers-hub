@@ -462,9 +462,10 @@ jobs:
       # by its hash, and continues a download that a stopped node left.
       # `peppy stack launch` forwards its environment to the nodes it starts,
       # and a node's container sees the runner's home with the sticky disk
-      # under it. A brain lives for seconds in a launch, so the launches of
-      # one run complete the download between them, and the later launches
-      # and runs find the weights.
+      # under it. A brain lives for seconds in a launch, so one download
+      # spans many launches, and the next run too when the launches of a run
+      # do not complete it: the snapshot of the disk carries the partial
+      # file. The launches and runs after that find the weights.
       - uses: runs-on/action@efac073ea2507ec18797de3a81704201ade11d9d # v2.3.1
         with:
           sticky_cache: custom,path=~/.cache/launchers-hub-ci

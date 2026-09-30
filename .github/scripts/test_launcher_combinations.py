@@ -628,7 +628,8 @@ class CombinationsTests(unittest.TestCase):
         # the launch does not run is skipped.
         for control, readout in [
             ("openarm/fragments/control_common.json5",
-             {"identity": ["init_inst"], "limb_state": ["backbone_inst"], "collision": ["backbone_inst"]}),
+             {"identity": ["init_inst"], "limb_state": ["backbone_inst"], "collision": ["backbone_inst"],
+              "camera_mounts": ["backbone_inst"]}),
             ("so101/fragments/control_common.json5",
              {"identity": ["init_inst"], "limb_state": ["backbone_inst"]}),
         ]:
@@ -768,7 +769,8 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["arguments"], {"port": 8902})
         self.assertEqual(instance["links"], {
             "scene": "simulation_inst", "controls": "simulation_inst",
-            "lighting": "simulation_inst", "materials": "simulation_inst"})
+            "lighting": "simulation_inst", "materials": "simulation_inst",
+            "view": "simulation_inst", "clock": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)

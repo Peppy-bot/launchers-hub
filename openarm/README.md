@@ -141,7 +141,8 @@ peppy stack join openarm_v1:charlie --with mcp_commander,cameras --place jetson-
 A v2 copy's `brain` axis adds `ai_brain_vla`, the environment aware action layer
 serving `item_perception` and `item_manipulation` over the backbone's
 `limb_motion`. It composes with the selected commander: the operator and
-the brain send the same kind of goal to the same producer. Under
+the brain send the same kind of goal to the same producer, and it reads
+where the chest camera stands from the backbone's `camera_mounts`. Under
 `mcp_commander` the brain's tools are listed under the robot's name on the
 `robot_control` endpoint, beside the direct moves. The recorder's episodes
 are listed there under any commander.

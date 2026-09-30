@@ -75,13 +75,14 @@
   adjustments: [
     // Every robot beside the stack's MCP endpoint is listed on it with what
     // it is and how it stands: its identity is the initializer's, and its
-    // limb state and collision readout the backbone's. Skipped where the
-    // launch runs no endpoint.
+    // limb state, collision readout and camera mounts the backbone's.
+    // Skipped where the launch runs no endpoint.
     { target: "robot_control_inst",
       add_links: {
         identity: ["init_inst"],
         limb_state: ["backbone_inst"],
         collision: ["backbone_inst"],
+        camera_mounts: ["backbone_inst"],
       } },
     {
       target: "commander_inst",

@@ -7,10 +7,11 @@
 // so it needs nothing from any robot copy and keeps running when a copy is
 // removed. Its instance id is its own, so the browser scene panel
 // (web_scene_commander) runs beside it; it reads the simulation's clock, as
-// that panel does. The exposure binds object_controls, scene_lighting and
-// scene_materials, which Waldo alone implements, so the simulation_mcp
-// launcher, whose world_control axis deploys it, requires Waldo beside it;
-// `--with world_control=none` switches it off.
+// that panel does. The exposure binds object_controls, scene_lighting,
+// scene_materials, scene_view and simulation_clock, which Waldo alone
+// implements, so the simulation_mcp launcher, whose world_control axis
+// deploys it, requires Waldo beside it; `--with world_control=none`
+// switches it off.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -25,13 +26,15 @@
           // /simulation/v1/mcp. A server that finds the port held takes
           // another and announces it.
           arguments: { port: 8902 },
-          // One entry per target of the exposure, all four the
+          // One entry per target of the exposure, all six the
           // simulation's.
           links: {
             scene: "simulation_inst",
             controls: "simulation_inst",
             lighting: "simulation_inst",
             materials: "simulation_inst",
+            view: "simulation_inst",
+            clock: "simulation_inst",
           },
           framework: { clock: "simulation" },
         },

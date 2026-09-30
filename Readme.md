@@ -16,12 +16,13 @@ join`.
 |---|---|---|---|
 | `one` | `{ simulation: "waldo" }` | `--with mujoco` swaps it | fixed for the stack's life |
 | `zero_or_one` | not deployed | `--with web_scene_commander` turns it on | fixed |
-| `zero_or_more` | `{ robot: "openarm_v2_sim", instances: [{ instance_id: "alpha" }] }`, or the entry alone, `{ robot: "openarm_v2_sim" }`, saying how every copy of the option is set up | the listed copies start, and `--join openarm_v2_sim:bravo` names another | `stack join openarm_v2_sim:charlie`, `stack remove charlie` |
+| `zero_or_more` | `{ robot: "openarm_sim", instances: [{ instance_id: "alpha" }] }`, or the entry alone, `{ robot: "openarm_sim" }`, saying how every copy of the option is set up | the listed copies start, and `--join openarm_sim:bravo` names another | `stack join openarm_sim:charlie`, `stack remove charlie` |
 
 An option's fragment declares axes of its own. A robot's fragment declares
-its robot commander, its recorder and its camera rig, selected per copy with
-`with:` in the file or `--with` on `stack join`; a simulation's fragment
-declares its scene commander, selected with `--with` at launch. A launcher
+its robot commander, its recorder and its camera rig, and an OpenArm's its
+generation and its brain, selected per copy with `with:` in the file or
+`--with` on `stack join`; a simulation's fragment declares its scene
+commander, selected with `--with` at launch. A launcher
 whose `robot` axis is `one` reaches the robot's axes with `--with` at launch
 too.
 
@@ -34,9 +35,9 @@ declares `robot_control`, the robots' MCP endpoint, and `world_control`, the sim
 world's, that way; `--with robot_control=none` and
 `--with world_control=none` turn them off. The other launchers declare `robot_control`
 as a `zero_or_one` axis, and `--with robot_control` turns it on.
-Every launcher that runs robots declares a `robot_control` axis: the robots'
-fragments add their links on `robot_control_inst`, and the recorder's trigger
-rule and the MCP commander's requirement name the axis.
+Every launcher that runs robots declares a `robot_control` axis and lists
+each robot on `robot_control_inst` under the option that selects the robot;
+the recorder's trigger rule and the MCP commander's requirement name the axis.
 
 ## Launchers
 
@@ -49,29 +50,30 @@ name: `alpha_left_arm_inst`, `alpha_backbone_inst`, `alpha_commander_inst`.
 nothing, every robot is named at launch with `--join OPTION:NAME` or joined
 by name and placed on the machine its hardware is wired to, and
 `--with robot_control` serves the robots' MCP endpoint.
-[openarm/openarm_simulation.json5](openarm/openarm_simulation.json5) runs
+[openarm_simulation.json5](openarm_simulation.json5) runs
 one simulation, Waldo unless a launch word selects another, and one robot,
 `alpha`, a simulated OpenArm v2 with the browser commander; `--join
 OPTION:NAME` names another at launch and `--with robot_control` serves the endpoint.
-[so101/so101_simulation.json5](so101/so101_simulation.json5) is the same
+[so101_simulation.json5](so101_simulation.json5) is the same
 launcher with another robot first: `alpha` is a simulated SO-101 with no
 commander, which launches on a machine with no SO-101 hardware.
 [mcp/simulation_mcp.json5](mcp/simulation_mcp.json5) is
 `openarm_simulation` with the endpoint deployed and every robot driven
 over MCP by default: its
-entries for the three simulated robots state the MCP commander and the
+entries for the two simulated robots state the MCP commander and the
 rendered rig for every copy of the option, so `alpha`, a robot named at
 launch and a robot joined later alike are listed on the one endpoint, on
 the same URL when the join returns, and the simulated world's endpoint runs
 beside it from the file's `world_control` axis. The endpoints, the client setup
 and the move to the real robots are in the [MCP guide](mcp/README.md).
 
-The robot options are the four OpenArm fragments, `openarm_v1`,
-`openarm_v2` (physical), `openarm_v1_sim`, `openarm_v2_sim` (simulated),
-sharing the OpenArm control in `openarm/fragments/control_common.json5`,
-and the two SO-101 fragments, `so101` (physical) and `so101_sim`
-(simulated), sharing the SO-101 control in
-`so101/fragments/control_common.json5`. The stack's MCP server reads one
+The robot options are the two OpenArm fragments, `openarm` (physical) and
+`openarm_sim` (simulated), each standing the generation its `robot_initializer`
+axis selects, a v2 unless a copy's `with` or `--with v1` says otherwise, and
+the two SO-101 fragments, `so101` (physical) and `so101_sim` (simulated). A
+fragment writes only the instances it deploys, so the connections between a
+robot and the stack are written in the launcher under the option that
+selects the robot. The stack's MCP server reads one
 clock, so a stack under MCP is real or simulated: the physical robots are
 options of `physical.json5` and the simulated robots of the three
 simulation launchers, where an SO-101 joins beside an OpenArm in one
@@ -81,7 +83,7 @@ simulation. The [OpenArm guide](openarm/README.md) and the
 ```sh
 peppy stack launch openarm_simulation --with mujoco                         # MuJoCo and alpha
 peppy stack remove alpha                                                    # the simulation keeps running
-peppy stack join openarm_v2_sim:bravo --with xr_commander --set-arguments commander_inst.https_port=4444
+peppy stack join openarm_sim:bravo --with xr_commander --set-arguments commander_inst.https_port=4444
 peppy stack list
 peppy stack launch so101_simulation                                         # Waldo and one SO-101
 peppy stack launch so101_simulation --with mujoco                           # the same robot, alone in MuJoCo
@@ -90,11 +92,11 @@ peppy stack launch openarm_simulation --join so101_sim:charlo               # al
 peppy stack join so101_sim:delta                                            # another SO-101 beside them
 peppy stack launch simulation                                               # a simulation with no robot
 peppy stack launch physical                                                 # a new stack with no robot
-peppy stack join openarm_v2:alpha --place jetson-1
+peppy stack join openarm:alpha --place jetson-1
 peppy stack join so101:bravo
 peppy stack launch simulation_mcp                                           # Waldo, the two endpoints and alpha over MCP
 peppy stack launch simulation_mcp --join so101_sim:charlie                  # alpha and an SO-101 over MCP
-peppy stack join openarm_v2_sim:bravo                                       # a second OpenArm, listed on the same URL when the join returns
+peppy stack join openarm_sim:bravo                                          # a second OpenArm, listed on the same URL when the join returns
 peppy stack join so101_sim:delta                                            # an SO-101, its arm and front camera on the same URL
 ```
 
@@ -119,21 +121,21 @@ discovery and host setup.
 | `simulation` | `simulation.json5`, `openarm_simulation.json5`, `so101_simulation.json5` and `simulation_mcp.json5` (`one`) | `waldo` (deployed), `mujoco`, `isaac_sim`; `simulation.json5` offers the two that answer scene calls |
 | `robot_control` | `simulation_mcp.json5` (`one`), `physical.json5`, `openarm_simulation.json5` and `so101_simulation.json5` (`zero_or_one`) | `robot_control`: the robots' MCP endpoint on port 8900, one server every robot is listed on, its `mcp_commander` adding the moves; deployed by `simulation_mcp.json5`, where `none` switches it off, and turned on elsewhere with `--with robot_control`. The server reads the simulation's clock in the simulation launchers and wall time in `physical.json5` |
 | `world_control` | `simulation_mcp.json5` (`one`) | `world_control` (deployed): the simulated world's MCP endpoint on port 8902, bound to the simulation alone; requires `waldo`. `none` switches it off |
-| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting and the robot's materials, and it shows a camera panel when a rendered rig runs |
-| `robot` | the four launchers with robots (`zero_or_more`) | `openarm_v1_sim`, `openarm_v2_sim` and `so101_sim` in the three simulation launchers; `openarm_v1`, `openarm_v2` and `so101` in `physical.json5` |
-| `control` | the robot | `control_common` (deployed): the initializer and backbone the robot shares with its simulated or physical twin, one fragment per robot family |
-| `robot_commander` | an OpenArm | `web_commander` (deployed), `xr_commander`, and `mcp_commander`, which adds the robot's moves to the stack's `robot_control` endpoint and requires it, the rig adding the cameras; `ker_commander` on the v2 robots |
+| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting and materials, and it shows a camera panel when a rendered rig runs |
+| `robot` | the four launchers with robots (`zero_or_more`) | `openarm_sim` and `so101_sim` in the three simulation launchers; `openarm` and `so101` in `physical.json5` |
+| `robot_initializer` | an OpenArm | `v2` (deployed), `v1`: the initializer that names the model, written in place; on a physical robot the file sets a v1's frames and CAN interfaces on its drivers |
+| `robot_commander` | an OpenArm | `web_commander` (deployed), `xr_commander`, `ker_commander`, and `mcp_commander`, which adds the robot's moves to the stack's `robot_control` endpoint and requires it, the rig adding the cameras |
 | `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`), `xr_commander`, and `mcp_commander`, which adds the arm's moves, and with a rig the front camera, to the stack's `robot_control` endpoint; `none` on `so101` and the unfilled `zero_or_one` axis on `so101_sim` run the robot on actions alone |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or the headset, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
-| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated v2 and a simulated SO-101; requires a consumer: a recorder, XR, `mcp_commander`, which lists the cameras on the `robot_control` endpoint, or on a simulated v2 the brain, which looks through the chest camera |
-| `brain` | the v2 robots | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
+| `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated one, which the simulations render on v2 links only; requires a consumer: a recorder, XR, `mcp_commander`, which lists the cameras on the `robot_control` endpoint, or on a simulated v2 the brain, which looks through the chest camera |
+| `brain` | an OpenArm | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
 
 A copy selects one option per axis of its robot. `stack resolve` previews a
 launch and each copy it names, in order, without starting nodes:
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --join openarm_v2:bravo --with bravo.xr_commander,bravo.lerobot_recorder
+peppy stack resolve physical --join openarm:bravo --with bravo.xr_commander,bravo.lerobot_recorder
 peppy stack resolve simulation_mcp --join so101_sim:charlie --with web_scene_commander
 peppy stack resolve so101_simulation --join so101_sim:charlo
 peppy stack resolve simulation_mcp --join so101_sim:delta
@@ -141,11 +143,13 @@ peppy stack resolve simulation_mcp --join so101_sim:delta
 
 ### What a copy can change
 
-A copy's fragments write to the stack's instances in three ways: the
-rendered camera rig turns the simulation's rendering on, the copy's
+A copy reaches the stack's instances in three ways: the rendered camera rig
+turns the simulation's rendering on, written in the launcher under the
+robot's option, or at the top level in `simulation_mcp`; the copy's
 instances pair into the simulation's limb and camera slots, which hold any
-number of pairs, and they join the sets the MCP endpoint's targets declare,
-with `add_links` on `robot_control_inst`. Copies deployed together must agree on
+number of pairs, written in the robot's own fragments; and they join the
+sets the MCP endpoint's targets declare, with `add_links` on
+`robot_control_inst` under the robot's option. Copies deployed together must agree on
 every field they both write. A copy named on the command line is composed as
 a join, `--join OPTION:NAME` at launch and `stack join OPTION:NAME` later
 alike, so a robot you can name at launch is a robot you can join later. Such
@@ -157,7 +161,8 @@ word on a copy the file lists (`--with alpha.cameras_sim`) or by the
 launcher itself, as `simulation_mcp` does. A robot joined to a plain
 `openarm_simulation` or `so101_simulation` has no rendered camera, an
 SO-101's `front` included, while one joined to `simulation_mcp` has its
-rig. The [planner](.github/scripts/launcher_combinations.py) reports such
+rig; a v1 OpenArm, which the simulations render no rig for, joins it with
+`--with v1,camera_rig=none`. The [planner](.github/scripts/launcher_combinations.py) reports such
 copies as file-only.
 
 ### How a robot reaches a simulation
@@ -165,8 +170,8 @@ copies as file-only.
 A simulated robot is the same nodes as a physical one, the initializer, the
 backbone and its commander, with the simulation standing its limbs: it has
 no driver node, and a simulated SO-101 no follower, the engine playing the
-follower role toward the backbone. The initializer, `robot_initializer`, is
-the one identity node every robot runs. Its `model` argument is the model
+follower role toward the backbone. The initializer, `robot_initializer`,
+runs on every robot. Its `model` argument is the model
 id verbatim, `openarm_v1`, `openarm_v2` or `so101`; it answers
 `robot_identity` and `robot_ready`, and joins the simulation through the
 `simulation_robot` contract, naming the copy the robot runs as and the model
@@ -192,7 +197,7 @@ show no motor health for it.
 
 | Robot | Rendered cameras its `camera_rig` axis offers |
 |---|---|
-| OpenArm v1 | None: the axis is not on the fragment |
+| OpenArm v1 | None: the simulations render a rig on v2 links only, so `cameras_sim` on a v1 is refused |
 | OpenArm v2 | `wrist_left`, `wrist_right`, `chest` |
 | SO-101 | `front` |
 
@@ -205,9 +210,10 @@ Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
 endpoint and a headset for operator control.
 
 Each simulation fragment declares the clock domain `simulation`, supplied by
-`simulation_inst`; every instance of a simulated robot binds to it with
-`set_framework: { clock: "simulation" }` in the robot's fragment, and the
-simulation launchers bind the MCP server the same way. The binding travels
+`simulation_inst`; a simulated robot's own instances declare it where they
+are written, the launcher binds the commander, recorder and brain the robot
+shares with its physical twin under the robot's option, and the simulation
+launchers bind the MCP server the same way. The binding travels
 in the launch, so a
 daemon runs a simulated robot and a physical one at the same time and needs no
 flag and no restart to switch between them. `peppy clock list` shows the
@@ -275,7 +281,7 @@ and, on `simulation_mcp`, moves its base through the `simulation` endpoint.
 ## Inspecting and testing
 
 ```sh
-peppy stack resolve openarm_simulation --with mujoco --join openarm_v2_sim:bravo --with bravo.xr_commander
+peppy stack resolve openarm_simulation --with mujoco --join openarm_sim:bravo --with bravo.xr_commander
 peppy repo index --check .
 python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 ```
@@ -328,16 +334,15 @@ results.
 
 | Location | Owns |
 |---|---|
-| `physical.json5`, `openarm/openarm_simulation.json5`, `so101/so101_simulation.json5`, `mcp/simulation_mcp.json5`, `simulation/simulation.json5` | The simulation axis, the `robot_control` axis, the robot options, what the file deploys and the server's clock; `mcp/simulation_mcp.json5` also turns rendering on and serves the simulated world's endpoint, and `simulation/simulation.json5` declares no robot options at all |
-| `openarm/fragments/control_common.json5` | The initializer and backbone every OpenArm shares, with the backbone's leader sockets vacant until a leader releases the ones it drives, the headset and recorder wiring, the robot's listing on the `robot_control` endpoint and the recorder's trigger rule |
-| `openarm/fragments/openarm_v1.json5`, `openarm_v2.json5`, `openarm_v1_sim.json5`, `openarm_v2_sim.json5` | One robot each: its limbs, or the simulation slots its control leads, the control it selects, the robot commander, recorder and camera rig axes, the rig's consumer rule, its generation, speed cap, commander tuning, dataset labels, the clock of a simulated one, and the model the simulation stands for it |
-| `so101/fragments/control_common.json5` | The initializer, with the `so101` model, and the backbone every SO-101 shares, with its leader sockets vacant until a leader releases them, the headset and recorder wiring, the robot's listing on the `robot_control` endpoint and the recorder's trigger rule |
-| `so101/fragments/so101.json5`, `so101_sim.json5` | One robot each, on the same pattern: the follower, or the simulation slots the backbone leads, the axes, the default commander, the rig's consumer rule, the clock of the simulated one and its dataset labels |
-| `robot_commanders/fragments/` | The commanders every robot shares: the headset, and the MCP commander, which adds the robot's moves to the `robot_control` endpoint and streams nothing; robot tuning is supplied by the robot fragments. A leader that streams (the panel, the KER, the SO-101 leader arm) releases the backbone sockets it drives from its own fragment |
-| `openarm/fragments/cameras.json5`, `cameras_sim.json5`, `so101/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs, and their cameras on the `robot_control` endpoint under `mcp_commander` |
-| `openarm/fragments/ai_brain_vla.json5` | The environment aware action layer beside a robot commander, and its tools on the `robot_control` endpoint |
-| `recording/fragments/` | Reusable recorder deployment and the recorder on the `robot_control` endpoint; the family's control wires its record button |
-| `simulation/fragments/` | The simulations, the Isaac viewer, the scene commander, with the lighting and materials slots it binds on Waldo |
+| `physical.json5`, `openarm_simulation.json5`, `so101_simulation.json5`, `mcp/simulation_mcp.json5`, `simulation/simulation.json5` | The simulation axis, the `robot_control` axis, the robot options, what the file deploys and the server's clock, and under each robot option the robot's connections to the stack: its listing on the `robot_control` endpoint, its commander's sockets, tuning, telemetry and clock, its recorder's rig, dataset and clock, its brain's clock and listing, and the simulation's rendering under its rig; `mcp/simulation_mcp.json5` also turns rendering on from the launch and serves the simulated world's endpoint, and `simulation/simulation.json5` declares no robot options at all |
+| `openarm/fragments/openarm.json5`, `openarm_sim.json5` | One OpenArm each, physical or simulated: the four CAN drivers on a physical robot, a v2 set to a v1's frames and interfaces per generation, the backbone, its leader sockets vacant until the file releases the ones the selected leader drives and switched to pose mode under the headset, the generation, robot commander, recorder, camera rig and brain axes, the generation's `robot_initializer`, the rig's consumer rule and the recorder's trigger rule |
+| `so101/fragments/so101.json5`, `so101_sim.json5` | One SO-101 each: the follower, or the simulation slots the backbone leads, the initializer, the backbone with its sockets vacant until the file releases the ones the selected leader drives, the axes, the default commander, the rig's consumer rule and the recorder's trigger rule |
+| `robot_commanders/fragments/` | The commanders every robot shares: the headset, which binds its own record button, and the MCP commander, which streams nothing and requires the `robot_control` endpoint; what a robot needs of them is written in the launcher under the robot |
+| `openarm/fragments/web_commander.json5`, `ker_commander.json5`, `so101/fragments/so101_leader.json5` | The leaders that stream, each its own commander node, the panel binding its record button and the panel and the KER writing `v1` under the robot's generation; the robot file releases the backbone sockets the selected leader drives |
+| `openarm/fragments/cameras.json5`, `cameras_sim.json5`, `so101/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs, the headset's tuning of a physical one, and a rendered relay's control link to Waldo |
+| `openarm/fragments/ai_brain_vla.json5` | The environment aware action layer beside a robot commander |
+| `openarm/fragments/lerobot_recorder.json5`, `so101/fragments/lerobot_recorder.json5` | The family's recorder: its rate and the limbs it films |
+| `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander, which binds its lighting, materials and camera panels to Waldo |
 | `common/fragments/none.json5` | The empty option, which deploys nothing, so an axis carrying it can be switched off |
 | `mcp/` | The two MCP endpoints, the robots' (`fragments/robot_control.json5`) and the simulated world's (`fragments/world_control.json5`), the launcher whose robots are driven over MCP by default, and the guide to the endpoints and clients |
 
@@ -356,8 +361,8 @@ A repository launcher can reference siblings, such as
 `peppy_repository.json5` defines the boundary; parent traversal and symlinks
 must stay within it. Standalone launchers are confined to their own
 directory. A fragment file is named for the option that selects it, and a
-simulated variant of an option takes the `_sim` suffix: `openarm_v2` and
-`openarm_v2_sim`, `so101` and `so101_sim`, `cameras` and `cameras_sim`.
+simulated variant of an option takes the `_sim` suffix: `openarm` and
+`openarm_sim`, `so101` and `so101_sim`, `cameras` and `cameras_sim`.
 
 After adding or moving a launcher, run `peppy repo index .` and commit the
 index. Fragments use `launcher_fragment/v1` and are excluded from the
@@ -365,8 +370,9 @@ launcher index.
 
 Conditions use OR within an option list and AND across axes. A fragment's
 guards and constraints name its own axes and the launcher's; a launcher's
-name the launcher's. For example, the physical robot fragments bind
-physical-driver alerts for either alert-capable commander:
+name the launcher's, and an entry under a robot option the robot's own
+axes too. For example, `physical.json5` binds physical-driver alerts for
+either alert-capable commander under its `openarm` option:
 
 ```json5
 when: { robot_commander: ["web_commander", "xr_commander"] }

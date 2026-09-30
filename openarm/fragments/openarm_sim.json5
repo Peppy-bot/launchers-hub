@@ -1,0 +1,174 @@
+// A simulated OpenArm: the backbone that governs the limbs the simulation
+// stands, and the robot's own axes: its generation, the commander that leads
+// it, the recorder that films it, its camera rig and its brain. The
+// generation axis carries the initializer, which names the model the
+// simulation stands.
+//
+// This file writes only the backbone it deploys. The launcher's simulation
+// axis supplies simulation_inst, and the launcher that selects this robot
+// wires it to the stack: the commander's sockets, tuning and clock, the MCP
+// endpoint's slots, and the dataset the recorder files episodes under.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "openarm_backbone", tag: "v1" },
+      instances: [
+        {
+          instance_id: "backbone_inst",
+          framework: { clock: "simulation" },
+          // The governor band is a required node argument, as are the
+          // hardware generation, set below per generation, and the startup
+          // EE-speed cap; the web panel streams live caps.
+          arguments: {
+            // Joint-led command pairings; the XR adjustment selects pose mode.
+            upstream_mode: "joints",
+            control_rate_hz: 100,
+            // Match the limbs' measured-state cadence.
+            follower_state_rate_hz: 100,
+            d_stop_m: 0.005,
+            d_safe_m: 0.02,
+            collision_governor_enabled: true,
+            max_ee_angular_velocity_rad_s: 0.8,
+            max_ee_velocity_m_s: 0.5,
+          },
+          links: {
+            robot_init: "init_inst",
+            // The simulation stands the limbs: each slot holds any number of
+            // pairs, so one engine stands as many robots as it can run.
+            left_arm: "simulation_inst/arms",
+            right_arm: "simulation_inst/arms",
+            left_gripper: "simulation_inst/grippers",
+            right_gripper: "simulation_inst/grippers",
+            // No leader streams by default: the joint and pose sockets stand
+            // vacant, and nothing produces governor_control, so the backbone
+            // keeps its launch-time band, enable and EE-speed caps. The
+            // adjustments below release the sockets the selected leader
+            // drives, and the leader pairs into them from its own fragment;
+            // the headset block switches to pose mode.
+            collision_ctrl: { vacant: "no leader produces governor_control: the launch-time band, enable and EE-speed caps stand" },
+            leader_left_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
+            leader_right_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
+            leader_left_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
+            leader_right_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
+            leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+          },
+        },
+      ],
+    },
+    // What this robot deploys on its own axes unless a copy's `with` says
+    // otherwise.
+    { robot_initializer: "v2" },
+    { robot_commander: "web_commander" },
+    { camera_rig: "none" },
+  ],
+
+  components: [
+    {
+      // Which OpenArm the simulation stands: each option deploys the
+      // initializer that names its model and joins the engine.
+      name: "robot_initializer", provides: ["init_inst"],
+      options: {
+        v1: {
+          deployments: [{
+            source: { name: "robot_initializer", tag: "v1" },
+            instances: [{
+              instance_id: "init_inst",
+              framework: { clock: "simulation" },
+              arguments: { model: "openarm_v1" },
+              links: { simulation: "simulation_inst" },
+            }],
+          }],
+        },
+        v2: {
+          deployments: [{
+            source: { name: "robot_initializer", tag: "v1" },
+            instances: [{
+              instance_id: "init_inst",
+              framework: { clock: "simulation" },
+              arguments: { model: "openarm_v2" },
+              links: { simulation: "simulation_inst" },
+            }],
+          }],
+        },
+      },
+    },
+    {
+      name: "robot_commander",
+      options: {
+        web_commander: "web_commander.json5",
+        xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
+        ker_commander: "ker_commander.json5",
+      },
+    },
+    {
+      name: "recorder", cardinality: "zero_or_one", provides: ["recorder_inst"],
+      options: { lerobot_recorder: "lerobot_recorder.json5" },
+    },
+    {
+      // The three episode viewpoints as one rig, rendered by the simulation
+      // for this robot. A rendered rig costs the simulation a frame budget,
+      // so the robot starts without one: `cameras_sim` on a copy turns it on,
+      // and `camera_rig=none` turns it off where a launcher's entry selects
+      // it. The simulations carry camera mounts on the v2 model alone, so
+      // the rule below refuses a rendered rig on a v1.
+      name: "camera_rig",
+      options: { none: "../../common/fragments/none.json5", cameras_sim: "cameras_sim.json5" },
+    },
+    {
+      name: "brain", cardinality: "zero_or_one", provides: ["brain_inst"],
+      options: { ai_brain_vla: "ai_brain_vla.json5" },
+    },
+  ],
+
+  constraints: [
+    // The simulations render a rig on v2 links only.
+    { when: { camera_rig: "cameras_sim" },
+      requires: [{ robot_initializer: "v2" }],
+      reason: "the simulations render a rig on a v2 only; select v2, or camera_rig=none" },
+    // The rig's streams need a consumer; the brain is one, looking through
+    // the chest camera the launcher binds to it.
+    { when: { camera_rig: "cameras_sim" },
+      requires: [
+        { recorder: "lerobot_recorder" },
+        { robot_commander: ["xr_commander", "mcp_commander"] },
+        { brain: "ai_brain_vla" },
+      ],
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander, mcp_commander or ai_brain_vla" },
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: ["web_commander", "xr_commander"] }, { robot_control: "robot_control" }],
+      reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode on the MCP endpoint; select one of those commanders or launch with robot_control" },
+  ],
+
+  adjustments: [
+    { target: "backbone_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1" } },
+    { target: "backbone_inst", when: { robot_initializer: "v2" },
+      set_arguments: { hardware_version: "v2" } },
+    // Isaac steps its physics slower than the others.
+    { target: "backbone_inst", when: { simulation: "isaac_sim" },
+      set_arguments: { follower_state_rate_hz: 60 } },
+    // The panel streams joint setpoints into the four leader sockets,
+    // released here for it to pair into, and supplies the operator's
+    // governor toggle.
+    { target: "backbone_inst", when: { robot_commander: "web_commander" },
+      set_links: { collision_ctrl: "commander_inst" },
+      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
+    // The KER streams joint setpoints into the same four sockets; it
+    // produces no governor_control, so that slot keeps its vacancy.
+    { target: "backbone_inst", when: { robot_commander: "ker_commander" },
+      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
+    // The headset streams poses: the backbone follows the pose sockets,
+    // released here for the headset to pair into; the joint sockets stay
+    // vacant.
+    {
+      target: "backbone_inst",
+      when: { robot_commander: "xr_commander" },
+      set_arguments: { upstream_mode: "pose" },
+      unset_links: ["leader_left_arm_pose", "leader_right_arm_pose"],
+    },
+  ],
+}

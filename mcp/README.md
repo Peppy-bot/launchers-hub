@@ -38,22 +38,19 @@ Each endpoint is an axis of the file that owns what it publishes:
   `simulation_mcp` and selected with `--with robot_control` on the others, one server
   for the whole stack, reading the simulation's clock in a simulation
   launcher and wall time in `physical.json5`. Every target of `robot_control:v1` is a set the
-  robots fill, so the server takes no link of its own, and each fragment a
-  robot's copy runs adds what it deploys with `add_links` on `robot_control_inst`.
-  The family's control
-  ([openarm](../openarm/fragments/control_common.json5),
-  [so101](../so101/fragments/control_common.json5)) lists the robot with
-  its initializer for its identity and its backbone for its limb state and
-  collision readout, so every robot of the stack is listed with what it is
-  and how it stands. The
-  [recorder](../recording/fragments/lerobot_recorder.json5) lists itself
-  whenever it runs, so an episode starts over the endpoint under any
-  commander. The
+  robots fill, so the server takes no link of its own, and the launcher adds
+  each robot's instances with `add_links` on `robot_control_inst`, under the
+  option that selects the robot: its initializer for its identity and its
+  backbone for its limb state and, on an OpenArm, its collision readout, so
+  every robot of the stack is listed with what it is and how it stands; its
+  recorder ([openarm](../openarm/fragments/lerobot_recorder.json5),
+  [so101](../so101/fragments/lerobot_recorder.json5)) whenever it runs,
+  so an episode starts over the endpoint under any commander; and under the
   [mcp_commander](../robot_commanders/fragments/mcp_commander.json5)
-  option adds the backbone's moves, and under that option the
-  [brain](../openarm/fragments/ai_brain_vla.json5) adds its actions and the rig
-  ([cameras](../openarm/fragments/cameras.json5),
-  [cameras_sim](../openarm/fragments/cameras_sim.json5)) adds the cameras:
+  option the backbone's moves, the
+  [brain](../openarm/fragments/ai_brain_vla.json5)'s actions and the cameras of
+  the rig ([cameras](../openarm/fragments/cameras.json5),
+  [cameras_sim](../openarm/fragments/cameras_sim.json5)):
   everything that moves the robot's arms is listed under one option, so a
   robot under the browser panel or the headset is listed with its state and
   its recorder and no way to move it, and a robot without a rig with no
@@ -80,12 +77,13 @@ message, as the document tells a model to expect.
 
 [simulation_mcp.json5](simulation_mcp.json5) is `openarm_simulation` with
 both endpoints deployed and every robot driven over MCP by default. It
-lists one robot, `alpha`, an OpenArm v2, and each robot entry states, for
-every copy of its option, the MCP commander, with the rendered rig on the
-v2 and the SO-101, so `alpha` and every robot named on the command line, at launch with
-`--join OPTION:NAME` or later with `stack join`, are driven over MCP. The launcher turns the
-simulation's rendering on itself, which a join cannot, so every robot joined onto it
-gets its cameras.
+lists one robot, `alpha`, an OpenArm v2, and each robot entry states the
+MCP commander and the rendered rig for every copy of its option, so `alpha`
+and every robot named on the command line, at launch with `--join
+OPTION:NAME` or later with `stack join`, are driven over MCP with their
+cameras. The launcher turns the simulation's rendering on itself, which a
+join cannot, so every robot joined onto it gets its rig; a v1 OpenArm, which
+the simulations render no rig for, joins with `--with v1,camera_rig=none`.
 
 `peppy stack list` reports, for the bare launch:
 
@@ -123,11 +121,11 @@ from the operating system when it is held, printing the one it took under
 ```sh
 peppy stack launch simulation_mcp                                                  # Waldo, the two endpoints, alpha listed
 peppy stack launch simulation_mcp --join so101_sim:charlie                         # alpha and an SO-101
-peppy stack launch simulation_mcp --join openarm_v2_sim:bravo --join so101_sim:charlie   # two OpenArms and an SO-101
-peppy stack join openarm_v2_sim:bravo                                              # a second OpenArm, listed when the join returns
+peppy stack launch simulation_mcp --join openarm_sim:bravo --join so101_sim:charlie   # two OpenArms and an SO-101
+peppy stack join openarm_sim:bravo                                                 # a second OpenArm, listed when the join returns
 peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its front camera
-peppy stack join openarm_v2_sim:delta --with ai_brain_vla                          # an OpenArm with a brain, its brain tools on the same URL
-peppy stack join openarm_v2_sim:echo --with xr_commander                           # one under the headset, listed with no moves
+peppy stack join openarm_sim:delta --with ai_brain_vla                                 # an OpenArm with a brain, its brain tools on the same URL
+peppy stack join openarm_sim:echo --with xr_commander                              # one under the headset, listed with no moves
 peppy stack remove bravo                                                           # gone from the listing when the remove returns
 peppy stack remove alpha                                                           # the endpoints keep running, listing the rest
 ```
@@ -157,8 +155,8 @@ recorder filming. `--with
 robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 launch is the world's endpoint alone, alpha under the browser panel with
 the recorder filming its rig; a robot joined onto it needs a commander word
-too, since `mcp_commander` requires the endpoint. Each MCP OpenArm adds three
-rendered cameras to the simulation and an SO-101 one, `front`.
+too, since `mcp_commander` requires the endpoint. An OpenArm with its rig
+adds three rendered cameras to the simulation and an SO-101 one, `front`.
 
 The simulated world's endpoint binds the simulation, not a robot, so it
 lists and places every robot whatever its commander and its model:
@@ -175,8 +173,8 @@ The robots' endpoint is the same document, `robot_control:v1`, whether a
 backbone drives the simulation's relays or the CAN drivers and whether the
 frames are rendered or captured, so a client written against it moves to the
 real robots unchanged. On hardware the `uvc_camera_linux` and `zed_camera` nodes
-fill the color and depth targets, and the `cameras` rigs list no profile or
-geometry, so `camera_profile.get` and the `camera_geometry` tools refuse for
+fill the color and depth targets, and the launcher lists no profile or
+geometry for a physical rig, so `camera_profile.get` and the `camera_geometry` tools refuse for
 those cameras and the listing leaves them out of that robot's `tools`. The simulated world's
 endpoint has no counterpart there (its title and instructions say so): drop
 the `simulation` entry, keep `robots`, and launch `physical` with the
@@ -184,7 +182,7 @@ endpoint, joining each robot with its MCP option and rig:
 
 ```sh
 peppy stack launch physical --with robot_control
-peppy stack join openarm_v2:alpha --with mcp_commander,cameras --place jetson-1
+peppy stack join openarm:alpha --with mcp_commander,cameras --place jetson-1
 peppy stack join so101:bravo --with mcp_commander,cameras
 ```
 
@@ -260,12 +258,12 @@ peppy stack launch simulation_mcp --with mujoco,world_control=none
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm_v2:alpha --with mcp_commander,cameras
+peppy stack join openarm:alpha --with mcp_commander,cameras
 ```
 
 The first is the browser scene commander on Waldo with `alpha` under the
-browser panel: the scene panel, the lighting and materials panels Waldo
-binds, and no MCP endpoint. The second is this launcher's
+browser panel: the scene panel, the lighting and materials panels the
+scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's
 bare launch: the two endpoints and `alpha`, with no browser panel. The
 third adds the browser scene commander beside them, and with the rendered
 rig running its page carries the camera panel too, listing the same three

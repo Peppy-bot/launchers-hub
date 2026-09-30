@@ -89,23 +89,24 @@ name: Tests
 # use, boot an isolated daemon. The rebuildable caches live on the launch
 # job's sticky disk: apptainer's pulled layers, uv's wheels and interpreters,
 # the daemon's container build cache (the crates.io registry and sccache the
-# Rust nodes compile through), and the daemon's build artifact cache, where
-# every built node image sits under the fingerprint of the staged sources it
-# was built from (the node's tree, its def, its generated code and the peppy
-# version). A launch reuses an image whose fingerprint it finds and builds the
-# rest, so a run rebuilds exactly the nodes whose sources moved since the
-# launches its snapshot comes from built them. RunsOn restores the disk from
+# Rust nodes compile through), the model weights the simulated brain
+# downloads, and the daemon's build artifact cache, where every built node
+# image sits under the fingerprint of the staged sources it was built from
+# (the node's tree, its def, its generated code and the peppy version). A
+# launch reuses an image whose fingerprint it finds and builds the rest, so a
+# run rebuilds exactly the nodes whose sources moved since the launches its
+# snapshot comes from built them. RunsOn restores the disk from
 # the newest snapshot of the same branch, or of main for a branch's first
 # run, and snapshots it after the job. A pull request's run reads main's
 # snapshot but never writes it; every push to main launches every
 # combination, and that run is what keeps main's snapshot current. Nothing
 # kept there may be state one run depends on another having written, only
-# what apptainer, uv and the daemon rebuild from scratch, all of it keyed by
-# content, so an entry is either a hit for the same bytes or a miss. The
-# fingerprint does not cover a def's floating base image tag, so a moved base
-# image reaches a cached node image when that image's fingerprint next
-# changes: at the next peppy release, or at the next change to the node's
-# sources.
+# what apptainer, uv, the daemon and the brain rebuild or download again from
+# scratch, all of it keyed by content, so an entry is either a hit for the
+# same bytes or a miss. The fingerprint does not cover a def's floating base
+# image tag, so a moved base image reaches a cached node image when that
+# image's fingerprint next changes: at the next peppy release, or at the next
+# change to the node's sources.
 #
 # The last job, `test`, is the one status check the org ruleset requires on
 # main. It is green only when every other job of this workflow succeeded or
@@ -454,6 +455,17 @@ jobs:
       # The apptainer cache is named too: the daemon this job boots inherits
       # the environment, so every node image it builds pulls its base layers
       # through (and into) the cache.
+      #
+      # So is the directory openarm_ai_brain_vla keeps its model weights in.
+      # The simulated brain runs the sam3_siglip perception backend, whose
+      # first load on a machine downloads 7 GB of weights, each file pinned
+      # by its hash, and continues a download that a stopped node left.
+      # `peppy stack launch` forwards its environment to the nodes it starts,
+      # and a node's container sees the runner's home with the sticky disk
+      # under it. A brain lives for seconds in a launch, so one download
+      # spans many launches, and the next run too when the launches of a run
+      # do not complete it: the snapshot of the disk carries the partial
+      # file. The launches and runs after that find the weights.
       - uses: runs-on/action@efac073ea2507ec18797de3a81704201ade11d9d # v2.3.1
         with:
           sticky_cache: custom,path=~/.cache/launchers-hub-ci
@@ -462,6 +474,7 @@ jobs:
         run: |
           echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci" >> "$GITHUB_ENV"
           echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci/apptainer-cache" >> "$GITHUB_ENV"
+          echo "OPENARM_AI_BRAIN_VLA_WEIGHTS=$HOME/.cache/launchers-hub-ci/openarm_ai_brain_vla_weights" >> "$GITHUB_ENV"
 
       # Every node image bootstraps from a base on Docker Hub, and an
       # anonymous pull is charged against a quota tied to the address it comes

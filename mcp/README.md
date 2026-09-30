@@ -51,7 +51,7 @@ Each endpoint is an axis of the file that owns what it publishes:
   commander. The
   [mcp_commander](../robot_commanders/fragments/mcp_commander.json5)
   option adds the backbone's moves, and under that option the
-  [brain](../openarm/fragments/ai_brain.json5) adds its actions and the rig
+  [brain](../openarm/fragments/ai_brain_vla.json5) adds its actions and the rig
   ([cameras](../openarm/fragments/cameras.json5),
   [cameras_sim](../openarm/fragments/cameras_sim.json5)) adds the cameras:
   everything that moves the robot's arms is listed under one option, so a
@@ -126,7 +126,7 @@ peppy stack launch simulation_mcp --join so101_sim:charlie                      
 peppy stack launch simulation_mcp --join openarm_v2_sim:bravo --join so101_sim:charlie   # two OpenArms and an SO-101
 peppy stack join openarm_v2_sim:bravo                                              # a second OpenArm, listed when the join returns
 peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its front camera
-peppy stack join openarm_v2_sim:delta --with ai_brain                              # an OpenArm with a brain, its brain tools on the same URL
+peppy stack join openarm_v2_sim:delta --with ai_brain_vla                          # an OpenArm with a brain, its brain tools on the same URL
 peppy stack join openarm_v2_sim:echo --with xr_commander                           # one under the headset, listed with no moves
 peppy stack remove bravo                                                           # gone from the listing when the remove returns
 peppy stack remove alpha                                                           # the endpoints keep running, listing the rest

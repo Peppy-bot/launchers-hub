@@ -417,10 +417,12 @@ jobs:
     # rebuilds the images keeps 5 busy on average and 12 at its peak, which
     # 8 full cores serve about as fast as 16 Intel hyperthreads. Four
     # families in each zone give enough spot pools that a spot instance is
-    # found at once. The 50 GB root disk holds apptainer's build scratch (a
-    # full launch writes near 18 GB there), and the sticky disk holds the
-    # caches named below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8/ram=16+32/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
+    # found at once. The 80 GB root disk holds apptainer's build scratch,
+    # which peaks near 30 GB while the image of openarm_ai_brain_vla is
+    # built: that image carries torch and 7 GB of model weights, and its
+    # sandbox and the SIF made from it are on the disk together. The sticky
+    # disk holds the caches named below.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8/ram=16+32/family=c8a+c7a+m8a+m7a/volume=80gb:gp3:500mbs:6000iops/sticky=launches:200gb${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once

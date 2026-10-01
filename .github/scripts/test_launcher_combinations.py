@@ -483,6 +483,13 @@ class CombinationsTests(unittest.TestCase):
         )
         # An option with no axis of its own joins plain alone.
         self.assertEqual(combinations.join_selections([]), [[]])
+        # A `one` axis without a default is named by every join: no plain join.
+        version = combinations.Axis("hardware_version", "one", ["v1", "v2"])
+        self.assertEqual(
+            [combinations.render_words(selection) for selection in combinations.join_selections([version, recorder])],
+            ["hardware_version=v1,recorder=lerobot_recorder", "hardware_version=v1",
+             "hardware_version=v2,recorder=lerobot_recorder", "hardware_version=v2"],
+        )
 
     def test_a_one_axis_with_a_single_option_is_no_choice(self):
         control = combinations.Axis("control", "one", ["shared"], deployed="shared")
@@ -525,11 +532,12 @@ class CombinationsTests(unittest.TestCase):
         # (off or on, `none` being the simulated rig's off) and a brain; an
         # SO-101 four commanders, a recorder and a rig. A selection its
         # constraints refuse is still enumerated, and reported refused when
-        # it resolves.
-        openarm, so101 = 1 + 2 * 4 * 2 * 2 * 2, 1 + 4 * 2 * 2
+        # it resolves. The physical OpenArm has no plain join: its hardware
+        # version has no default, so every join names one.
+        openarm, so101 = 2 * 4 * 2 * 2 * 2, 1 + 4 * 2 * 2
         # The simulated SO-101's commander axis is zero_or_one: its unfilled
         # state is the plain join, so no selection is counted twice.
-        openarm_sim, so101_sim = openarm, 4 * 2 * 2
+        openarm_sim, so101_sim = 1 + openarm, 4 * 2 * 2
         # The physical launcher: the endpoint unfilled or on, each bare and
         # joined by any physical robot. It lists no robot, so no launch names
         # one.

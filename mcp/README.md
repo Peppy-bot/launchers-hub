@@ -183,7 +183,7 @@ endpoint, joining each robot with its MCP option and rig:
 
 ```sh
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha --with mcp_commander,cameras --place jetson-1
+peppy stack join openarm:alpha --with v2,mcp_commander,cameras --place jetson-1
 peppy stack join so101:bravo --with mcp_commander,cameras
 ```
 
@@ -259,7 +259,7 @@ peppy stack launch simulation_mcp --with mujoco,world_control=none
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha --with mcp_commander,cameras
+peppy stack join openarm:alpha --with v2,mcp_commander,cameras
 ```
 
 The first is the browser scene commander on Waldo with `alpha` under the

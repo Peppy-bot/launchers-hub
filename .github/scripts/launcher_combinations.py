@@ -676,15 +676,28 @@ def copy_selections(axes, copy):
     ]
 
 
+def defaults_fill(axes):
+    """Whether a copy that writes no word is complete: every `one` axis of
+    `axes` deploys a default, and so do the axes that default brings in
+    reach. A `one` axis without a default is named by every join."""
+    return all(
+        axis.cardinality != "one" or (axis.deployed is not None and defaults_fill(axis.nested.get(axis.deployed, [])))
+        for axis in axes
+    )
+
+
 def join_selections(own):
     """Every join of one option, as the selections its join words write out.
-    The plain join comes first: it writes no word, so the copy is whatever
-    the launcher's entry for the option and the option's fragment give it,
-    and it is the join an operator types. Every selection of the option's own
-    axes that writes a word follows, in peppy's order. A selection leaving
-    every axis unfilled writes none, so it is the plain join."""
+    The plain join comes first where the option's defaults complete the copy:
+    it writes no word, so the copy is whatever the launcher's entry for the
+    option and the option's fragment give it, and it is the join an operator
+    types. Every selection of the option's own axes that writes a word
+    follows, in peppy's order. A selection leaving every axis unfilled writes
+    none, so it is the plain join."""
     selections = selections_of(own)
-    plain = [selection for selection in selections if not render_words(selection)] or [[]]
+    plain = [selection for selection in selections if not render_words(selection)]
+    if not plain and defaults_fill(own):
+        plain = [[]]
     return plain + [selection for selection in selections if render_words(selection)]
 
 

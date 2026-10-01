@@ -1,8 +1,8 @@
 // The physical robots, each joined by name. A launch starts no robot and,
 // with `--with robot_control`, the robots' MCP endpoint;
-// `peppy stack join openarm:alpha` adds a robot,
-// `peppy stack remove alpha` takes it away. An OpenArm stands the generation
-// its join names, a v2 unless a word says otherwise.
+// `peppy stack join openarm:alpha --with v2` adds a robot,
+// `peppy stack remove alpha` takes it away. An OpenArm stands the hardware
+// version its join names, `v1` or `v2`; a join naming neither is refused.
 //
 //   peppy stack launch physical                                 # a new stack with no robot
 //   peppy stack join openarm:alpha --place jetson-1             # a v2 with the browser panel
@@ -11,8 +11,8 @@
 //   peppy stack remove alpha
 //
 //   peppy stack launch physical --with robot_control   # the robots' MCP endpoint, waiting for robots
-//   peppy stack join openarm:alpha --with mcp_commander,cameras --place jetson-1   # driven over MCP, listed when the join returns
-//   peppy stack launch physical --join openarm:alpha --join so101:bravo --place alpha@jetson-1 --place bravo@jetson-2
+//   peppy stack join openarm:alpha --with v2,mcp_commander,cameras --place jetson-1   # driven over MCP, listed when the join returns
+//   peppy stack launch physical --join openarm:alpha --join so101:bravo --with alpha.v2 --place alpha@jetson-1 --place bravo@jetson-2
 //
 // Each robot fragment describes itself. The connections between a robot and
 // the stack, its commander's sockets and the MCP endpoint's slots, are the
@@ -61,10 +61,10 @@
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
-            // Dataset identity, by generation.
-            { target: "recorder_inst", when: { robot_initializer: "v1" },
+            // Dataset identity, by hardware version.
+            { target: "recorder_inst", when: { hardware_version: "v1" },
               set_arguments: { robot_type: "openarm_v1", storage_root: "/tmp/lerobot_openarm_v1" } },
-            { target: "recorder_inst", when: { robot_initializer: "v2" },
+            { target: "recorder_inst", when: { hardware_version: "v2" },
               set_arguments: { robot_type: "openarm_v2", storage_root: "/tmp/lerobot_openarm_v2" } },
             // Under the MCP commander, the moves a model drives it by.
             { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },

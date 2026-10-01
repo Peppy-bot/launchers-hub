@@ -1,12 +1,12 @@
 // A physical OpenArm: its four CAN drivers, the backbone that governs them,
-// and the robot's own axes: its generation, the commander that leads it, the
-// recorder that films it, its camera rig and its brain. The generation axis
-// carries the initializer, which names the model; a v1's frames and
+// and the robot's own axes: its hardware version, the commander that leads
+// it, the recorder that films it, its camera rig and its brain. The
+// `hardware_version` axis carries the initializer, which names the model; a v1's frames and
 // interfaces are set on the drivers by this file's own adjustments.
 //
 // CAN topology: left arm + left gripper share one interface, right arm +
 // right gripper the other: the host's left_arm and right_arm on a v2, can0
-// and can1 on a v1. Match the generation to the physical rig before launch.
+// and can1 on a v1. Match the hardware version to the physical rig before launch.
 //
 // This file writes only the instances it deploys. The launcher that selects
 // this robot wires it to the stack: the commander's sockets and tuning, the
@@ -16,7 +16,7 @@
 
   deployments: [
     // The four CAN drivers, a v2 rig on the host's left_arm and right_arm
-    // interfaces; a v1 is set below per generation.
+    // interfaces; a v1 is set below per hardware version.
     {
       source: { name: "openarm_arm", tag: "v1" },
       instances: [
@@ -49,7 +49,7 @@
         {
           instance_id: "backbone_inst",
           // The governor band is a required node argument, as are the
-          // hardware generation, set below per generation, and the startup
+          // hardware version, set below per hardware version, and the startup
           // EE-speed cap; the web panel streams live caps.
           arguments: {
             // Joint-led command pairings; the XR adjustment selects pose mode.
@@ -65,7 +65,7 @@
           },
           links: {
             robot_init: "init_inst",
-            // The limbs either generation deploys, under the same ids.
+            // The limbs either hardware version deploys, under the same ids.
             left_arm: "left_arm_inst",
             right_arm: "right_arm_inst",
             left_gripper: "left_gripper_inst",
@@ -88,17 +88,17 @@
       ],
     },
     // What this robot deploys on its own axes unless a copy's `with` says
-    // otherwise: the current generation and the browser panel.
-    { robot_initializer: "v2" },
+    // otherwise: the browser panel. A copy names its hardware version.
     { robot_commander: "web_commander" },
   ],
 
   components: [
     {
-      // Which OpenArm this is: each option deploys the initializer that
-      // names its model and answers for the drivers' readiness; a v1's
-      // interfaces and frames are set on the drivers below.
-      name: "robot_initializer", provides: ["init_inst"],
+      // Which OpenArm this is, named by every copy since the gripper settings
+      // differ per rig: each option deploys the initializer that names its
+      // model and answers for the drivers' readiness; a v1's interfaces and
+      // frames are set on the drivers below.
+      name: "hardware_version", provides: ["init_inst"],
       options: {
         v1: {
           deployments: [{
@@ -168,23 +168,26 @@
     { when: { recorder: "lerobot_recorder" },
       requires: [{ robot_commander: ["web_commander", "xr_commander"] }, { robot_control: "robot_control" }],
       reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode on the MCP endpoint; select one of those commanders or launch with robot_control" },
+    { when: { robot_commander: "ker_commander" },
+      requires: [{ hardware_version: "v2" }],
+      reason: "ker_commander is offered on a v2 alone; select v2, or another commander" },
   ],
 
   adjustments: [
     // A v1 rig: v1 frames and base links with prismatic parallel-jaw
     // grippers, on can0 and can1.
-    { target: "left_arm_inst", when: { robot_initializer: "v1" },
+    { target: "left_arm_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1", can_interface: "can0" } },
-    { target: "right_arm_inst", when: { robot_initializer: "v1" },
+    { target: "right_arm_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1", can_interface: "can1" } },
-    { target: "left_gripper_inst", when: { robot_initializer: "v1" },
+    { target: "left_gripper_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1", can_interface: "can0" } },
-    { target: "right_gripper_inst", when: { robot_initializer: "v1" },
+    { target: "right_gripper_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1", can_interface: "can1" } },
-    // The generation the backbone clamps to, which picks its joint limits.
-    { target: "backbone_inst", when: { robot_initializer: "v1" },
+    // The hardware version the backbone clamps to, which picks its joint limits.
+    { target: "backbone_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1" } },
-    { target: "backbone_inst", when: { robot_initializer: "v2" },
+    { target: "backbone_inst", when: { hardware_version: "v2" },
       set_arguments: { hardware_version: "v2" } },
     // The panel streams joint setpoints into the four leader sockets,
     // released here for it to pair into, and supplies the operator's

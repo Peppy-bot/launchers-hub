@@ -923,7 +923,8 @@ class CombinationsTests(unittest.TestCase):
         # recorder whenever they run. None of it is guarded on the server:
         # an entry naming an instance the launch does not run is skipped.
         readouts = {
-            "openarm": {"identity": ["init_inst"], "limb_state": ["backbone_inst"], "collision": ["backbone_inst"]},
+            "openarm": {"identity": ["init_inst"], "limb_state": ["backbone_inst"], "collision": ["backbone_inst"],
+                        "camera_mounts": ["backbone_inst"]},
             "so101": {"identity": ["init_inst"], "limb_state": ["backbone_inst"]},
         }
         for path, robots in ROBOT_LAUNCHERS.items():
@@ -1173,7 +1174,8 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["arguments"], {"port": 8902})
         self.assertEqual(instance["links"], {
             "scene": "simulation_inst", "controls": "simulation_inst",
-            "lighting": "simulation_inst", "materials": "simulation_inst"})
+            "lighting": "simulation_inst", "materials": "simulation_inst",
+            "view": "simulation_inst", "clock": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)

@@ -57,10 +57,11 @@
         openarm_sim: {
           fragments: ["openarm/fragments/openarm_sim.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is, what its limbs measure
-            // and how close its arms stand.
+            // Listed on the MCP endpoint: who it is, what its limbs measure,
+            // how close its arms stand and where its cameras are mounted.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"] } },
+              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
+                           camera_mounts: ["backbone_inst"] } },
             // The headset leads from the pose sockets; a released trigger rests
             // at half travel, since fully open splays the fingers nearly flat.
             { target: "commander_inst", when: { robot_commander: "xr_commander" },

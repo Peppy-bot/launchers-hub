@@ -120,8 +120,9 @@ gain and white balance as tools.
 The endpoint is the launcher's `robot_control` axis, deployed by `simulation_mcp`
 and selected with `--with robot_control` on the other launchers. Every robot beside
 it is listed with its
-identity, limb state and collision readout under any commander, by the
-launcher's `add_links` on `robot_control_inst` under the robot's option,
+identity, limb state, collision readout and camera mounts under any
+commander, by the launcher's `add_links` on `robot_control_inst` under the
+robot's option,
 with its recorder whenever it runs, and with its brain under
 `mcp_commander`. `mcp_commander`
 ([../robot_commanders/fragments/mcp_commander.json5](../robot_commanders/fragments/mcp_commander.json5))
@@ -145,12 +146,13 @@ reports them under `Instance endpoints`. Recording starts from the web or
 XR commander's record button, or over MCP through `recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
-lighting and its materials, is a second endpoint a model uses to set the
-world up, `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
+lighting, its materials, a view of it from any point and its clock, is a
+second endpoint a model uses to set the world up,
+`http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
 not the robot's: the `simulation_mcp` launcher deploys it on an axis of
 its own, `world_control`, bound to the simulation alone, under Waldo, the one
-simulation implementing the object controls, lighting and materials
-contracts. The
+simulation implementing the object controls, lighting, materials, view and
+clock contracts. The
 endpoints, the
 client setup and the move from simulation to the real robot are in the
 [MCP guide](../mcp/README.md):

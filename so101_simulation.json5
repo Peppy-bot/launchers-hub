@@ -79,18 +79,18 @@
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
-            // Dataset identity, by generation and engine.
-            { target: "recorder_inst", when: { robot_initializer: "v1", simulation: "mujoco" },
+            // Dataset identity, by hardware version and engine.
+            { target: "recorder_inst", when: { hardware_version: "v1", simulation: "mujoco" },
               set_arguments: { robot_type: "openarm_v1_mujoco", storage_root: "/tmp/lerobot_openarm_mujoco" } },
-            { target: "recorder_inst", when: { robot_initializer: "v1", simulation: "isaac_sim" },
+            { target: "recorder_inst", when: { hardware_version: "v1", simulation: "isaac_sim" },
               set_arguments: { robot_type: "openarm_v1_isaac", storage_root: "/tmp/lerobot_openarm_isaac" } },
-            { target: "recorder_inst", when: { robot_initializer: "v1", simulation: "waldo" },
+            { target: "recorder_inst", when: { hardware_version: "v1", simulation: "waldo" },
               set_arguments: { robot_type: "openarm_v1_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
-            { target: "recorder_inst", when: { robot_initializer: "v2", simulation: "mujoco" },
+            { target: "recorder_inst", when: { hardware_version: "v2", simulation: "mujoco" },
               set_arguments: { robot_type: "openarm_v2_mujoco", storage_root: "/tmp/lerobot_openarm_mujoco" } },
-            { target: "recorder_inst", when: { robot_initializer: "v2", simulation: "isaac_sim" },
+            { target: "recorder_inst", when: { hardware_version: "v2", simulation: "isaac_sim" },
               set_arguments: { robot_type: "openarm_v2_isaac", storage_root: "/tmp/lerobot_openarm_isaac" } },
-            { target: "recorder_inst", when: { robot_initializer: "v2", simulation: "waldo" },
+            { target: "recorder_inst", when: { hardware_version: "v2", simulation: "waldo" },
               set_arguments: { robot_type: "openarm_v2_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
             // Under the MCP commander, the moves a model drives it by.
             { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },

@@ -2,7 +2,7 @@
 // family, sampling both arms and both grippers onto one fps grid. Every
 // OpenArm records the same four limbs at the same rate, so the rate and the
 // links live here; which dataset the episodes land in depends on the
-// generation and the engine, so the launcher names that.
+// hardware version and the engine, so the launcher names that.
 //
 // storage_root is bind-mounted into the recorder container; /tmp lasts until
 // reboot, so name durable storage for datasets to keep. s3_uri mirrors each

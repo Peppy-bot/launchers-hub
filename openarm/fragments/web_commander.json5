@@ -1,5 +1,5 @@
 // The browser command panel: joint-led teleop from any device with a
-// browser. It loads the model of the generation it leads; the governor band
+// browser. It loads the model of the hardware version it leads; the governor band
 // and launch cap mirror the backbone's.
 {
   peppy_schema: "launcher_fragment/v1",
@@ -54,7 +54,7 @@
     { target: "commander_inst", when: { recorder: "lerobot_recorder" },
       add_links: { recorder: ["recorder_inst"] } },
     // Leading a v1, it loads the v1 model.
-    { target: "commander_inst", when: { robot_initializer: "v1" },
+    { target: "commander_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1" } },
   ],
 }

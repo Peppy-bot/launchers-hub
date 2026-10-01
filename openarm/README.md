@@ -4,13 +4,14 @@ An OpenArm is one fragment: [fragments/openarm.json5](fragments/openarm.json5)
 drives the physical robot over CAN and
 [fragments/openarm_sim.json5](fragments/openarm_sim.json5) joins a
 simulation that stands its limbs. Each deploys the robot's backbone and
-declares the robot's own axes: its generation, a `v2` unless a copy's
-`with` or `--with v1` says otherwise, the robot commander, the recorder, the
-camera rig and the brain. `robot_initializer` is an option written in place: each deploys the
-initializer, `robot_initializer`, which every robot runs, naming its
-model, `openarm_v1` or `openarm_v2`; the physical file deploys the four
+declares the robot's own axes: its hardware version, which a copy of the
+physical robot names and a simulated copy stands as `v2` unless its `with`
+or `--with v1` says otherwise, the robot commander, the recorder, the camera
+rig and the brain. `hardware_version` is an option written in place: each
+deploys the initializer, `robot_initializer`, which every robot runs, naming
+its model, `openarm_v1` or `openarm_v2`; the physical file deploys the four
 CAN drivers as a v2 and sets a v1's frames and interfaces on them per
-generation, and the simulated one joins the initializer to the simulation. A fragment writes only the
+hardware version, and the simulated one joins the initializer to the simulation. A fragment writes only the
 instances it deploys, so the robot's connections to the stack, its
 commander's sockets and tuning, its recorder's rig and dataset and its
 listing on the MCP endpoint, are written in each launcher under the option
@@ -46,13 +47,13 @@ sudo ip link set right_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 ```
 
 For v1, use `can0` and `can1` in those commands. Check the actual adapters
-and hardware generation before enabling the buses.
+and hardware version before enabling the buses.
 
 ```sh
 peppy repo refresh
 peppy stack launch physical
-peppy stack join openarm:alpha                           # a v2 with the browser panel, on this machine
-peppy stack join openarm:alpha --place jetson-1
+peppy stack join openarm:alpha --with v2                 # a v2 with the browser panel, on this machine
+peppy stack join openarm:alpha --with v2 --place jetson-1
 peppy stack join openarm:bravo --with v1 --place jetson-2
 peppy stack list
 peppy stack remove alpha
@@ -67,22 +68,24 @@ after startup. `stack remove alpha` stops every instance owned by alpha;
 
 ## Selecting the hardware version
 
-`robot_initializer` is the OpenArm's own axis, `v2` unless a word says
-otherwise. It selects everything that differs between the rigs: the
+`hardware_version` is the OpenArm's own axis. On hardware it has no default: a
+join names `v1` or `v2`, and a join naming neither is refused with both
+spellings. The simulated OpenArm stands a v2 unless a word says otherwise.
+The axis selects everything that differs between the rigs: the
 initializer's `model` (`openarm_v1` or `openarm_v2`), the drivers' frames
 and CAN interfaces, and the `hardware_version` argument of the backbone, the
 browser panel and the KER. The bare word works because no other axis in
-reach names `v1` or `v2`; `robot_initializer=v1` is the explicit spelling.
+reach names `v1` or `v2`; `hardware_version=v1` is the explicit spelling.
 
 ```sh
 peppy stack launch physical
 peppy stack join openarm:bravo --with v1                                # a joined copy
-peppy stack join openarm:bravo --with robot_initializer=v1               # the explicit spelling
+peppy stack join openarm:bravo --with hardware_version=v1                     # the explicit spelling
 peppy stack launch openarm_simulation --with alpha.v1                   # the copy the file lists
 peppy stack launch physical --join openarm:foxtrot --with foxtrot.v1  # a copy named at launch
 ```
 
-In a launcher file, on an entry or a copy: `with: { robot_initializer: "v1" }`.
+In a launcher file, on an entry or a copy: `with: { hardware_version: "v1" }`.
 A mismatched gripper setting has
 these physical consequences:
 
@@ -102,10 +105,10 @@ These are the robot's own axes, declared by its fragments, and selected per
 copy: with `with:` in the file, or `--with` on `stack join`:
 
 ```sh
-peppy stack join openarm:bravo --with xr_commander,lerobot_recorder,cameras
+peppy stack join openarm:bravo --with v2,xr_commander,lerobot_recorder,cameras
 peppy stack join openarm:charlie --with v1,xr_commander,cameras --place jetson-2
-peppy stack join openarm:delta --with web_commander,ai_brain_vla
-peppy stack join openarm:echo --with ker_commander
+peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
+peppy stack join openarm:echo --with v2,ker_commander
 ```
 
 The default web commander streams joint setpoints. XR streams end-effector
@@ -136,7 +139,7 @@ robot without a rig is listed with no camera. No simulation renders a rig
 on v1 links, so `cameras_sim` on a simulated v1 is refused; a physical v1
 films with `cameras`.
 
-The KER leader, on either generation (physical or simulated), streams joint
+The KER leader, on either hardware version (physical or simulated), streams joint
 setpoints from enactic's motorless leader arm.
 
 The robots' endpoint is `http://127.0.0.1:8900/robot_control/v1/mcp`, the
@@ -214,7 +217,7 @@ For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:
 
 ```sh
-peppy stack join openarm:bravo --with lerobot_recorder \
+peppy stack join openarm:bravo --with v2,lerobot_recorder \
   --set-arguments 'left_arm_inst.can_interface="bravo_left"' \
   --set-arguments 'left_gripper_inst.can_interface="bravo_left"' \
   --set-arguments 'right_arm_inst.can_interface="bravo_right"' \
@@ -276,7 +279,7 @@ Every simulation stands any number of robots, so a join comes up beside
 join, as `stack join` is, and a join cannot turn rendering on, so a robot
 joined to a launch whose listed copy selects no rig has no rendered camera.
 
-Every simulation stands a v1 or a v2, the model the generation option
+Every simulation stands a v1 or a v2, the model the `hardware_version` option
 names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
 (from private-nodes-hub), which carries both, so a v1 and a v2 share one
 Waldo world. For rendered wrist/chest streams and recording, the launch

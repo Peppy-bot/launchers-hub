@@ -1,6 +1,6 @@
 // The KER leader: joint-led teleop from enactic's motorless bimanual leader
 // arm, whose joints mirror OpenArm v2 1:1; it clamps to the joint limits of
-// the generation it leads. Each limb pairs into the backbone's matching
+// the hardware version it leads. Each limb pairs into the backbone's matching
 // leader socket; an arm engages when its trigger is
 // squeezed to engage_trigger_opening, having first read back above it, and
 // then tracks the KER. The KER produces no governor control, so the
@@ -37,11 +37,5 @@
         },
       ],
     },
-  ],
-
-  adjustments: [
-    // Leading a v1, it clamps to the v1 joint limits.
-    { target: "commander_inst", when: { robot_initializer: "v1" },
-      set_arguments: { hardware_version: "v1" } },
   ],
 }

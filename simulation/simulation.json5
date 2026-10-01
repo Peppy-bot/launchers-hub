@@ -15,7 +15,7 @@
 //
 // This file declares no robot axis, so nothing joins it. A robot stands in
 // a simulation the same launch names, which is what
-// openarm/openarm_simulation.json5, so101/so101_simulation.json5 and
+// openarm_simulation.json5, so101_simulation.json5 and
 // mcp/simulation_mcp.json5 do.
 //
 // MuJoCo is no option here: it answers no scene call, so nothing in this

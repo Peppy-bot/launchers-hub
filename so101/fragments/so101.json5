@@ -1,6 +1,13 @@
-// The SO-101 robot: its follower, the shared SO-101 control, and its own
-// axes: the command surface, an optional recorder, and a camera. The leader
-// arm leads unless a launch word or a copy's `with` selects another surface.
+// A physical SO-101: the follower arm, the initializer that says who the
+// robot is, the backbone that governs the arm, and the robot's own axes: the
+// command surface that leads it, an optional recorder, and a camera. The
+// leader arm leads unless a launch word or a copy's `with` selects another
+// surface.
+//
+// This file writes only the instances it deploys. The launcher that selects
+// this robot wires it to the stack: the commander's sockets, tuning and the
+// driver's health streams, the MCP endpoint's slots, and the dataset the
+// recorder files episodes under.
 //
 // Before first launch: install ../rules/60-so101.rules (stable serial symlinks)
 // and calibrate both arms with lerobot-calibrate; the host paths below are
@@ -8,8 +15,6 @@
 {
   peppy_schema: "launcher_fragment/v1",
 
-  // The robot's driver, and the option it deploys on its own axes unless a
-  // copy's `with` says otherwise.
   deployments: [
     {
       source: { name: "so101_follower", tag: "v1" },
@@ -27,15 +32,66 @@
         },
       ],
     },
-    { control: "control_common" },
+    {
+      // The initializer every robot runs: it answers robot_identity with
+      // the so101 model, the id a simulation's catalogue carries it under,
+      // and robot_ready once everything that answers for the robot is up.
+      // so101_backbone does not wait on it.
+      source: { name: "robot_initializer", tag: "v1" },
+      instances: [
+        {
+          instance_id: "init_inst",
+          arguments: { model: "so101" },
+          links: {
+            // Where this robot's limbs are: one driver of its own, the
+            // follower, answering for both. It drives its own hardware, so it
+            // joins no simulation.
+            limbs: ["follower_inst"],
+            simulation: { vacant: "this robot drives its own limbs" },
+          },
+        },
+      ],
+    },
+    {
+      source: { name: "so101_backbone", tag: "v1" },
+      instances: [
+        {
+          instance_id: "backbone_inst",
+          arguments: {
+            // Joint-led by default: the leader_arm pairing is the followed
+            // upstream command (the headset block below selects "pose").
+            upstream_mode: "joints",
+            control_rate_hz: 60,
+            // The stream's only limiter: max end-effector speed. Generous
+            // for teleop feel; lower for cautious sessions. The linear cap
+            // is the primary knob.
+            max_ee_velocity_m_s: 2.0,
+            max_ee_angular_velocity_rad_s: 12.0,
+            max_gripper_rate_frac_s: 10.0,
+          },
+          links: {
+            // The exclusive command loops with the follower: governed-shape
+            // setpoints stream down each pair, measured state streams back.
+            arm: "follower_inst",
+            gripper: "follower_inst",
+            // No leader streams by default: both sockets and the pose slot
+            // stand vacant, and actions drive the arm. The adjustments below
+            // release the sockets the selected leader drives, and the leader
+            // pairs into them from its own fragment; the headset block
+            // switches to pose mode.
+            leader_arm: { vacant: "no leader streams joint commands: actions drive the arm" },
+            leader_gripper: { vacant: "no leader streams joint commands: actions drive the gripper" },
+            leader_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slot" },
+          },
+        },
+      ],
+    },
+    // What this robot deploys on its own axes unless a copy's `with` says
+    // otherwise.
     { robot_commander: "so101_leader" },
   ],
 
   components: [
-    {
-      name: "control", provides: ["init_inst", "backbone_inst"],
-      options: { control_common: "control_common.json5" },
-    },
     // No `provides`: `none` deploys nothing, and a provided id must be
     // defined by every option.
     {
@@ -50,7 +106,7 @@
     },
     {
       name: "recorder", cardinality: "zero_or_one", provides: ["recorder_inst"],
-      options: { lerobot_recorder: "../../recording/fragments/lerobot_recorder.json5" },
+      options: { lerobot_recorder: "lerobot_recorder.json5" },
     },
     {
       name: "camera_rig", cardinality: "zero_or_one", provides: ["front"],
@@ -69,34 +125,28 @@
         { robot_commander: ["xr_commander", "mcp_commander"] },
       ],
       reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+    // An episode starts via the recorder's record_episode action: from the
+    // headset's button, or from the recorder.record_episode tool of the
+    // stack's MCP endpoint, where the recorder is listed whenever the
+    // endpoint runs.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: "xr_commander" }, { robot_control: "robot_control" }],
+      reason: "an episode starts from the XR commander's button or from recorder.record_episode on the MCP endpoint; select xr_commander or launch with robot_control" },
   ],
 
   adjustments: [
-    // Where this robot's limbs are: one driver of its own, the follower,
-    // answering for both. It drives its own hardware, so it joins no
-    // simulation.
-    { target: "init_inst",
-      set_links: {
-        simulation: { vacant: "this robot drives its own limbs" },
-        limbs: ["follower_inst"],
-      } },
-    // The exclusive command loops with the follower: governed-shape
-    // setpoints stream down each pair, measured state streams back.
-    { target: "backbone_inst",
-      set_links: {
-        arm: "follower_inst",
-        gripper: "follower_inst",
-      } },
-    // The real driver reports per-motor health and emits operator alerts,
-    // which the headset shows. Only the XR commander declares those slots.
-    { target: "commander_inst", when: { robot_commander: "xr_commander" },
-      add_links: {
-        motor_health: ["follower_inst"],
-        alerts: ["follower_inst"],
-      } },
-    // Dataset identity. /tmp lasts until reboot; select durable storage for
-    // saved datasets.
-    { target: "recorder_inst",
-      set_arguments: { robot_type: "so101", storage_root: "/tmp/lerobot_so101" } },
+    // The leader arm streams joint setpoints into both sockets, released
+    // here for it to pair into.
+    { target: "backbone_inst", when: { robot_commander: "so101_leader" },
+      unset_links: ["leader_arm", "leader_gripper"] },
+    // The headset streams a pose and the gripper: the backbone follows the
+    // pose slot, released here with the gripper socket for the headset to
+    // pair into; the joint socket stays vacant.
+    {
+      target: "backbone_inst",
+      when: { robot_commander: "xr_commander" },
+      set_arguments: { upstream_mode: "pose" },
+      unset_links: ["leader_pose", "leader_gripper"],
+    },
   ],
 }

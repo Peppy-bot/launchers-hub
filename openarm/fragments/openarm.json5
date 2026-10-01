@@ -1,0 +1,209 @@
+// A physical OpenArm: its four CAN drivers, the backbone that governs them,
+// and the robot's own axes: its generation, the commander that leads it, the
+// recorder that films it, its camera rig and its brain. The generation axis
+// carries the initializer, which names the model; a v1's frames and
+// interfaces are set on the drivers by this file's own adjustments.
+//
+// CAN topology: left arm + left gripper share one interface, right arm +
+// right gripper the other: the host's left_arm and right_arm on a v2, can0
+// and can1 on a v1. Match the generation to the physical rig before launch.
+//
+// This file writes only the instances it deploys. The launcher that selects
+// this robot wires it to the stack: the commander's sockets and tuning, the
+// MCP endpoint's slots, and the dataset the recorder files episodes under.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    // The four CAN drivers, a v2 rig on the host's left_arm and right_arm
+    // interfaces; a v1 is set below per generation.
+    {
+      source: { name: "openarm_arm", tag: "v1" },
+      instances: [
+        {
+          instance_id: "left_arm_inst",
+          arguments: { arm_id: 0, hardware_version: "v2", can_interface: "left_arm", control_rate_hz: 100, state_rate_hz: 100 },
+        },
+        {
+          instance_id: "right_arm_inst",
+          arguments: { arm_id: 1, hardware_version: "v2", can_interface: "right_arm", control_rate_hz: 100, state_rate_hz: 100 },
+        },
+      ],
+    },
+    {
+      source: { name: "openarm_gripper", tag: "v1" },
+      instances: [
+        {
+          instance_id: "left_gripper_inst",
+          arguments: { gripper_id: 0, hardware_version: "v2", can_interface: "left_arm", control_rate_hz: 100, state_rate_hz: 100 },
+        },
+        {
+          instance_id: "right_gripper_inst",
+          arguments: { gripper_id: 1, hardware_version: "v2", can_interface: "right_arm", control_rate_hz: 100, state_rate_hz: 100 },
+        },
+      ],
+    },
+    {
+      source: { name: "openarm_backbone", tag: "v1" },
+      instances: [
+        {
+          instance_id: "backbone_inst",
+          // The governor band is a required node argument, as are the
+          // hardware generation, set below per generation, and the startup
+          // EE-speed cap; the web panel streams live caps.
+          arguments: {
+            // Joint-led command pairings; the XR adjustment selects pose mode.
+            upstream_mode: "joints",
+            control_rate_hz: 100,
+            // Match the limbs' measured-state cadence.
+            follower_state_rate_hz: 100,
+            d_stop_m: 0.005,
+            d_safe_m: 0.02,
+            collision_governor_enabled: true,
+            max_ee_angular_velocity_rad_s: 0.8,
+            max_ee_velocity_m_s: 0.25,
+          },
+          links: {
+            robot_init: "init_inst",
+            // The limbs either generation deploys, under the same ids.
+            left_arm: "left_arm_inst",
+            right_arm: "right_arm_inst",
+            left_gripper: "left_gripper_inst",
+            right_gripper: "right_gripper_inst",
+            // No leader streams by default: the joint and pose sockets stand
+            // vacant, and nothing produces governor_control, so the backbone
+            // keeps its launch-time band, enable and EE-speed caps. The
+            // adjustments below release the sockets the selected leader
+            // drives, and the leader pairs into them from its own fragment;
+            // the headset block switches to pose mode.
+            collision_ctrl: { vacant: "no leader produces governor_control: the launch-time band, enable and EE-speed caps stand" },
+            leader_left_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
+            leader_right_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
+            leader_left_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
+            leader_right_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
+            leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+          },
+        },
+      ],
+    },
+    // What this robot deploys on its own axes unless a copy's `with` says
+    // otherwise: the current generation and the browser panel.
+    { robot_initializer: "v2" },
+    { robot_commander: "web_commander" },
+  ],
+
+  components: [
+    {
+      // Which OpenArm this is: each option deploys the initializer that
+      // names its model and answers for the drivers' readiness; a v1's
+      // interfaces and frames are set on the drivers below.
+      name: "robot_initializer", provides: ["init_inst"],
+      options: {
+        v1: {
+          deployments: [{
+            source: { name: "robot_initializer", tag: "v1" },
+            instances: [{
+              instance_id: "init_inst",
+              arguments: { model: "openarm_v1" },
+              links: {
+                limbs: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"],
+                simulation: { vacant: "this robot drives its own limbs" },
+              },
+            }],
+          }],
+        },
+        v2: {
+          deployments: [{
+            source: { name: "robot_initializer", tag: "v1" },
+            instances: [{
+              instance_id: "init_inst",
+              arguments: { model: "openarm_v2" },
+              links: {
+                limbs: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"],
+                simulation: { vacant: "this robot drives its own limbs" },
+              },
+            }],
+          }],
+        },
+      },
+    },
+    {
+      name: "robot_commander",
+      options: {
+        web_commander: "web_commander.json5",
+        xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
+        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
+        ker_commander: "ker_commander.json5",
+      },
+    },
+    {
+      name: "recorder", cardinality: "zero_or_one", provides: ["recorder_inst"],
+      options: { lerobot_recorder: "lerobot_recorder.json5" },
+    },
+    {
+      name: "camera_rig", cardinality: "zero_or_one",
+      provides: ["wrist_left", "wrist_right", "chest"],
+      options: { cameras: "cameras.json5" },
+    },
+    {
+      name: "brain", cardinality: "zero_or_one", provides: ["brain_inst"],
+      options: { ai_brain_vla: "ai_brain_vla.json5" },
+    },
+  ],
+
+  constraints: [
+    // The camera streams need a consumer: the recorder films them, the XR
+    // headset shows them in its panels, and the MCP commander publishes them
+    // as resources and tools. The rig must feed at least one of them.
+    { when: { camera_rig: "cameras" },
+      requires: [
+        { recorder: "lerobot_recorder" },
+        { robot_commander: ["xr_commander", "mcp_commander"] },
+      ],
+      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+    // An episode needs a trigger: the record button of the web panel or the
+    // headset, or the recorder.record_episode tool of the stack's MCP
+    // endpoint. The KER leader carries none.
+    { when: { recorder: "lerobot_recorder" },
+      requires: [{ robot_commander: ["web_commander", "xr_commander"] }, { robot_control: "robot_control" }],
+      reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode on the MCP endpoint; select one of those commanders or launch with robot_control" },
+  ],
+
+  adjustments: [
+    // A v1 rig: v1 frames and base links with prismatic parallel-jaw
+    // grippers, on can0 and can1.
+    { target: "left_arm_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1", can_interface: "can0" } },
+    { target: "right_arm_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1", can_interface: "can1" } },
+    { target: "left_gripper_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1", can_interface: "can0" } },
+    { target: "right_gripper_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1", can_interface: "can1" } },
+    // The generation the backbone clamps to, which picks its joint limits.
+    { target: "backbone_inst", when: { robot_initializer: "v1" },
+      set_arguments: { hardware_version: "v1" } },
+    { target: "backbone_inst", when: { robot_initializer: "v2" },
+      set_arguments: { hardware_version: "v2" } },
+    // The panel streams joint setpoints into the four leader sockets,
+    // released here for it to pair into, and supplies the operator's
+    // governor toggle.
+    { target: "backbone_inst", when: { robot_commander: "web_commander" },
+      set_links: { collision_ctrl: "commander_inst" },
+      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
+    // The KER streams joint setpoints into the same four sockets; it
+    // produces no governor_control, so that slot keeps its vacancy.
+    { target: "backbone_inst", when: { robot_commander: "ker_commander" },
+      unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
+    // The headset streams poses: the backbone follows the pose sockets,
+    // released here for the headset to pair into; the joint sockets stay
+    // vacant.
+    {
+      target: "backbone_inst",
+      when: { robot_commander: "xr_commander" },
+      set_arguments: { upstream_mode: "pose" },
+      unset_links: ["leader_left_arm_pose", "leader_right_arm_pose"],
+    },
+  ],
+}

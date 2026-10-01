@@ -59,13 +59,4 @@
       options: { web_scene_commander: "web_scene_commander.json5" },
     },
   ],
-
-  adjustments: [
-    // Waldo serves scene_lighting, scene_materials and sim_camera_control on
-    // the same instance as its scene, so the scene commander's three
-    // optional slots bind to it here; the adjustment is skipped when no
-    // scene commander is selected.
-    { target: "scene_commander_inst",
-      set_links: { lighting: "simulation_inst", materials: "simulation_inst", cameras: "simulation_inst" } },
-  ],
 }

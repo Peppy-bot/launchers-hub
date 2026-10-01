@@ -15,16 +15,18 @@ initializer, the backbone and the commander, its ids under the copy's name
 (`alpha_follower_inst`, `alpha_init_inst`, `alpha_backbone_inst`,
 `alpha_commander_inst`). [so101_sim](fragments/so101_sim.json5) joins a
 simulation that stands its limbs, and is an option of every simulation
-launcher: [so101_simulation.json5](so101_simulation.json5), which lists
+launcher: [so101_simulation.json5](../so101_simulation.json5), which lists
 one as `alpha`,
-[openarm_simulation.json5](../openarm/openarm_simulation.json5) and
+[openarm_simulation.json5](../openarm_simulation.json5) and
 [simulation_mcp.json5](../mcp/simulation_mcp.json5).
 
-Both select the shared SO-101 control
-([fragments/control_common.json5](fragments/control_common.json5)): the
-initializer, `robot_initializer` with `model: "so101"`, which answers
-`robot_identity` and `robot_ready`, and the backbone, with the XR and
-recorder wiring into it. The backbone names its downstream links after the
+Both deploy the SO-101 control: the initializer, `robot_initializer` with
+`model: "so101"`, which answers `robot_identity` and `robot_ready`, and the
+backbone. A fragment writes only the instances it deploys, so the headset's
+wiring into the backbone, the recorder's rig and dataset, and the robot's
+listing on the MCP endpoint are the launcher's, under the option that
+selects the robot; the recorder's limb links are the family recorder
+file's, and the headset binds its own record button. The backbone names its downstream links after the
 limbs, `arm` and `gripper`. On hardware they pair with `follower_inst`, the
 initializer's `limbs` slot links the follower and its `simulation` slot is
 vacant. In a simulation they pair into `simulation_inst/arms` and
@@ -33,16 +35,16 @@ every instance reads the `simulation` clock, and there is no follower node:
 the engine plays the follower role toward the backbone. `so101_backbone`
 does not wait on `robot_ready`.
 
-The XR and MCP commanders and the recorder are shared with OpenArm through
-the repository-level robot commander and recording directories. "Leader"/"follower"
+The XR and MCP commanders are shared with OpenArm through the
+repository-level robot commander directory; the recorder is the family's,
+[fragments/lerobot_recorder.json5](fragments/lerobot_recorder.json5). "Leader"/"follower"
 name pairing roles here; the SO-101 leader arm is one commander option
 among several (see nodes-hub/so101/README.md, Terminology). The fragments'
 axes:
 
 | Axis | `so101` | `so101_sim` | Provides |
 |---|---|---|---|
-| `control` | `control_common` (deployed) | `control_common` (deployed) | `init_inst`, `backbone_inst` |
-| `robot_commander` | `so101_leader` (deployed), `xr_commander`, `mcp_commander`, `none` (actions only) | `zero_or_one`, unfilled: `so101_leader`, `xr_commander`, `mcp_commander` | `commander_inst` with a leader or the headset |
+| `robot_commander` | `so101_leader` (deployed), `xr_commander`, `mcp_commander`, `none` (actions only) | `zero_or_one`, unfilled: `so101_leader`, `xr_commander`, `mcp_commander` | none declared; each leader and the headset deploys `commander_inst` |
 | `recorder` (`zero_or_one`) | `lerobot_recorder` | `lerobot_recorder` | `recorder_inst` |
 | `camera_rig` (`zero_or_one`) | `cameras` | `cameras_sim` | `front` |
 
@@ -73,15 +75,14 @@ first: the same `simulation` axis, Waldo unless a launch word selects
 another, and `so101_sim` as the first robot option, listed as `alpha`,
 which comes up with no commander, so the stack launches on a machine with
 no SO-101 hardware, a CI runner or a development host, and actions drive
-the arm. `openarm_v1_sim` and `openarm_v2_sim` are options of its `robot`
-axis too:
+the arm. `openarm_sim` is an option of its `robot` axis too:
 
 ```sh
 peppy stack launch so101_simulation                                         # Waldo and one SO-101
 peppy stack launch so101_simulation --with mujoco                           # the same robot, alone in MuJoCo
 peppy stack launch so101_simulation --with isaac_sim
 peppy stack join so101_sim:charlo                                           # a second SO-101 beside alpha
-peppy stack join openarm_v2_sim:bravo                                       # an OpenArm v2 beside them
+peppy stack join openarm_sim:bravo                                          # an OpenArm v2 beside them
 peppy stack remove alpha                                                    # the simulation keeps running
 ```
 
@@ -121,18 +122,17 @@ peppy stack resolve so101_simulation --with mujoco --join so101_sim:charlo   # i
   shared with the OpenArm, adds the arm's moves to the stack's
   `robot_control` endpoint, `http://127.0.0.1:8900/robot_control/v1/mcp`,
   the one every robot of the stack is driven through by name, where the
-  robot's identity and limb state are listed under any commander: an
-  `add_links` adjustment naming the copy's backbone, and, with
-  `cameras_sim`, the rig adds the `front` relay. It requires the endpoint,
+  launcher lists the robot's identity and limb state under any commander
+  and, with `cameras_sim`, its `front` relay. It requires the endpoint,
   which `simulation_mcp` deploys and the other launchers serve with
   `--with robot_control`. Nothing streams into the backbone under it, and the
-  control leaves the backbone's sockets vacant unless a leader releases
-  them, so the option touches the backbone not at all. Over MCP a model
+  robot file leaves the backbone's sockets vacant unless it releases them
+  for a leader, so the option touches the backbone not at all. Over MCP a model
   drives the
   SO-101's `arm` and `gripper`, sees through its camera and, on
   `simulation_mcp`, moves the robot's base through the `simulation`
   endpoint.
-- The recorder writes under a robot type and a storage root per engine:
+- The launcher names the dataset per engine, a robot type and a storage root:
   `so101_mujoco`, `so101_isaac` and `so101_waldo`, in
   `/tmp/lerobot_so101_mujoco`, `/tmp/lerobot_so101_isaac` and
   `/tmp/lerobot_so101_waldo`.

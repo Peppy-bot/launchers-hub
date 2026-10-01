@@ -146,7 +146,8 @@ reports them under `Instance endpoints`. Recording starts from the web or
 XR commander's record button, or over MCP through `recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
-lighting, its materials, a view of it from any point and its clock, is a
+lighting, its materials, a view of it from any point, the preview of an
+asset of its catalogue and its clock, is a
 second endpoint a model uses to set the world up,
 `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
 not the robot's: the `simulation_mcp` launcher deploys it on an axis of

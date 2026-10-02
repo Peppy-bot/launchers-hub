@@ -191,13 +191,13 @@
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // The headset shows the rig in its panels.
             { target: "commander_inst", when: { camera_rig: "cameras_sim", robot_commander: "xr_commander" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim", robot_commander: "mcp_commander" },
-              add_links: { camera: ["front"], camera_profile: ["front"], camera_geometry: ["front"] } },
+              add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
             // The commander and recorder are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },

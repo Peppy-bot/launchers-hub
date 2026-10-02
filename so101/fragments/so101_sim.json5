@@ -96,11 +96,11 @@
       name: "recorder", cardinality: "zero_or_one", provides: ["recorder_inst"],
       options: { lerobot_recorder: "lerobot_recorder.json5" },
     },
-    // The episode viewpoint, rendered by the simulation in place of the
-    // webcam. A rendered camera costs the simulation a frame budget, so the
-    // rig runs only when selected.
+    // The wrist camera, rendered by the simulation in place of the real
+    // one. A rendered camera costs the simulation a frame budget, so the rig
+    // runs only when selected.
     {
-      name: "camera_rig", cardinality: "zero_or_one", provides: ["front"],
+      name: "camera_rig", cardinality: "zero_or_one", provides: ["wrist"],
       options: { cameras_sim: "cameras_sim.json5" },
     },
   ],

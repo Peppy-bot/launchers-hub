@@ -17,7 +17,7 @@
 // `--join` is composed as a join, as `stack join` is, and a join cannot
 // turn rendering on: the simulation renders when the copy listed here
 // selects its rig, as the second and third commands above do, so an SO-101
-// joined to a launch without one has no `front` camera, and `--with
+// joined to a launch without one has no `wrist` camera, and `--with
 // cameras_sim` on its join is refused. `--with robot_control` serves the
 // robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where
 // every robot is listed and its mcp_commander option adds its moves.
@@ -160,13 +160,13 @@
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // The headset shows the rig in its panels.
             { target: "commander_inst", when: { camera_rig: "cameras_sim", robot_commander: "xr_commander" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim", robot_commander: "mcp_commander" },
-              add_links: { camera: ["front"], camera_profile: ["front"], camera_geometry: ["front"] } },
+              add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
             // The commander and recorder are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },

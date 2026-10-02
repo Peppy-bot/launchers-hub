@@ -124,7 +124,7 @@ peppy stack launch simulation_mcp                                               
 peppy stack launch simulation_mcp --join so101_sim:charlie                         # alpha and an SO-101
 peppy stack launch simulation_mcp --join openarm_sim:bravo --join so101_sim:charlie   # two OpenArms and an SO-101
 peppy stack join openarm_sim:bravo                                                 # a second OpenArm, listed when the join returns
-peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its front camera
+peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its wrist camera
 peppy stack join openarm_sim:delta --with ai_brain_vla                                 # an OpenArm with a brain, its brain tools on the same URL
 peppy stack join openarm_sim:echo --with xr_commander                              # one under the headset, listed with no moves
 peppy stack remove bravo                                                           # gone from the listing when the remove returns
@@ -157,7 +157,7 @@ robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 launch is the world's endpoint alone, alpha under the browser panel with
 the recorder filming its rig; a robot joined onto it needs a commander word
 too, since `mcp_commander` requires the endpoint. An OpenArm with its rig
-adds three rendered cameras to the simulation and an SO-101 one, `front`.
+adds three rendered cameras to the simulation and an SO-101 one, `wrist`.
 
 The simulated world's endpoint binds the simulation, not a robot, so it
 lists and places every robot whatever its commander and its model:
@@ -273,7 +273,7 @@ robots' endpoint alone, under MuJoCo. The fifth is the same robot on the
 `openarm_simulation` launcher, selected by launch words: the robots'
 endpoint alone, since the simulated world's axis is this launcher's. The
 sixth is a
-simulated SO-101 on its own launcher, its arm and front camera on the
+simulated SO-101 on its own launcher, its arm and wrist camera on the
 robots' endpoint. The last two are the real robot, the robots' endpoint
 alone with the three physical cameras behind it.
 

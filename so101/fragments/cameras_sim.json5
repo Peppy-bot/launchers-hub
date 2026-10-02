@@ -1,6 +1,6 @@
-// The rendered counterpart of cameras.json5: the same episode viewpoint and
-// the same instance id, so a simulated session records the dataset image
-// key a real one does (observation.images.front). The frames come from the
+// The rendered counterpart of cameras.json5: the same wrist camera and the
+// same instance id, so a simulated session records the dataset image key a
+// real one does (observation.images.wrist). The frames come from the
 // simulation, so there is no device path and no udev rule here; the relay
 // pairs into the simulation's rgb_cameras slot and presents the rgb_camera
 // contract exactly as the uvc node does, and describes its device through
@@ -28,11 +28,11 @@
 
   deployments: [
     {
-      // The front camera: the simulation renders the viewpoint over the
-      // front of the workspace and the relay republishes it.
+      // The wrist camera: the simulation renders the view from the gripper
+      // and the relay republishes it.
       source: { name: "sim_rgb_camera", tag: "v1" },
       instances: [
-        { instance_id: "front",
+        { instance_id: "wrist",
           links: {
             simulation: "simulation_inst/rgb_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
@@ -45,6 +45,6 @@
   adjustments: [
     // Waldo models the rendered camera's response after the real device,
     // so the relay forwards its controls to it.
-    { target: "front", when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
+    { target: "wrist", when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
   ],
 }

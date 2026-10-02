@@ -98,7 +98,7 @@ peppy stack join so101:bravo
 peppy stack launch simulation_mcp                                           # Waldo, the two endpoints and alpha over MCP
 peppy stack launch simulation_mcp --join so101_sim:charlie                  # alpha and an SO-101 over MCP
 peppy stack join openarm_sim:bravo                                          # a second OpenArm, listed on the same URL when the join returns
-peppy stack join so101_sim:delta                                            # an SO-101, its arm and front camera on the same URL
+peppy stack join so101_sim:delta                                            # an SO-101, its arm and wrist camera on the same URL
 ```
 
 A simulation stands a robot when it holds the robot's model in its scene and
@@ -126,7 +126,7 @@ discovery and host setup.
 | `robot` | the four launchers with robots (`zero_or_more`) | `openarm_sim` and `so101_sim` in the three simulation launchers; `openarm` and `so101` in `physical.json5` |
 | `hardware_version` | an OpenArm | `v1` or `v2`, named by the copy on hardware, `v2` unless named in a simulation: the initializer that names the model, written in place; on a physical robot the file sets a v1's frames and CAN interfaces on its drivers |
 | `robot_commander` | an OpenArm | `web_commander` (deployed), `xr_commander`, `ker_commander` on a v2 alone, and `mcp_commander`, which adds the robot's moves to the stack's `robot_control` endpoint and requires it, the rig adding the cameras |
-| `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`), `xr_commander`, and `mcp_commander`, which adds the arm's moves, and with a rig the front camera, to the stack's `robot_control` endpoint; `none` on `so101` and the unfilled `zero_or_one` axis on `so101_sim` run the robot on actions alone |
+| `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`), `xr_commander`, and `mcp_commander`, which adds the arm's moves, and with a rig the wrist camera, to the stack's `robot_control` endpoint; `none` on `so101` and the unfilled `zero_or_one` axis on `so101_sim` run the robot on actions alone |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or the headset, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated one, which the simulations render on v2 links only; requires a consumer: a recorder, XR, `mcp_commander`, which lists the cameras on the `robot_control` endpoint, or on a simulated v2 the brain, which looks through the chest camera |
 | `brain` | an OpenArm | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
@@ -161,7 +161,7 @@ join therefore cannot turn rendering on: rendered cameras are selected by a
 word on a copy the file lists (`--with alpha.cameras_sim`) or by the
 launcher itself, as `simulation_mcp` does. A robot joined to a plain
 `openarm_simulation` or `so101_simulation` has no rendered camera, an
-SO-101's `front` included, while one joined to `simulation_mcp` has its
+SO-101's `wrist` included, while one joined to `simulation_mcp` has its
 rig; a v1 OpenArm, which the simulations render no rig for, joins it with
 `--with v1,camera_rig=none`. The [planner](.github/scripts/launcher_combinations.py) reports such
 copies as file-only.
@@ -187,7 +187,7 @@ simulation's four pairing slots, one per kind of pair and each holding any
 number of pairs: `arms`, `grippers`, `rgb_cameras` and `rgbd_cameras`. A
 pair's robot is its copy, a limb pair's limb is the backbone link it comes
 from, and a camera pair's camera is its relay's name in the copy
-(`wrist_left`, `front`), so a stack holds as many robots as its machines can
+(`wrist_left`, `wrist`), so a stack holds as many robots as its machines can
 run, of any model. The simulation stays up when a robot is removed;
 `stack reset` stops everything. A physical robot reads wall time and a
 simulated one the simulation's clock, and the stack's MCP server reads one
@@ -200,7 +200,7 @@ show no motor health for it.
 |---|---|
 | OpenArm v1 | None: the simulations render a rig on v2 links only, so `cameras_sim` on a v1 is refused |
 | OpenArm v2 | `wrist_left`, `wrist_right`, `chest` |
-| SO-101 | `front` |
+| SO-101 | `wrist` |
 
 Waldo opens a world that stands no robot of its own (`stage`) and Isaac Sim
 an empty stage; every robot brings the model its fragment names. A rendered
@@ -264,7 +264,7 @@ initializer and backbone with the simulation in the follower's place, and
 comes up with no commander, so it needs no SO-101 hardware. Its other
 options are `so101_leader`, a real leader arm driving the simulated
 follower, `xr_commander`, and `mcp_commander`, which adds the arm's moves,
-and with `cameras_sim` the rendered `front` camera, to the stack's
+and with `cameras_sim` the rendered `wrist` camera, to the stack's
 `robot_control` endpoint:
 
 ```sh

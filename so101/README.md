@@ -46,7 +46,7 @@ axes:
 |---|---|---|---|
 | `robot_commander` | `so101_leader` (deployed), `xr_commander`, `mcp_commander`, `none` (actions only) | `zero_or_one`, unfilled: `so101_leader`, `xr_commander`, `mcp_commander` | none declared; each leader and the headset deploys `commander_inst` |
 | `recorder` (`zero_or_one`) | `lerobot_recorder` | `lerobot_recorder` | `recorder_inst` |
-| `camera_rig` (`zero_or_one`) | `cameras` | `cameras_sim` | `front` |
+| `camera_rig` (`zero_or_one`) | `cameras` | `cameras_sim` | `wrist` |
 
 ```sh
 peppy stack launch physical
@@ -112,18 +112,19 @@ peppy stack resolve so101_simulation --with mujoco --join so101_sim:charlo   # i
 - `xr_commander` is the headset, with the recorder and the rendered camera
   as on hardware.
 - `cameras_sim` ([fragments/cameras_sim.json5](fragments/cameras_sim.json5))
-  is the rendered `front` camera in place of the webcam: one
+  is the rendered `wrist` camera in place of the real one: one
   `sim_rgb_camera` relay paired into `simulation_inst/rgb_cameras`, under
   the same instance id, so a simulated session records the image key a real
-  one does. Waldo models the camera's response, so its controls work there
-  and refuse under MuJoCo and Isaac Sim.
+  one does. Waldo models the camera's response after the Innomaker
+  U20CAM-1080P's, so its controls work there and refuse under MuJoCo and
+  Isaac Sim.
 - `mcp_commander`
   ([../robot_commanders/fragments/mcp_commander.json5](../robot_commanders/fragments/mcp_commander.json5)),
   shared with the OpenArm, adds the arm's moves to the stack's
   `robot_control` endpoint, `http://127.0.0.1:8900/robot_control/v1/mcp`,
   the one every robot of the stack is driven through by name, where the
   launcher lists the robot's identity and limb state under any commander
-  and, with `cameras_sim`, its `front` relay. It requires the endpoint,
+  and, with `cameras_sim`, its `wrist` relay. It requires the endpoint,
   which `simulation_mcp` deploys and the other launchers serve with
   `--with robot_control`. Nothing streams into the backbone under it, and the
   robot file leaves the backbone's sockets vacant unless it releases them
@@ -144,14 +145,14 @@ The limits:
   contract.
 - A copy named with `--join` is composed as a join, as `stack join` is,
   and a join cannot turn rendering on, so an SO-101 joined to a plain
-  `openarm_simulation` or `so101_simulation` has no `front` camera, and
+  `openarm_simulation` or `so101_simulation` has no `wrist` camera, and
   `--with cameras_sim` on that join is refused. Under `simulation_mcp` a
-  joined SO-101 has its `front` camera, because the launcher turns
+  joined SO-101 has its `wrist` camera, because the launcher turns
   rendering on itself, and the rig and the MCP commander are the entry's,
   for every copy of the option:
 
   ```sh
-  peppy stack launch simulation_mcp --join so101_sim:charlie   # an SO-101 over MCP beside alpha, with its front camera
+  peppy stack launch simulation_mcp --join so101_sim:charlie   # an SO-101 over MCP beside alpha, with its wrist camera
   peppy stack join so101_sim:delta                             # another, listed on the same URL when the join returns
   ```
 
@@ -170,7 +171,8 @@ option needs the leader's share of them.
    or hub-port paths first) so `/dev/so101_follower` and `/dev/so101_leader`
    stay stable across replugs; two identical adapters are otherwise
    indistinguishable. The `cameras` option additionally needs the
-   `/dev/so101_front_cam` rule filled in.
+   `/dev/so101_wrist_cam` rule, which matches the Innomaker U20CAM-1080P on
+   the wrist; a rig with two of them, or another camera model, fills it in.
 2. **Calibration**: the nodes refuse to start uncalibrated. The follower is
    in every selection of `so101`, so it always needs this:
 

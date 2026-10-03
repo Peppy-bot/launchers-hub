@@ -109,7 +109,7 @@
       options: { lerobot_recorder: "lerobot_recorder.json5" },
     },
     {
-      name: "camera_rig", cardinality: "zero_or_one", provides: ["front"],
+      name: "camera_rig", cardinality: "zero_or_one", provides: ["wrist"],
       options: { cameras: "cameras.json5" },
     },
   ],

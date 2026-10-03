@@ -10,7 +10,7 @@
 //   peppy stack launch so101_simulation                             # Waldo and one SO-101
 //   peppy stack launch so101_simulation --with mujoco               # the same robot, alone in MuJoCo
 //   peppy stack launch so101_simulation --with alpha.so101_leader   # a real leader arm driving the simulated follower
-//   peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim   # driven over MCP, its front camera served
+//   peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim   # driven over MCP, its wrist camera served
 //   peppy stack join openarm_sim:bravo                              # an OpenArm v2 beside alpha, with the browser panel
 //
 // The robot axis offers every simulated robot, so an OpenArm joins beside
@@ -23,7 +23,7 @@
 // `--with robot_control` serves the robots' MCP endpoint,
 // http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed
 // and, under mcp_commander, a model drives the SO-101's arm and gripper and
-// sees through its front camera.
+// sees through its wrist camera.
 {
   peppy_schema: "launcher/v1",
 
@@ -161,13 +161,13 @@
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // The headset shows the rig in its panels.
             { target: "commander_inst", when: { camera_rig: "cameras_sim", robot_commander: "xr_commander" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim", robot_commander: "mcp_commander" },
-              add_links: { camera: ["front"], camera_profile: ["front"], camera_geometry: ["front"] } },
+              add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
             // The commander and recorder are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },

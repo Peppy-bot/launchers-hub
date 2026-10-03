@@ -118,14 +118,14 @@
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // The headset shows the rig in its panels.
             { target: "commander_inst", when: { camera_rig: "cameras", robot_commander: "xr_commander" },
-              add_links: { color_cameras: ["front"] } },
+              add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint; the uvc node describes no profile and
             // refuses every geometry call, so neither is listed on hardware.
             { target: "robot_control_inst", when: { camera_rig: "cameras", robot_commander: "mcp_commander" },
-              add_links: { camera: ["front"] } },
+              add_links: { camera: ["wrist"] } },
           ],
         },
       },

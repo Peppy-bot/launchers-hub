@@ -1,21 +1,23 @@
-// One scene camera for episode video. The launcher binds it to the
-// recorder, the headset and the MCP endpoint under the robot's option, by
-// the instance id written here.
+// The wrist camera for episode video. The launcher binds it to the recorder,
+// the headset and the MCP endpoint under the robot's option, by the instance
+// id written here.
 {
   peppy_schema: "launcher_fragment/v1",
 
   deployments: [
     {
-      // A generic UVC webcam over the front of the workspace. The instance
-      // id becomes the dataset image key (observation.images.front). The
-      // device path is the udev symlink ../rules/60-so101.rules pins;
-      // resolution and rate are the common 720p UVC mode, retune per rig.
+      // The Innomaker U20CAM-1080P on SO-ARM100's wrist camera mount,
+      // screwed to the gripper and looking past the fixed jaw at the grasp.
+      // The instance id becomes the dataset image key
+      // (observation.images.wrist). The device path is the udev symlink
+      // ../rules/60-so101.rules pins; the module streams MJPEG at 1280x720
+      // and 30 frames per second.
       source: { name: "uvc_camera_linux", tag: "v1" },
       instances: [
         {
-          instance_id: "front",
+          instance_id: "wrist",
           arguments: {
-            device_path: "/dev/so101_front_cam",
+            device_path: "/dev/so101_wrist_cam",
             video: {
               frame_rate: 30,
               resolution: { width: 1280, height: 720 },

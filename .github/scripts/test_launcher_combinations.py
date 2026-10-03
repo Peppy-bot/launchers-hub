@@ -1156,9 +1156,9 @@ class CombinationsTests(unittest.TestCase):
                 "camera": ["wrist_left", "wrist_right"], "depth_camera": ["chest"],
                 "camera_profile": ["wrist_left", "wrist_right", "chest"],
                 "camera_geometry": ["wrist_left", "wrist_right", "chest"]}),
-            ("physical.json5", "so101", {"camera": ["front"]}),
+            ("physical.json5", "so101", {"camera": ["wrist"]}),
             ("so101_simulation.json5", "so101_sim", {
-                "camera": ["front"], "camera_profile": ["front"], "camera_geometry": ["front"]}),
+                "camera": ["wrist"], "camera_profile": ["wrist"], "camera_geometry": ["wrist"]}),
         ]:
             with self.subTest(path=path, robot=robot):
                 document = combinations.load_json5(root / path, path)
@@ -1420,7 +1420,7 @@ class CombinationsTests(unittest.TestCase):
         for path, cameras in [
             ("openarm/fragments/openarm_sim.json5",
              {"wrist_left": "rgb_cameras", "wrist_right": "rgb_cameras", "chest": "rgbd_cameras"}),
-            ("so101/fragments/so101_sim.json5", {"front": "rgb_cameras"}),
+            ("so101/fragments/so101_sim.json5", {"wrist": "rgb_cameras"}),
         ]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
@@ -2008,7 +2008,7 @@ class SimulatedSo101Tests(unittest.TestCase):
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         launch = combinations.Launch.of(candidate, resolution)
         self.assertEqual(launch.launch_joins, ["so101_sim"])
-        self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_front", "bravo_init_inst"])
+        self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst", "bravo_wrist"])
         self.assertEqual(
             combinations.launch_command(launch)[:8],
             ["peppy", "stack", "launch", "simulation_mcp", "--with", stack, "--join", "so101_sim:bravo"])
@@ -2044,13 +2044,13 @@ class SimulatedSo101Tests(unittest.TestCase):
             [(d["source"], d["instances"][0]["instance_id"]) for d in robot_control],
             [({"name": "robot_initializer", "tag": "v1"}, "bravo_init_inst"),
              ({"name": "so101_backbone", "tag": "v1"}, "bravo_backbone_inst"),
-             ({"name": "sim_rgb_camera", "tag": "v1"}, "bravo_front")])
+             ({"name": "sim_rgb_camera", "tag": "v1"}, "bravo_wrist")])
         _, resolution = self.resolved(
             so101_stack("waldo", robot_control), WALDO_MCP, "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim")
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         self.assertEqual(
             combinations.copy_instances(resolution.plan, "bravo"),
-            ["bravo_backbone_inst", "bravo_front", "bravo_init_inst"])
+            ["bravo_backbone_inst", "bravo_init_inst", "bravo_wrist"])
         # Its rig turns rendering on, which a join cannot: the daemon refuses
         # it as a change to the running simulation, and the planner reports
         # the copy as one only a launcher file deploys.

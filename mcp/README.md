@@ -226,8 +226,8 @@ the stack up and `alpha` in it:
    setter validates the whole request first, refuses out-of-bounds values
    without changing anything, and answers with the effective value after
    the call, so read the response rather than assuming the request took.
-   The change shows in every view the engine renders, the robots' cameras
-   included.
+   The change shows in every view the simulation renders, the robots'
+   cameras included.
 4. Look through a wrist camera: read the resource
    `alpha/wrist_left/camera.latest_frame` on the robots' endpoint, the
    latest frame as a JPEG, published at no more than 2 Hz. The chest
@@ -243,17 +243,23 @@ the stack up and `alpha` in it:
    `duration_s` 0 for as fast as the joint limits allow. It is an
    action-backed tool: for a client that declares the MCP tasks extension
    the call returns a task handle and `tasks/get` reports its progress; for
-   any other client the call itself answers once the move settles. Either
-   way it completes when both arms reach the working posture.
+   any other client the call itself answers once the move ends. Either way
+   the result gives `arm_names`, `positions` and `orientations`: where the
+   grasp point of each arm stood in the robot frame when the move ended. A
+   result with `success` true does not prove that both arms arrived: the
+   collision guard can hold an arm short of the working posture, so read
+   the reported poses.
    `robot.move_arm` plans from there, naming one of the arms `robot.list`
    gave the robot; the rest posture is not a place to plan Cartesian moves
    from.
 
 The simulation endpoint sets the rest of the world up the same way:
 `scene.get_assets_list` before `scene.spawn_object`, `scene.move_object`,
-`scene.apply_force` or `scene.move_robot`, and `scene.load_scene` or
-`scene.clear_scene` restore a scene's authored lighting and materials as
-`lighting.reset_lighting` and `materials.reset_materials` do on their own.
+`scene.apply_force` or `scene.move_robot`. `scene.load_scene` replaces every
+object, the ones the old scene placed included, and `scene.clear_scene`
+removes them all; both leave every robot where it stands, and restore the
+authored lighting and materials only when they change the selected scene
+or its scale.
 Once the world is arranged, `workspace.describe` says where on each work
 surface a robot can work and `workspace.check` whether it can work given
 objects where they stand, measured in the world. It is for setting up and

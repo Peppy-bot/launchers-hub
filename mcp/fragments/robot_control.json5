@@ -4,8 +4,9 @@
 // robot. The document is a per-robot surface, so each of its targets is a
 // set the robots fill: this instance takes no links, and the launcher adds
 // a robot's instances with `add_links` on robot_control_inst under the
-// option that selects the robot: its identity and limb state, and an
-// OpenArm's collision readout, under any commander; its recorder whenever
+// option that selects the robot: its identity and limb state, and on an
+// OpenArm its collision readout, its camera mounts and where its design lets
+// it work, under any commander; its recorder whenever
 // it runs; and under mcp_commander the backbone's moves, the rig's cameras
 // and the brain's tools. A join adds its robot's instances while the server runs and a
 // removal takes them out, so the endpoint and its URL are the same for one

@@ -195,6 +195,12 @@ def instance_of(document, instance_id):
                 for instance in deployment["instances"] if instance["instance_id"] == instance_id)
 
 
+def writes_link(adjustment, slot):
+    """Whether an adjustment sets, adds to or unsets the link `slot`."""
+    return (slot in adjustment.get("set_links", {}) or slot in adjustment.get("add_links", {})
+            or slot in adjustment.get("unset_links", []))
+
+
 #: The robot files: each family's physical and simulated robot.
 ROBOT_FILES = {
     "openarm": "openarm/fragments/openarm.json5",
@@ -930,9 +936,10 @@ class CombinationsTests(unittest.TestCase):
         # commander, the cameras under the rig, and the brain and the
         # recorder whenever they run. None of it is guarded on the server:
         # an entry naming an instance the launch does not run is skipped.
+        # Only the OpenArm's backbone answers where its design lets it work.
         readouts = {
             "openarm": {"identity": ["init_inst"], "limb_state": ["backbone_inst"], "collision": ["backbone_inst"],
-                        "camera_mounts": ["backbone_inst"]},
+                        "camera_mounts": ["backbone_inst"], "workspace": ["backbone_inst"]},
             "so101": {"identity": ["init_inst"], "limb_state": ["backbone_inst"]},
         }
         for path, robots in ROBOT_LAUNCHERS.items():
@@ -998,6 +1005,43 @@ class CombinationsTests(unittest.TestCase):
                     writes = [a for a in robot_option(document, robot)["adjustments"]
                               if a["target"] == "brain_inst" and "set_framework" not in a]
                     self.assertEqual(writes, sees if robot == "openarm_sim" else [])
+
+    def test_the_backbone_reads_the_geometry_of_its_rigs_chest_camera(self):
+        root = Path(__file__).resolve().parents[2]
+        # The workspace answers judge what the camera the robot finds items
+        # with sees from that camera's geometry, a slot the robot file writes
+        # vacant: a robot without a rig has no chest camera to read. Each
+        # robot binds its rig's chest camera whenever the rig runs, whatever
+        # its brain: the ZED Mini on hardware, the rendered relay in a
+        # simulation. The robot file deploys the backbone and declares the
+        # rig, so it writes the binding, and no launcher writes the slot.
+        # A v1's design carries no perception camera, so hardware binds the
+        # chest on a v2 alone; no simulation renders a rig on v1 links.
+        for robot, when, rig_file, chest_node in [
+            ("openarm", {"camera_rig": "cameras", "hardware_version": "v2"}, "cameras.json5", "zed_camera"),
+            ("openarm_sim", {"camera_rig": "cameras_sim"}, "cameras_sim.json5", "sim_rgbd_camera"),
+        ]:
+            with self.subTest(robot=robot):
+                document = combinations.load_json5(root / ROBOT_FILES[robot], robot)
+                vacancy = instance_of(document, "backbone_inst")["links"]["perception_geometry"]
+                self.assertEqual(set(vacancy), {"vacant"})
+                self.assertTrue(vacancy["vacant"].strip())
+                self.assertEqual(
+                    [a for a in document["adjustments"] if writes_link(a, "perception_geometry")],
+                    [{"target": "backbone_inst", "when": when,
+                      "set_links": {"perception_geometry": "chest"}}])
+                # The camera the binding names is the rig's RGB-D node, which
+                # serves camera_geometry.
+                rig = option_file(ROBOT_FILES[robot], rig_file)
+                chest, = [deployment["source"] for deployment in rig["deployments"]
+                          for instance in deployment["instances"] if instance["instance_id"] == "chest"]
+                self.assertEqual(chest, {"name": chest_node, "tag": "v1"})
+        for path, robots in ROBOT_LAUNCHERS.items():
+            document = combinations.load_json5(root / path, path)
+            for robot in robots:
+                with self.subTest(path=path, robot=robot):
+                    self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
+                                      if writes_link(a, "perception_geometry")], [])
 
     def test_the_record_button_binds_on_the_commander_that_carries_one(self):
         root = Path(__file__).resolve().parents[2]
@@ -1183,15 +1227,17 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["links"], {
             "scene": "simulation_inst", "controls": "simulation_inst",
             "lighting": "simulation_inst", "materials": "simulation_inst",
-            "view": "simulation_inst", "clock": "simulation_inst"})
+            "view": "simulation_inst", "clock": "simulation_inst",
+            "workspace": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
         # The axis is the MCP launcher's, deployed by the file with `none`
         # to switch it off, and Waldo alone implements the object controls,
-        # lighting and materials contracts it binds, so the launcher requires Waldo
-        # beside it. No fragment declares the axis.
+        # lighting, materials, view, clock and workspace contracts it binds,
+        # so the launcher requires Waldo beside it. No fragment declares the
+        # axis.
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)
         axes = {axis["name"]: axis for axis in document["components"]}

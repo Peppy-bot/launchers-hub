@@ -54,6 +54,12 @@
             leader_right_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
             leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
             leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            // The geometry of the camera the robot finds items with, which
+            // the workspace answers read to judge what that camera sees. A
+            // robot without a rig has no chest camera to read, so the
+            // answers check reach alone; the adjustment below binds the
+            // rendered chest camera when the copy selects cameras_sim.
+            perception_geometry: { vacant: "select cameras_sim to give the backbone the chest camera's geometry: the workspace answers check reach alone" },
           },
         },
       ],
@@ -154,6 +160,10 @@
     // Isaac steps its physics slower than the others.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },
       set_arguments: { follower_state_rate_hz: 60 } },
+    // The rendered rig's chest camera serves its geometry, so the workspace
+    // answers check what it sees, whatever else the copy selects.
+    { target: "backbone_inst", when: { camera_rig: "cameras_sim" },
+      set_links: { perception_geometry: "chest" } },
     // The panel streams joint setpoints into the four leader sockets,
     // released here for it to pair into, and supplies the operator's
     // governor toggle.

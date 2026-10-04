@@ -68,6 +68,12 @@ commander, which lists the camera on the endpoint. The headset shows the
 follower's motor health and alerts on the physical robot; a simulated robot
 has no motors to report on.
 
+Where the endpoint runs, the launcher lists the robot on it under any
+commander: its identity, its limb state and where its design lets it work.
+The backbone's `robot.describe_workspace` and `robot.check_positions` check
+reach alone: the `wrist` camera is on the arm, so the design carries no
+perception camera.
+
 ## Simulation
 
 `so101_simulation.json5` is `openarm_simulation.json5` with another robot
@@ -123,8 +129,8 @@ peppy stack resolve so101_simulation --with mujoco --join so101_sim:charlo   # i
   shared with the OpenArm, adds the arm's moves to the stack's
   `robot_control` endpoint, `http://127.0.0.1:8900/robot_control/v1/mcp`,
   the one every robot of the stack is driven through by name, where the
-  launcher lists the robot's identity and limb state under any commander
-  and, with `cameras_sim`, its `wrist` relay. It requires the endpoint,
+  launcher lists the robot under any commander, as above, and, with
+  `cameras_sim`, its `wrist` relay. It requires the endpoint,
   which `simulation_mcp` deploys and the other launchers serve with
   `--with robot_control`. Nothing streams into the backbone under it, and the
   robot file leaves the backbone's sockets vacant unless it releases them

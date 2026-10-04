@@ -936,11 +936,15 @@ class CombinationsTests(unittest.TestCase):
         # commander, the cameras under the rig, and the brain and the
         # recorder whenever they run. None of it is guarded on the server:
         # an entry naming an instance the launch does not run is skipped.
-        # Only the OpenArm's backbone answers where its design lets it work.
+        # Every robot's backbone answers where its design lets it work; only
+        # the OpenArm's says how close its arms stand and where its cameras
+        # are mounted.
+        readouts_of_every_robot = {
+            "identity": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"]}
         readouts = {
-            "openarm": {"identity": ["init_inst"], "limb_state": ["backbone_inst"], "collision": ["backbone_inst"],
-                        "camera_mounts": ["backbone_inst"], "workspace": ["backbone_inst"]},
-            "so101": {"identity": ["init_inst"], "limb_state": ["backbone_inst"]},
+            "openarm": {**readouts_of_every_robot,
+                        "collision": ["backbone_inst"], "camera_mounts": ["backbone_inst"]},
+            "so101": readouts_of_every_robot,
         }
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)

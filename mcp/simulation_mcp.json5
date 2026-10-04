@@ -3,8 +3,8 @@
 // joined later, each driven over MCP, an SO-101 with its rig and an OpenArm
 // with the rig its join asks for.
 //
-//   http://127.0.0.1:8900/robot_control/v1/mcp   every robot of the stack: its identity, moves, limbs, cameras, brain and recorder, each call naming its robot
-//   http://127.0.0.1:8902/simulation/v1/mcp      the simulated world: the scene, its light sources, its materials
+//   http://127.0.0.1:8900/robot_control/v1/mcp   every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
+//   http://127.0.0.1:8902/simulation/v1/mcp      the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it
 //
 // The robots' endpoint is the robot_control axis every launcher with robots
 // carries; this file deploys it, and the other launchers serve it with
@@ -13,11 +13,12 @@
 // option adds the moves, its rig the cameras and its brain the brain's
 // tools, at launch or by a later join, and a removal takes them out. The world's endpoint is
 // this file's own world_control axis, deployed with a `none` option: Waldo
-// alone implements the object controls, lighting and materials contracts it
-// binds, so the constraint below refuses it under any other engine, and
-// `--with mujoco,world_control=none` is the robots' endpoint alone. The two URLs are
-// the same for one robot or ten and before and after any join, so a client
-// registers them once, and both keep running when every robot is removed.
+// alone implements the object controls, lighting, materials, view, clock and
+// workspace contracts it binds, so the constraint below refuses it under any
+// other engine, and `--with mujoco,world_control=none` is the robots'
+// endpoint alone. The two URLs are the same for one robot or ten and before
+// and after any join, so a client registers them once, and both keep
+// running when every robot is removed.
 //
 // What this file adds to openarm_simulation: the robots' endpoint
 // deployed, the world's endpoint on its own axis, rendering on from the
@@ -71,8 +72,8 @@
     },
     // The simulated world's MCP endpoint, deployed by this file; `--with
     // world_control=none` switches it off. It binds Waldo's object controls,
-    // lighting and materials contracts, so the constraint below requires
-    // Waldo.
+    // lighting, materials, view, clock and workspace contracts, so the
+    // constraint below requires Waldo.
     {
       name: "world_control",
       cardinality: "one",
@@ -91,10 +92,11 @@
           fragments: ["../openarm/fragments/openarm_sim.json5"],
           adjustments: [
             // Listed on the MCP endpoint: who it is, what its limbs measure,
-            // how close its arms stand and where its cameras are mounted.
+            // how close its arms stand, where its cameras are mounted and
+            // where its design lets it work.
             { target: "robot_control_inst",
               add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
-                           camera_mounts: ["backbone_inst"] } },
+                           camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"] } },
             // The headset leads from the pose sockets; a released trigger rests
             // at half travel, since fully open splays the fingers nearly flat.
             { target: "commander_inst", when: { robot_commander: "xr_commander" },
@@ -238,11 +240,11 @@
   ],
 
   constraints: [
-    // A property of the world's document: its controls, lighting and
-    // materials targets bind the simulation, and Waldo is the one
-    // simulation implementing those contracts.
+    // A property of the world's document: its controls, lighting,
+    // materials, view, clock and workspace targets bind the simulation, and
+    // Waldo is the one simulation implementing those contracts.
     { when: { world_control: "world_control" },
       requires: [{ simulation: "waldo" }],
-      reason: "the simulated world's endpoint binds object_controls, scene_lighting and scene_materials, which only waldo implements; launch with waldo or with world_control=none" },
+      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_materials, scene_view, simulation_clock and scene_workspace, which only waldo implements; launch with waldo or with world_control=none" },
   ],
 }

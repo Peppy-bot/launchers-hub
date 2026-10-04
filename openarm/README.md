@@ -116,15 +116,16 @@ poses and selects the backbone's pose mode. MCP drives the robot by name
 on the stack's `robot_control:v1`
 endpoint, the robots' own surface, where every call names its robot: the
 robot's identity, the backbone's discrete motion actions, its limb state
-and collision readout, and the cameras of the copy's rig, their latest
+and collision readout, where its design lets it work, and the cameras of
+the copy's rig, their latest
 frames and the chest's depth as resources and their stream info, exposure,
 gain and white balance as tools.
 
 The endpoint is the launcher's `robot_control` axis, deployed by `simulation_mcp`
 and selected with `--with robot_control` on the other launchers. Every robot beside
 it is listed with its
-identity, limb state, collision readout and camera mounts under any
-commander, by the launcher's `add_links` on `robot_control_inst` under the
+identity, limb state, collision readout, camera mounts and workspace under
+any commander, by the launcher's `add_links` on `robot_control_inst` under the
 robot's option,
 with its recorder whenever it runs, and with its brain under
 `mcp_commander`. `mcp_commander`
@@ -135,9 +136,14 @@ adds the backbone's moves under it. The backbone's leader sockets stand
 vacant unless the robot file releases them for a leader, so the option
 touches the backbone not at all. The launcher lists the rig's cameras under
 it, `cameras` on a physical robot and `cameras_sim` on a simulated one; a
-robot without a rig is listed with no camera. No simulation renders a rig
-on v1 links, so `cameras_sim` on a simulated v1 is refused; a physical v1
-films with `cameras`.
+robot without a rig is listed with no camera. The backbone's workspace
+answers judge what the chest camera sees from that camera's geometry, a
+link the robot file writes vacant: `openarm` binds the ZED Mini whenever
+`cameras` runs on a v2 and `openarm_sim` the rendered chest camera whenever
+`cameras_sim` runs; without a rig, and on a v1, whose design carries no
+perception camera, the answers check reach alone. No simulation renders a
+rig on v1 links, so `cameras_sim` on a simulated v1 is refused; a physical
+v1 films with `cameras`.
 
 The KER leader, on either hardware version (physical or simulated), streams joint
 setpoints from enactic's motorless leader arm.
@@ -150,13 +156,13 @@ XR commander's record button, or over MCP through `recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
 lighting, its materials, a view of it from any point, the preview of an
-asset of its catalogue and its clock, is a
+asset of its catalogue, its clock and where a robot can work in it, is a
 second endpoint a model uses to set the world up,
 `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
 not the robot's: the `simulation_mcp` launcher deploys it on an axis of
 its own, `world_control`, bound to the simulation alone, under Waldo, the one
-simulation implementing the object controls, lighting, materials, view and
-clock contracts. The
+simulation implementing the object controls, lighting, materials, view,
+clock and workspace contracts. The
 endpoints, the
 client setup and the move from simulation to the real robot are in the
 [MCP guide](../mcp/README.md):

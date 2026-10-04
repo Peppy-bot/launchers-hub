@@ -22,8 +22,8 @@ whether what a model does transfers to the physical robots:
 
 | Family | Endpoint | Exposure | Bound to | On the physical robots |
 |---|---|---|---|---|
-| Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its spawned objects, its light sources, its materials | the simulation | no |
+| Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its spawned objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
 
 The two URLs are the stack's: the same for one robot or ten, and the same
 before and after any join or removal, so a client registers them once. A
@@ -41,8 +41,9 @@ Each endpoint is an axis of the file that owns what it publishes:
   robots fill, so the server takes no link of its own, and the launcher adds
   each robot's instances with `add_links` on `robot_control_inst`, under the
   option that selects the robot: its initializer for its identity and its
-  backbone for its limb state and, on an OpenArm, its collision readout, so
-  every robot of the stack is listed with what it is and how it stands; its
+  backbone for its limb state and, on an OpenArm, its collision readout, its
+  camera mounts and where its design lets it work, so every robot of the
+  stack is listed with what it is and how it stands; its
   recorder ([openarm](../openarm/fragments/lerobot_recorder.json5),
   [so101](../so101/fragments/lerobot_recorder.json5)) whenever it runs,
   so an episode starts over the endpoint under any commander; and under the
@@ -54,9 +55,15 @@ Each endpoint is an axis of the file that owns what it publishes:
   everything that moves the robot's arms is listed under one option, so a
   robot under the browser panel or the headset is listed with its state and
   its recorder and no way to move it, and a robot without a rig with no
-  camera. A join adds its robot's instances to the
-  running server and a removal takes them out: the robot is listed when the
-  join returns and gone when the remove returns. `--with robot_control=none` launches
+  camera. The backbone's `robot.describe_workspace` and
+  `robot.check_positions` judge what the chest camera sees from that
+  camera's geometry: a v2's file binds its rig's chest camera to the
+  backbone whenever the rig runs, the ZED Mini on hardware and the rendered
+  camera in a simulation; without a rig, and on a v1, whose design carries
+  no perception camera, the two tools check reach alone. A join adds its
+  robot's
+  instances to the running server and a removal takes them out: the robot is
+  listed when the join returns and gone when the remove returns. `--with robot_control=none` launches
   `simulation_mcp` without it, and a robot's `mcp_commander` is refused
   wherever the endpoint is off, with its reason.
 - **The simulated world's endpoint** is the `world_control` axis of
@@ -64,9 +71,9 @@ Each endpoint is an axis of the file that owns what it publishes:
   deployed by the file, with a `none` option that switches it off. It binds
   the simulation alone, under an instance id of its own, so the browser
   scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
-  `scene_materials`, `scene_view` and `simulation_clock`, which Waldo alone
-  implements, so the launcher refuses it under MuJoCo or Isaac Sim with that
-  reason.
+  `scene_materials`, `scene_view`, `simulation_clock` and `scene_workspace`,
+  which Waldo alone implements, so the launcher refuses it under MuJoCo or
+  Isaac Sim with that reason.
 
 Both endpoints bind the simulation or nothing, so both keep running when
 every robot is removed. Only Waldo models the cameras' response, so under
@@ -176,7 +183,8 @@ frames are rendered or captured, so a client written against it moves to the
 real robots unchanged. On hardware the `uvc_camera_linux` and `zed_camera` nodes
 fill the color and depth targets, and the launcher lists no profile or
 geometry for a physical rig, so `camera_profile.get` and the `camera_geometry` tools refuse for
-those cameras and the listing leaves them out of that robot's `tools`. The simulated world's
+those cameras and the listing leaves them out of that robot's `tools`. A v2's backbone still
+reads the ZED Mini's geometry for its workspace tools. The simulated world's
 endpoint has no counterpart there (its title and instructions say so): drop
 the `simulation` entry, keep `robots`, and launch `physical` with the
 endpoint, joining each robot with its MCP option and rig:
@@ -246,8 +254,11 @@ The simulation endpoint sets the rest of the world up the same way:
 `scene.apply_force` or `scene.move_robot`, and `scene.load_scene` or
 `scene.clear_scene` restore a scene's authored lighting and materials as
 `lighting.reset_lighting` and `materials.reset_materials` do on their own.
-It is for setting up and checking, never for completing a task: to move an
-object, grasp it with a robot through the robots' endpoint.
+Once the world is arranged, `workspace.describe` says where on each work
+surface a robot can work and `workspace.check` whether it can work given
+objects where they stand, measured in the world. It is for setting up and
+checking, never for completing a task: to move an object, grasp it with a
+robot through the robots' endpoint.
 
 ### Reference stacks
 

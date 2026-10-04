@@ -83,6 +83,13 @@
             leader_right_gripper: { vacant: "no leader streams joint commands: gripper moves arrive as limb_motion actions" },
             leader_left_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
             leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
+            // The geometry of the camera the robot finds items with, which
+            // the workspace answers read to judge what that camera sees. A
+            // robot without a rig has no chest camera to read, and a v1's
+            // design carries no perception camera, so their answers check
+            // reach alone; the adjustment below binds the rig's chest camera
+            // when a v2 copy selects cameras.
+            perception_geometry: { vacant: "select cameras on a v2 to give the backbone the chest camera's geometry: the workspace answers check reach alone" },
           },
         },
       ],
@@ -184,6 +191,11 @@
       set_arguments: { hardware_version: "v1", can_interface: "can0" } },
     { target: "right_gripper_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1", can_interface: "can1" } },
+    // The rig's chest camera, a ZED Mini, serves its geometry, so a v2's
+    // workspace answers check what it sees, whatever else the copy selects.
+    // A v1's design carries no perception camera to bind.
+    { target: "backbone_inst", when: { camera_rig: "cameras", hardware_version: "v2" },
+      set_links: { perception_geometry: "chest" } },
     // The hardware version the backbone clamps to, which picks its joint limits.
     { target: "backbone_inst", when: { hardware_version: "v1" },
       set_arguments: { hardware_version: "v1" } },

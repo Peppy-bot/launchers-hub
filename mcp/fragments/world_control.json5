@@ -1,18 +1,18 @@
-// The simulated world over MCP: no node at all. The server built into
-// peppy serves the simulation:v1 exposure from the MCP hub, the scene, the
-// controls of its objects, its light sources, its materials, a picture of
-// it from any viewpoint, its clock and where a robot can work in it, as one
-// endpoint,
-// http://127.0.0.1:8902/simulation/v1/mcp, a process of its own beside the
-// stack's robot_control endpoint on port 8900. It binds the simulation only,
-// so it needs nothing from any robot copy and keeps running when a copy is
-// removed. Its instance id is its own, so the browser scene panel
-// (web_scene_commander) runs beside it; it reads the simulation's clock, as
-// that panel does. The exposure binds object_controls, scene_lighting,
-// scene_materials, scene_view, simulation_clock and scene_workspace, which
-// Waldo alone implements, so the simulation_mcp launcher, whose
-// world_control axis deploys it, requires Waldo beside it; `--with
-// world_control=none` switches it off.
+// The simulated world over MCP: no node at all. The server built into peppy
+// serves the simulation:v1 exposure from the MCP hub as one endpoint,
+// http://127.0.0.1:8902/simulation/v1/mcp. The exposure covers the scene,
+// the controls of its objects, its light sources and its materials. It also
+// covers a picture of the scene from any viewpoint, the simulation clock
+// and where a robot can work in the scene. The server is a process of its
+// own beside the stack's robot_control endpoint on port 8900. It binds the
+// simulation only, so it needs nothing from any robot copy and keeps
+// running when a copy is removed. Its instance id is its own, so the
+// browser scene panel (web_scene_commander) runs beside it; it reads the
+// simulation's clock, as that panel does. The exposure binds
+// object_controls, scene_lighting, scene_materials, scene_view,
+// simulation_clock and scene_workspace, which Waldo alone implements, so
+// the simulation_mcp launcher, whose world_control axis deploys it,
+// requires Waldo beside it; `--with world_control=none` switches it off.
 {
   peppy_schema: "launcher_fragment/v1",
 

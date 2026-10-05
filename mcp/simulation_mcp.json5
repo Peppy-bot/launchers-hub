@@ -8,17 +8,18 @@
 //
 // The robots' endpoint is the robot_control axis every launcher with robots
 // carries; this file deploys it, and the other launchers serve it with
-// `--with robot_control`. Every robot beside it is listed with its identity
-// and limb state, and with its recorder whenever it runs; its mcp_commander
-// option adds the moves, its rig the cameras and its brain the brain's
-// tools, at launch or by a later join, and a removal takes them out. The world's endpoint is
-// this file's own world_control axis, deployed with a `none` option: Waldo
-// alone implements the object controls, lighting, materials, view, clock and
-// workspace contracts it binds, so the constraint below refuses it under any
-// other engine, and `--with mujoco,world_control=none` is the robots'
-// endpoint alone. The two URLs are the same for one robot or ten and before
-// and after any join, so a client registers them once, and both keep
-// running when every robot is removed.
+// `--with robot_control`. Every robot beside it is listed with its identity,
+// its limb state and where its design lets it work, and with its recorder
+// whenever it runs; its mcp_commander option adds the moves, its rig the
+// cameras and its brain the brain's tools, at launch or by a later join, and
+// a removal takes them out. The world's endpoint is this file's own
+// world_control axis, deployed with a `none` option: Waldo alone implements
+// the object controls, lighting, materials, view, clock and workspace
+// contracts it binds, so the constraint below refuses it under any other
+// engine, and `--with mujoco,world_control=none` is the robots' endpoint
+// alone. The two URLs are the same for one robot or ten and before and after
+// any join, so a client registers them once, and both keep running when every
+// robot is removed.
 //
 // What this file adds to openarm_simulation: the robots' endpoint
 // deployed, the world's endpoint on its own axis, rendering on from the
@@ -163,9 +164,10 @@
         so101_sim: {
           fragments: ["../so101/fragments/so101_sim.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is and what its limbs measure.
+            // Listed on the MCP endpoint: who it is, what its limbs measure and
+            // where its design lets it work.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"] } },
+              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"] } },
             // The headset leads from the pose socket; only the right hand drives
             // a single-arm robot.
             { target: "commander_inst", when: { robot_commander: "xr_commander" },

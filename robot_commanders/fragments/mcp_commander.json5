@@ -1,12 +1,12 @@
 // The MCP command surface, shared by every robot: no leader node at all. A
 // model drives the robot by name on the stack's MCP endpoint, the server
 // built into peppy serving the robot_control:v1 exposure from the MCP hub.
-// This file deploys nothing and requires the endpoint; the launcher adds
-// the backbone's moves under this option, and the rig's cameras and the
-// brain's tools with them, while the robot's identity and limb state are
-// listed there under any commander. The robot file leaves the backbone's
-// leader sockets vacant unless it releases them for a leader, so this
-// option touches the backbone not at all.
+// This file deploys nothing and requires the endpoint; the launcher adds the
+// backbone's moves under this option, and the rig's cameras and the brain's
+// tools with them, while the robot's identity, its limb state and where its
+// design lets it work are listed there under any commander. The robot file
+// leaves the backbone's leader sockets vacant unless it releases them for a
+// leader, so this option touches the backbone not at all.
 {
   peppy_schema: "launcher_fragment/v1",
 

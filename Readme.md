@@ -275,9 +275,10 @@ peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alp
 peppy stack join so101_sim:charlo                                           # an SO-101 beside the copies already standing
 ```
 
-Over MCP a model drives the SO-101's arm and gripper and sees through its
-camera by the robot's name on `http://127.0.0.1:8900/robot_control/v1/mcp`,
-and, on `simulation_mcp`, moves its base through the `simulation` endpoint.
+Over MCP a model drives the SO-101's arm and gripper, sees through its
+camera and learns where its design lets it work by the robot's name on
+`http://127.0.0.1:8900/robot_control/v1/mcp`, and, on `simulation_mcp`,
+moves its base through the `simulation` endpoint.
 
 ## Inspecting and testing
 

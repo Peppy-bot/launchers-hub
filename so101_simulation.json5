@@ -132,9 +132,10 @@
         so101_sim: {
           fragments: ["so101/fragments/so101_sim.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is and what its limbs measure.
+            // Listed on the MCP endpoint: who it is, what its limbs measure and
+            // where its design lets it work.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"] } },
+              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"] } },
             // The headset leads from the pose socket; only the right hand drives
             // a single-arm robot.
             { target: "commander_inst", when: { robot_commander: "xr_commander" },

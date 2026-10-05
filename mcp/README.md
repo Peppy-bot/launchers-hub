@@ -41,8 +41,8 @@ Each endpoint is an axis of the file that owns what it publishes:
   robots fill, so the server takes no link of its own, and the launcher adds
   each robot's instances with `add_links` on `robot_control_inst`, under the
   option that selects the robot: its initializer for its identity and its
-  backbone for its limb state and, on an OpenArm, its collision readout, its
-  camera mounts and where its design lets it work, so every robot of the
+  backbone for its limb state, where its design lets it work and, on an
+  OpenArm, its collision readout and its camera mounts, so every robot of the
   stack is listed with what it is and how it stands; its
   recorder ([openarm](../openarm/fragments/lerobot_recorder.json5),
   [so101](../so101/fragments/lerobot_recorder.json5)) whenever it runs,
@@ -55,13 +55,14 @@ Each endpoint is an axis of the file that owns what it publishes:
   everything that moves the robot's arms is listed under one option, so a
   robot under the browser panel or the headset is listed with its state and
   its recorder and no way to move it, and a robot without a rig with no
-  camera. The backbone's `robot.describe_workspace` and
+  camera. An OpenArm backbone's `robot.describe_workspace` and
   `robot.check_positions` judge what the chest camera sees from that
   camera's geometry: a v2's file binds its rig's chest camera to the
   backbone whenever the rig runs, the ZED Mini on hardware and the rendered
   camera in a simulation; without a rig, and on a v1, whose design carries
-  no perception camera, the two tools check reach alone. A join adds its
-  robot's
+  no perception camera, the two tools check reach alone. An SO-101's one
+  camera, `wrist`, is on its arm, so its design carries no perception camera
+  and its two tools check reach alone. A join adds its robot's
   instances to the running server and a removal takes them out: the robot is
   listed when the join returns and gone when the remove returns. `--with robot_control=none` launches
   `simulation_mcp` without it, and a robot's `mcp_commander` is refused

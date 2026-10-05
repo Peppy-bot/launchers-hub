@@ -241,10 +241,10 @@ the stack up and `alpha` in it:
    descriptions.
 5. Move the robot: call `robot.move_to_ready` with `robot: alpha` and
    `duration_s` 0 for as fast as the joint limits allow. It is an
-   action-backed tool: for a client that declares the MCP tasks extension
-   the call returns a task handle and `tasks/get` reports its progress; for
-   any other client the call itself answers once the move ends. Either way
-   the result gives `arm_names`, `positions` and `orientations`: where the
+   action-backed tool. For a client that declares the MCP tasks extension,
+   the call returns a task handle and `tasks/get` reports its progress. For
+   any other client, the call answers once the move ends. Either way, the
+   result gives `arm_names`, `positions` and `orientations`: where the
    grasp point of each arm stood in the robot frame when the move ended.
    The three arrays are empty, and `message` says why, when the robot has
    no fresh measured pose of an arm. A result with `success` true does not

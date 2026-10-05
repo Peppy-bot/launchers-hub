@@ -23,7 +23,7 @@ whether what a model does transfers to the physical robots:
 | Family | Endpoint | Exposure | Bound to | On the physical robots |
 |---|---|---|---|---|
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its spawned objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
 
 The two URLs are the stack's: the same for one robot or ten, and the same
 before and after any join or removal, so a client registers them once. A

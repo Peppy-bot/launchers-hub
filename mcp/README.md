@@ -23,7 +23,7 @@ whether what a model does transfers to the physical robots:
 | Family | Endpoint | Exposure | Bound to | On the physical robots |
 |---|---|---|---|---|
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its spawned objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
 
 The two URLs are the stack's: the same for one robot or ten, and the same
 before and after any join or removal, so a client registers them once. A
@@ -227,8 +227,8 @@ the stack up and `alpha` in it:
    setter validates the whole request first, refuses out-of-bounds values
    without changing anything, and answers with the effective value after
    the call, so read the response rather than assuming the request took.
-   The change shows in every view the engine renders, the robots' cameras
-   included.
+   The change shows in every view the simulation renders, the robots'
+   cameras included.
 4. Look through a wrist camera: read the resource
    `alpha/wrist_left/camera.latest_frame` on the robots' endpoint, the
    latest frame as a JPEG, published at no more than 2 Hz. The chest
@@ -242,19 +242,27 @@ the stack up and `alpha` in it:
    descriptions.
 5. Move the robot: call `robot.move_to_ready` with `robot: alpha` and
    `duration_s` 0 for as fast as the joint limits allow. It is an
-   action-backed tool: for a client that declares the MCP tasks extension
-   the call returns a task handle and `tasks/get` reports its progress; for
-   any other client the call itself answers once the move settles. Either
-   way it completes when both arms reach the working posture.
+   action-backed tool. For a client that declares the MCP tasks extension,
+   the call returns a task handle and `tasks/get` reports its progress. For
+   any other client, the call answers once the move ends. Either way, the
+   result gives `arm_names`, `positions` and `orientations`: where the
+   grasp point of each arm stood in the robot frame when the move ended.
+   The three arrays are empty, and `message` says why, when the robot has
+   no fresh measured pose of an arm. A result with `success` true does not
+   prove that both arms arrived. An arm can stop short of the working
+   posture, against an obstacle or where the collision guard holds it, so
+   read the reported poses.
    `robot.move_arm` plans from there, naming one of the arms `robot.list`
    gave the robot; the rest posture is not a place to plan Cartesian moves
    from.
 
 The simulation endpoint sets the rest of the world up the same way:
-`scene.get_assets_list` before `scene.spawn_object`, `scene.move_object`,
-`scene.apply_force` or `scene.move_robot`, and `scene.load_scene` or
-`scene.clear_scene` restore a scene's authored lighting and materials as
-`lighting.reset_lighting` and `materials.reset_materials` do on their own.
+`scene.get_assets_list` before `scene.spawn_object` or `scene.move_robot`,
+and `scene.get_objects_list` before `scene.move_object` or
+`scene.apply_force`. `scene.load_scene` replaces every object, the ones the
+old scene placed included, and `scene.clear_scene` removes them all. Both
+leave every robot where it stands. Both restore the authored lighting and
+materials only when they change the selected scene or its scale.
 Once the world is arranged, `workspace.describe` says where on each work
 surface a robot can work and `workspace.check` whether it can work given
 objects where they stand, measured in the world. It is for setting up and

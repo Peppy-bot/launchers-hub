@@ -245,10 +245,12 @@ the stack up and `alpha` in it:
    the call returns a task handle and `tasks/get` reports its progress; for
    any other client the call itself answers once the move ends. Either way
    the result gives `arm_names`, `positions` and `orientations`: where the
-   grasp point of each arm stood in the robot frame when the move ended. A
-   result with `success` true does not prove that both arms arrived: the
-   collision guard can hold an arm short of the working posture, so read
-   the reported poses.
+   grasp point of each arm stood in the robot frame when the move ended.
+   The three arrays are empty, and `message` says why, when the robot has
+   no fresh measured pose of an arm. A result with `success` true does not
+   prove that both arms arrived. An arm can stop short of the working
+   posture, against an obstacle or where the collision guard holds it, so
+   read the reported poses.
    `robot.move_arm` plans from there, naming one of the arms `robot.list`
    gave the robot; the rest posture is not a place to plan Cartesian moves
    from.

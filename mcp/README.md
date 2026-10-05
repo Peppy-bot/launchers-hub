@@ -257,12 +257,12 @@ the stack up and `alpha` in it:
    from.
 
 The simulation endpoint sets the rest of the world up the same way:
-`scene.get_assets_list` before `scene.spawn_object`, `scene.move_object`,
-`scene.apply_force` or `scene.move_robot`. `scene.load_scene` replaces every
-object, the ones the old scene placed included, and `scene.clear_scene`
-removes them all. Both leave every robot where it stands. Both restore the
-authored lighting and materials only when they change the selected scene
-or its scale.
+`scene.get_assets_list` before `scene.spawn_object` or `scene.move_robot`,
+and `scene.get_objects_list` before `scene.move_object` or
+`scene.apply_force`. `scene.load_scene` replaces every object, the ones the
+old scene placed included, and `scene.clear_scene` removes them all. Both
+leave every robot where it stands. Both restore the authored lighting and
+materials only when they change the selected scene or its scale.
 Once the world is arranged, `workspace.describe` says where on each work
 surface a robot can work and `workspace.check` whether it can work given
 objects where they stand, measured in the world. It is for setting up and

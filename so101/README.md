@@ -158,7 +158,7 @@ The limits:
   for every copy of the option:
 
   ```sh
-  peppy stack launch simulation_mcp --join so101_sim:charlie   # an SO-101 over MCP beside alpha, with its wrist camera
+  peppy stack launch simulation_mcp --join so101_sim:charlie   # an SO-101 over MCP, with its wrist camera
   peppy stack join so101_sim:delta                             # another, listed on the same URL when the join returns
   ```
 

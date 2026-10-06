@@ -617,20 +617,21 @@ class CombinationsTests(unittest.TestCase):
         )
         # The simulation_mcp launcher: the same stacks with the world's
         # endpoint on or off as well (the constraint refuses it off Waldo at
-        # resolve), each launched with alpha under every selection of its
-        # axes, naming either unlisted robot at launch, and joined by any
-        # robot, plain and under every selection of its axes. The entries
-        # state the MCP commander and the rendered rig for every copy of
-        # their option, so alpha, the copy a launch names and the plain join
-        # are MCP robots, and the planner picks all of it up from the index
-        # and the fragments alone.
+        # resolve), each launched bare, with no robot, naming either robot
+        # at launch, and joined by any robot, plain and under every
+        # selection of its axes. The file lists no copy, so no launch word
+        # names one. The entries state the MCP commander and the rendered
+        # rig for every copy of their option, so the copy a launch names and
+        # the plain join are MCP robots, and the planner picks all of it up
+        # from the index and the fragments alone.
         robot_control = combos("simulation_mcp")
-        self.assertEqual(len(robot_control), stacks * 2 * (alpha_openarm + 1 + openarm_sim + so101_sim))
+        self.assertEqual(len(robot_control), stacks * 2 * (1 + 2 + openarm_sim + so101_sim))
         stack = "simulation=waldo,robot_control=robot_control,world_control=world_control"
         self.assertIn(["combo", "simulation_mcp", stack, "", "", "", "-"], robot_control)
+        self.assertIn(["combo", "simulation_mcp", stack, "openarm_sim", "", "", "-"], robot_control)
         self.assertIn(["combo", "simulation_mcp", stack, "so101_sim", "", "", "-"], robot_control)
         self.assertIn(["combo", "simulation_mcp", stack, "", "openarm_sim", "", "-"], robot_control)
-        self.assertIn(["combo", "simulation_mcp", f"{stack},alpha.hardware_version=v2,alpha.robot_commander=xr_commander,alpha.camera_rig=cameras_sim", "", "", "", "-"], robot_control)
+        self.assertEqual([c for c in robot_control if "alpha." in c[2]], [])
         self.assertIn(
             ["combo", "simulation_mcp", stack, "", "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim", "-"],
             robot_control,
@@ -1667,7 +1668,7 @@ class CombinationsTests(unittest.TestCase):
                 for verb in ["set_links", "add_links"]:
                     self.assertFalse(set(telemetry) & set(adjustment.get(verb, {})), launcher)
 
-    def test_the_launchers_offer_their_robots_and_list_alpha(self):
+    def test_the_launchers_offer_their_robots_and_list_their_copies(self):
         root = Path(__file__).resolve().parents[2]
         for path, robots in ROBOT_LAUNCHERS.items():
             with self.subTest(path=path):
@@ -1680,26 +1681,30 @@ class CombinationsTests(unittest.TestCase):
                 else:
                     self.assertEqual(set(simulation[0]["options"]), {"mujoco", "isaac_sim", "waldo"})
                     self.assertEqual(combinations.option_entries(document, path)["simulation"], "waldo")
-                # Every simulation launcher lists one copy, alpha, of its own
-                # family's robot; the MCP launcher's other entry sets every
-                # copy of its option up without listing one. The physical
-                # launcher lists none: every robot is joined by name.
+                # Every other simulation launcher lists one copy, alpha, of
+                # its own family's robot. The MCP launcher lists none: its
+                # entries set every copy of their option up, and a launch
+                # starts no robot. The physical launcher lists none either:
+                # every robot is joined by name.
                 launcher = combinations.read_launcher(root, path)
-                self.assertEqual([copy.name for copy in launcher.copies], [] if path == "physical.json5" else ["alpha"])
                 if path == "physical.json5":
+                    self.assertEqual(launcher.copies, [])
                     self.assertEqual(launcher.unlisted, ())
+                elif path == "mcp/simulation_mcp.json5":
+                    self.assertEqual(launcher.copies, [])
+                    self.assertEqual(launcher.unlisted, ("openarm_sim", "so101_sim"))
                 else:
+                    self.assertEqual([copy.name for copy in launcher.copies], ["alpha"])
                     self.assertEqual(
                         launcher.copies[0].option, "so101_sim" if Path(path).name.startswith("so101") else "openarm_sim")
-                    self.assertEqual(
-                        launcher.unlisted, ("so101_sim",) if path == "mcp/simulation_mcp.json5" else ())
+                    self.assertEqual(launcher.unlisted, ())
         index = combinations.load_json5(root / "peppy_repository.json5", "index")
         self.assertEqual(index["launchers"]["physical"], {"path": "physical.json5"})
         self.assertEqual(index["launchers"]["so101_simulation"], {"path": "so101_simulation.json5"})
         self.assertEqual(index["launchers"]["simulation_mcp"], {"path": "mcp/simulation_mcp.json5"})
 
 
-    def test_the_mcp_launcher_deploys_waldo_the_endpoint_and_alpha(self):
+    def test_the_mcp_launcher_deploys_waldo_and_the_endpoints_with_no_robot(self):
         root = Path(__file__).resolve().parents[2]
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)
@@ -1717,25 +1722,30 @@ class CombinationsTests(unittest.TestCase):
             {axis: option for axis, option in entries.items() if axis != "robot"},
             {"simulation": "waldo", "robot_control": "robot_control", "world_control": "world_control"})
         # Each robot's entry states, for every copy of the option, the MCP
-        # commander: alpha with the rendered rig, the ones
-        # `--join OPTION:NAME` starts with the launch and the ones joined
-        # later without it, a v1 being one the simulations render no rig for.
+        # commander and the rendered rig: the ones `--join OPTION:NAME`
+        # starts with the launch and the ones joined later without it, a v1
+        # being one the simulations render no rig for. No entry lists a
+        # copy, so the bare launch is the simulation and the two endpoints
+        # with no robot.
         self.assertEqual([entry for entry in document["deployments"] if "robot" in entry], [
-            {"robot": "openarm_sim", "with": {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"},
-             "instances": [{"instance_id": "alpha"}]},
+            {"robot": "openarm_sim", "with": {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"}},
             {"robot": "so101_sim", "with": {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"}},
         ])
         launcher = combinations.read_launcher(root, path)
-        self.assertEqual([copy.name for copy in launcher.copies], ["alpha"])
-        self.assertEqual(launcher.unlisted, ("so101_sim",))
-        # Every launch under Waldo: alpha under every selection of its axes
-        # or the unlisted robot named beside it, with and without the scene
-        # commander, each endpoint on or off.
+        self.assertEqual(launcher.copies, [])
+        self.assertEqual(launcher.unlisted, ("openarm_sim", "so101_sim"))
+        # Every launch under Waldo: bare or with either robot named at
+        # launch, with and without the scene commander, each endpoint on or
+        # off.
         found = combinations.launcher_selections(launcher.axes, launcher.copies, launcher.unlisted)
         waldo = [c for c in found if c.join_option is None and c.words[0] == ("simulation", "waldo")]
-        started = [(combinations.render_words(c.words), c.launch_joins) for c in waldo if c.launch_joins]
-        self.assertIn(("simulation=waldo,robot_control=robot_control,world_control=world_control", ("so101_sim",)), started)
-        self.assertIn(("simulation=waldo,robot_control=none,world_control=none", ("so101_sim",)), started)
+        launched = [(combinations.render_words(c.words), c.launch_joins) for c in waldo]
+        for stack in ["simulation=waldo,robot_control=robot_control,world_control=world_control",
+                      "simulation=waldo,robot_control=none,world_control=none"]:
+            with self.subTest(stack=stack):
+                self.assertIn((stack, ()), launched)
+                self.assertIn((stack, ("openarm_sim",)), launched)
+                self.assertIn((stack, ("so101_sim",)), launched)
 
 
     def test_an_option_entry_may_carry_settings_shared_by_its_copies(self):
@@ -2044,11 +2054,12 @@ class SimulatedSo101Tests(unittest.TestCase):
 
 
     def test_a_launch_of_the_mcp_stack_names_the_so101_it_starts(self):
-        # simulation_mcp lists the SO-101 with no copy, as an MCP
-        # robot with its rendered rig, so a launch names the one it starts.
+        # simulation_mcp sets every robot up with no copy, as an MCP robot
+        # with its rendered rig, so a launch names the one it starts and
+        # nothing stands beside it.
         inventory = combinations.read_launcher_inventory(
             ROOT, "simulation_mcp", "mcp/simulation_mcp.json5")
-        self.assertEqual(inventory.candidates[0].file_copies, ("alpha",))
+        self.assertEqual(inventory.candidates[0].file_copies, ())
         stack = "simulation=waldo,robot_control=robot_control,world_control=world_control"
         candidate, = [c for c in inventory.candidates
                       if (c.words, c.launch_joins, c.join_option) == (stack, ("so101_sim",), "")]

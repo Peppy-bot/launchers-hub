@@ -28,7 +28,8 @@ with `--join OPTION:NAME` or joined later,
 [../so101_simulation.json5](../so101_simulation.json5) is the
 same launcher with the simulated SO-101 first and the simulated OpenArm as
 an option, and [../mcp/simulation_mcp.json5](../mcp/simulation_mcp.json5) is
-`openarm_simulation` with every robot driven over MCP, `alpha` listed.
+`openarm_simulation` with every robot driven over MCP and no robot listed,
+each one named at launch with `--join OPTION:NAME` or joined later.
 `simulation_mcp` deploys the robots' MCP endpoint, the other launchers
 serve it with `--with robot_control`, and every robot is listed on it. A copy's ids
 carry its name: `alpha_backbone_inst`. See
@@ -168,7 +169,7 @@ client setup and the move from simulation to the real robot are in the
 [MCP guide](../mcp/README.md):
 
 ```sh
-peppy stack launch simulation_mcp                                                     # Waldo, both endpoints, alpha over MCP
+peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, both endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
 peppy stack join openarm:charlie --with v1,mcp_commander,cameras --place jetson-2
@@ -351,7 +352,7 @@ machine.
 peppy stack resolve openarm_simulation --with mujoco
 peppy stack resolve physical --join openarm:bravo --with bravo.v1,bravo.xr_commander
 peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander --join openarm_sim:bravo --with bravo.xr_commander
-peppy stack resolve simulation_mcp --with web_scene_commander
+peppy stack resolve simulation_mcp --join openarm_sim:alpha --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/robot_initializer -sb
 ```
 

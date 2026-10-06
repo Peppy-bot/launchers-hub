@@ -86,13 +86,15 @@ message, as the document tells a model to expect.
 
 [simulation_mcp.json5](simulation_mcp.json5) is `openarm_simulation` with
 both endpoints deployed and every robot driven over MCP by default. It
-lists one robot, `alpha`, an OpenArm v2, and each robot entry states the
-MCP commander and the rendered rig for every copy of its option, so `alpha`
-and every robot named on the command line, at launch with `--join
-OPTION:NAME` or later with `stack join`, are driven over MCP with their
-cameras. The launcher turns the simulation's rendering on itself, which a
-join cannot, so every robot joined onto it gets its rig; a v1 OpenArm, which
-the simulations render no rig for, joins with `--with v1,camera_rig=none`.
+lists no robot, so its bare launch is Waldo and the two endpoints alone,
+and each robot entry states the MCP commander and the rendered rig for
+every copy of its option, so every robot named on the command line, at
+launch with `--join OPTION:NAME` or later with `stack join`, is driven over
+MCP with its cameras: `--join openarm_sim:alpha` starts `alpha`, an
+OpenArm v2, with the launch. The launcher turns the simulation's rendering
+on itself, which a join cannot, so every robot joined onto it gets its rig;
+a v1 OpenArm, which the simulations render no rig for, joins with `--with
+v1,camera_rig=none`.
 
 `peppy stack list` reports, for the bare launch:
 
@@ -128,9 +130,9 @@ from the operating system when it is held, printing the one it took under
 ### One robot, two, many
 
 ```sh
-peppy stack launch simulation_mcp                                                  # Waldo, the two endpoints, alpha listed
-peppy stack launch simulation_mcp --join so101_sim:charlie                         # alpha and an SO-101
-peppy stack launch simulation_mcp --join openarm_sim:bravo --join so101_sim:charlie   # two OpenArms and an SO-101
+peppy stack launch simulation_mcp                                                  # Waldo and the two endpoints, no robot listed
+peppy stack launch simulation_mcp --join openarm_sim:alpha                         # alpha, an OpenArm v2
+peppy stack launch simulation_mcp --join openarm_sim:alpha --join so101_sim:charlie   # alpha and an SO-101
 peppy stack join openarm_sim:bravo                                                 # a second OpenArm, listed when the join returns
 peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its wrist camera
 peppy stack join openarm_sim:delta --with ai_brain_vla                                 # an OpenArm with a brain, its brain tools on the same URL
@@ -160,7 +162,7 @@ A `--with` word on a join wins on its own axis and the entry's other axes
 stay selected, so the rendered rig runs for every v2 and SO-101: `--with
 xr_commander` is a headset robot with the rig feeding its panels, and
 `--with web_commander,lerobot_recorder` is the browser panel with the
-recorder filming. `--with
+recorder filming. `--join openarm_sim:alpha --with
 robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 launch is the world's endpoint alone, alpha under the browser panel with
 the recorder filming its rig; a robot joined onto it needs a commander word
@@ -204,7 +206,8 @@ the physical robots have a launcher of their own.
 
 The tool names are the exposures' public names, `<target>.<verb>`, as the
 documents under `robot/` and `simulation/` of the MCP hub write them. With
-the stack up and `alpha` in it:
+the stack up and `alpha` in it, `peppy stack launch simulation_mcp --join
+openarm_sim:alpha`:
 
 1. Find the robots: call `robot.list` on the robots' endpoint. Every entry
    carries `robot`, the name every other tool takes, its `identity`
@@ -273,9 +276,9 @@ robot through the robots' endpoint.
 
 ```sh
 peppy stack launch openarm_simulation --with web_scene_commander
-peppy stack launch simulation_mcp
-peppy stack launch simulation_mcp --with web_scene_commander
-peppy stack launch simulation_mcp --with mujoco,world_control=none
+peppy stack launch simulation_mcp --join openarm_sim:alpha
+peppy stack launch simulation_mcp --join openarm_sim:alpha --with web_scene_commander
+peppy stack launch simulation_mcp --join openarm_sim:alpha --with mujoco,world_control=none
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
@@ -285,7 +288,7 @@ peppy stack join openarm:alpha --with v2,mcp_commander,cameras
 The first is the browser scene commander on Waldo with `alpha` under the
 browser panel: the scene panel, the lighting and materials panels the
 scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's
-bare launch: the two endpoints and `alpha`, with no browser panel. The
+two endpoints and `alpha`, named at launch, with no browser panel. The
 third adds the browser scene commander beside them, and with the rendered
 rig running its page carries the camera panel too, listing the same three
 relays the robots' endpoint serves. The fourth is the

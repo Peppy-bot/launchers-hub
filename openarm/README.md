@@ -325,10 +325,10 @@ prints under `Web pages:`; accept the self-signed certificate once). The page
 carries the engine's 3D viewer of the running world, served by its debug
 inspector (the `debug_inspector` parameter), and around it every UI element
 of the page, each a Waldo plugin the fragment's `plugins` argument runs: the
-connection badge, the frame rate and its caps, the robots' names, the "Start
-camera" panel, the pause, contact points and dark mode buttons, and the
-viewer's controls (Waldo's `plugins/README.md` says which plugin shows each,
-and where). With `hand_teleop`, webcam hand tracking drives an arm of the robot
+connection badge, the frame rate and its caps, the physics budget, the
+robots' names, the "Start camera" panel, the pause, contact points and dark
+mode buttons, and the viewer's controls (Waldo's `plugins/README.md` says
+which plugin shows each, and where). With `hand_teleop`, webcam hand tracking drives an arm of the robot
 the panel chooses (the first standing when none is chosen), ahead of that
 robot's pairing while a hand is tracked. With `robot_names`, the viewer
 writes `<robot>@<core node>` over every robot (`beta@cn-funky-animal` for
@@ -336,8 +336,11 @@ writes `<robot>@<core node>` over every robot (`beta@cn-funky-animal` for
 `cn-funky-animal`), which tells the robots of one world apart. With
 `simulation_clock`, a toolbar button pauses and resumes the whole
 simulation, as the `simulation_clock` contract does, and shows every pause
-and resume, whoever asked for it. Every plugin but `hand_teleop` needs the
-debug inspector. The fragment runs the debug
+and resume, whoever asked for it. With `physics_budget`, a panel shows how
+long Waldo's physics thread works for each step against the 2 ms a step
+simulates: past that budget the simulation runs slower than real time, and
+the panel turns red. Every plugin but `hand_teleop` needs the debug
+inspector. The fragment runs the debug
 inspector and every plugin the node accepts whatever the launch selects,
 so the viewer is on from the first launch of every launcher deploying Waldo,
 and the debug inspector answers the scene commander's `scene_manipulation`

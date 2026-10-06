@@ -2,7 +2,8 @@
 // default) with a self-signed certificate: the engine's 3D viewer of the
 // running world, streamed over WebTransport on UDP viewer_port, with the
 // page's controls around it, the name tag over every robot with the button
-// hiding them, and the hand teleop panel, all on from the first launch. Its
+// hiding them, the button pausing and resuming the simulation, and the hand
+// teleop panel, all on from the first launch. Its
 // scene_manipulation and object_state contracts take a scene commander. The world opens with no
 // robot: every robot joins it through its initializer, bringing its own
 // model, and any number stand in it at once, of any model in its
@@ -34,7 +35,9 @@
         // each place on the page they show in this order (Waldo's
         // plugins/README.md says what each shows and where). robot_names
         // has the viewer write `<robot>@<core node>` over every robot,
-        // which tells the robots of a crowded world apart; hand_teleop is
+        // which tells the robots of a crowded world apart; simulation_clock
+        // is the toolbar button that pauses and resumes the whole
+        // simulation, as the simulation_clock contract does; hand_teleop is
         // the "Start camera" panel, which tracks the operator's hands on
         // the webcam and drives the arm of the chosen robot ahead of that
         // robot's pairing while a hand is tracked. Every plugin but
@@ -46,7 +49,7 @@
         // is driven. The lease is also how long a robot whose nodes are gone
         // stays, and how long one paired as another model stays before its
         // stay ends naming both lists.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,robot_names,hand_teleop,contact_markers,dark_mode,viewer_hint", world: "stage", robot_lease_ms: 10000 },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,robot_names,hand_teleop,simulation_clock,contact_markers,dark_mode,viewer_hint", world: "stage", robot_lease_ms: 10000 },
       }],
     },
   ],

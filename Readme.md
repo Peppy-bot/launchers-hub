@@ -58,11 +58,12 @@ OPTION:NAME` names another at launch and `--with robot_control` serves the endpo
 launcher with another robot first: `alpha` is a simulated SO-101 with no
 commander, which launches on a machine with no SO-101 hardware.
 [mcp/simulation_mcp.json5](mcp/simulation_mcp.json5) is
-`openarm_simulation` with the endpoint deployed and every robot driven
-over MCP by default: its
+`openarm_simulation` with the endpoint deployed, no robot listed and every
+robot driven over MCP by default: its bare launch is the simulation and the
+two endpoints alone, and its
 entries for the two simulated robots state the MCP commander and the
-rendered rig for every copy of the option, so `alpha`, a robot named at
-launch and a robot joined later alike are listed on the one endpoint, on
+rendered rig for every copy of the option, so a robot named at launch and a
+robot joined later alike are listed on the one endpoint, on
 the same URL when the join returns, and the simulated world's endpoint runs
 beside it from the file's `world_control` axis. The endpoints, the client setup
 and the move to the real robots are in the [MCP guide](mcp/README.md).
@@ -95,8 +96,9 @@ peppy stack launch simulation                                               # a 
 peppy stack launch physical                                                 # a new stack with no robot
 peppy stack join openarm:alpha --with v2 --place jetson-1
 peppy stack join so101:bravo
-peppy stack launch simulation_mcp                                           # Waldo, the two endpoints and alpha over MCP
-peppy stack launch simulation_mcp --join so101_sim:charlie                  # alpha and an SO-101 over MCP
+peppy stack launch simulation_mcp                                           # Waldo and the two endpoints, no robot
+peppy stack launch simulation_mcp --join openarm_sim:alpha                  # alpha, an OpenArm v2 over MCP
+peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # alpha and an SO-101 over MCP
 peppy stack join openarm_sim:bravo                                          # a second OpenArm, listed on the same URL when the join returns
 peppy stack join so101_sim:delta                                            # an SO-101, its arm and wrist camera on the same URL
 ```

@@ -1,7 +1,6 @@
-// Robots in Waldo driven over MCP: the two endpoints, alpha, an OpenArm v2
-// the file lists with its rendered rig, and the robots named at launch or
-// joined later, each driven over MCP, an SO-101 with its rig and an OpenArm
-// with the rig its join asks for.
+// Robots in Waldo driven over MCP: the two endpoints over a simulation
+// that starts with no robot, and the robots named at launch or joined
+// later, each driven over MCP with its rendered rig.
 //
 //   http://127.0.0.1:8900/robot_control/v1/mcp   every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
 //   http://127.0.0.1:8902/simulation/v1/mcp      the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it
@@ -17,31 +16,30 @@
 // the object controls, lighting, materials, view, clock and workspace
 // contracts it binds, so the constraint below refuses it under any other
 // engine, and `--with mujoco,world_control=none` is the robots' endpoint
-// alone. The two URLs are the same for one robot or ten and before and after
-// any join, so a client registers them once, and both keep running when every
-// robot is removed.
+// alone. The two URLs are the same with no robot, one or ten and before and
+// after any join, so a client registers them once, and both run while no
+// robot stands in the simulation.
 //
 // What this file adds to openarm_simulation: the robots' endpoint
 // deployed, the world's endpoint on its own axis, rendering on from the
-// launch, and its robot entries: for each option the MCP commander, so alpha
-// and every robot named on the command line, at launch with
-// `--join OPTION:NAME` or later with a plain `stack join`, come up driven
-// over MCP, listed on the same URL when the join returns. An SO-101 carries
-// its rig wherever it comes up; an OpenArm carries the rig its own words
-// ask for, `stack join openarm_sim:bravo --with cameras_sim`, which a v1
-// cannot, since the simulations render a rig on v2 links alone. The stacks
-// this file is meant for, and the same client on the real robots, are in
-// mcp/README.md:
+// launch, no robot listed, and its robot entries: for each option the MCP
+// commander and the rendered rig, so every robot named on the command line,
+// at launch with `--join OPTION:NAME` or later with a plain `stack join`,
+// comes up driven over MCP with its cameras, listed on the same URL when
+// the join returns. A v1 OpenArm, which the simulations render no rig for,
+// joins with `--with v1,camera_rig=none`. The stacks this file is meant
+// for, and the same client on the real robots, are in mcp/README.md:
 //
-//   peppy stack launch simulation_mcp                                    # Waldo, the two endpoints, alpha listed
-//   peppy stack launch simulation_mcp --join so101_sim:charlie           # alpha and an SO-101
+//   peppy stack launch simulation_mcp                                    # Waldo and the two endpoints, no robot
+//   peppy stack launch simulation_mcp --join openarm_sim:alpha           # an OpenArm v2 over MCP
+//   peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # an OpenArm and an SO-101
 //   peppy stack launch simulation_mcp --with mujoco,world_control=none   # the robots' endpoint alone, under MuJoCo
-//   peppy stack join openarm_sim:bravo                                   # a second OpenArm, on the same URL when the join returns
-//   peppy stack remove alpha                                             # the endpoints keep running, listing nothing
+//   peppy stack join openarm_sim:bravo                                   # an OpenArm, on the same URL when the join returns
+//   peppy stack remove alpha                                             # the endpoints keep running
 //
 // A `--with` word on a join wins on its own axis and the entry's other axes
-// stay selected: `--with xr_commander,cameras_sim` is a headset robot with
-// the rig feeding its panels. `--with
+// stay selected: `--with xr_commander` is a headset robot with the rig
+// feeding its panels. `--join openarm_sim:alpha --with
 // robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 // launch is the world's endpoint alone, alpha under the browser panel with
 // the recorder filming its rig; a joined robot needs a commander word too,
@@ -212,19 +210,19 @@
   ],
 
   // An entry's `with` selects the robot's own axes for every copy of the
-  // option: alpha, and every copy named on the command line, at launch with
-  // `--join OPTION:NAME` or later with `stack join`, run the MCP commander.
-  // A copy's own `with` is its alone, which is where alpha's rig is.
+  // option, and no entry lists a copy, so the bare launch stands no robot:
+  // every copy named on the command line, at launch with `--join
+  // OPTION:NAME` or later with `stack join`, runs the MCP commander and
+  // films.
   deployments: [
     { simulation: "waldo" },
     { robot_control: "robot_control" },
     { world_control: "world_control" },
     {
       robot: "openarm_sim",
+      // A v1, which the simulations render no rig for, joins with
+      // `stack join openarm_sim:bravo --with v1,camera_rig=none`.
       with: { robot_commander: "mcp_commander", camera_rig: "cameras_sim" },
-      // Every copy films. A v1, which the simulations render no rig for,
-      // joins with `stack join openarm_sim:bravo --with v1,camera_rig=none`.
-      instances: [{ instance_id: "alpha" }],
     },
     {
       robot: "so101_sim",

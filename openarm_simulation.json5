@@ -21,8 +21,9 @@
 // cameras_sim` on its join is refused. `--with robot_control` serves the
 // robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where
 // every robot is listed and its mcp_commander option adds its moves.
-// mcp/simulation_mcp.json5 is this file with the endpoint deployed, every
-// robot driven over MCP by default, and rendering on from the launch.
+// mcp/simulation_mcp.json5 is this file with the endpoint deployed, no
+// robot listed, every robot driven over MCP by default, and rendering on
+// from the launch.
 {
   peppy_schema: "launcher/v1",
 

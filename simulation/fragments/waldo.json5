@@ -33,15 +33,17 @@
         // plugins is the comma-separated list of plugins to run, every one
         // the node accepts: each is a UI element of the page, and within
         // each place on the page they show in this order (Waldo's
-        // plugins/README.md says what each shows and where). robot_names
-        // has the viewer write `<robot>@<core node>` over every robot,
-        // which tells the robots of a crowded world apart; simulation_clock
-        // is the toolbar button that pauses and resumes the whole
-        // simulation, as the simulation_clock contract does; hand_teleop is
-        // the "Start camera" panel, which tracks the operator's hands on
-        // the webcam and drives the arm of the chosen robot ahead of that
-        // robot's pairing while a hand is tracked. Every plugin but
-        // hand_teleop needs debug_inspector.
+        // plugins/README.md says what each shows and where). physics_budget
+        // shows how long the physics thread works per step against the
+        // 2 ms a step simulates, red once the simulation falls behind real
+        // time; robot_names has the viewer write `<robot>@<core node>` over
+        // every robot, which tells the robots of a crowded world apart;
+        // simulation_clock is the toolbar button that pauses and resumes
+        // the whole simulation, as the simulation_clock contract does;
+        // hand_teleop is the "Start camera" panel, which tracks the
+        // operator's hands on the webcam and drives the arm of the chosen
+        // robot ahead of that robot's pairing while a hand is tracked.
+        // Every plugin but hand_teleop needs debug_inspector.
         // A robot's nodes start together with its join, and a robot holds
         // its pairs only once its backbone is up: the SO-101's Python
         // backbone takes several seconds to declare them, longer than the
@@ -49,7 +51,7 @@
         // is driven. The lease is also how long a robot whose nodes are gone
         // stays, and how long one paired as another model stays before its
         // stay ends naming both lists.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,robot_names,hand_teleop,simulation_clock,contact_markers,dark_mode,viewer_hint", world: "stage", robot_lease_ms: 10000 },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,physics_budget,robot_names,hand_teleop,simulation_clock,contact_markers,dark_mode,viewer_hint", world: "stage", robot_lease_ms: 10000 },
       }],
     },
   ],

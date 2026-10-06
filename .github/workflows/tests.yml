@@ -200,7 +200,7 @@ jobs:
       # dispatched run carries, else the pull request's head, else the pushed
       # commit. The launch job checks out the commit this job resolved.
       - id: checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.set && fromJSON(inputs.set).hubs['launchers-hub'].commit || github.event.pull_request.head.sha || github.sha }}
           # Full history: the scoping step diffs the pull request against
@@ -433,7 +433,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The commit the discover job planned from. Nothing here diffs
           # history; the launcher is resolved by name through the registry
@@ -468,7 +468,7 @@ jobs:
       # spans many launches, and the next run too when the launches of a run
       # do not complete it: the snapshot of the disk carries the partial
       # file. The launches and runs after that find the weights.
-      - uses: runs-on/action@efac073ea2507ec18797de3a81704201ade11d9d # v2.3.1
+      - uses: runs-on/action@17b59092eb37ebfdbb034460892887c09100eaa3 # v2.5.0
         with:
           sticky_cache: custom,path=~/.cache/launchers-hub-ci
 

@@ -72,9 +72,9 @@ Each endpoint is an axis of the file that owns what it publishes:
   deployed by the file, with a `none` option that switches it off. It binds
   the simulation alone, under an instance id of its own, so the browser
   scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
-  `scene_materials`, `scene_view`, `simulation_clock` and `scene_workspace`,
-  which Waldo alone implements, so the launcher refuses it under MuJoCo or
-  Isaac Sim with that reason.
+  `scene_materials`, `scene_view`, `simulation_clock`, `scene_workspace` and
+  `simulation_reset`, which Waldo alone implements, so the launcher refuses
+  it under MuJoCo or Isaac Sim with that reason.
 
 Both endpoints bind the simulation or nothing, so both keep running when
 every robot is removed. Only Waldo models the cameras' response, so under

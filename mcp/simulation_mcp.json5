@@ -247,10 +247,11 @@
 
   constraints: [
     // A property of the world's document: its controls, lighting,
-    // materials, view, clock and workspace targets bind the simulation, and
-    // Waldo is the one simulation implementing those contracts.
+    // materials, view, clock, workspace and reset targets bind the
+    // simulation, and Waldo is the one simulation implementing those
+    // contracts.
     { when: { world_control: "world_control" },
       requires: [{ simulation: "waldo" }],
-      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_materials, scene_view, simulation_clock and scene_workspace, which only waldo implements; launch with waldo or with world_control=none" },
+      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_materials, scene_view, simulation_clock, scene_workspace and simulation_reset, which only waldo implements; launch with waldo or with world_control=none" },
   ],
 }

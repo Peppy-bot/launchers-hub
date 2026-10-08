@@ -1248,16 +1248,16 @@ class CombinationsTests(unittest.TestCase):
             "scene": "simulation_inst", "controls": "simulation_inst",
             "lighting": "simulation_inst", "materials": "simulation_inst",
             "view": "simulation_inst", "clock": "simulation_inst",
-            "workspace": "simulation_inst"})
+            "workspace": "simulation_inst", "reset": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
         # The axis is the MCP launcher's, deployed by the file with `none`
         # to switch it off, and Waldo alone implements the object controls,
-        # lighting, materials, view, clock and workspace contracts it binds,
-        # so the launcher requires Waldo beside it. No fragment declares the
-        # axis.
+        # lighting, materials, view, clock, workspace and reset contracts it
+        # binds, so the launcher requires Waldo beside it. No fragment
+        # declares the axis.
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)
         axes = {axis["name"]: axis for axis in document["components"]}

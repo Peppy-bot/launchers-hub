@@ -136,9 +136,15 @@
             // GPU is, so it finds and names items with the local SAM 3 and
             // SigLIP pipeline, by words from the node's general vocabulary,
             // looking through the chest camera the rendered rig binds, color
-            // and depth from one producer.
+            // and depth from one producer. Under Waldo it also enrols the
+            // catalogue's table objects, the prototypes the node ships, so a
+            // rendered mesh whose look the words miss is still reported under
+            // the catalogue's name; this is a condition of the simulation,
+            // not of the robot, whose brain names by words alone.
             { target: "brain_inst", when: { brain: "ai_brain_vla" },
               set_arguments: { perception_backend: "sam3_siglip" } },
+            { target: "brain_inst", when: { brain: "ai_brain_vla", simulation: "waldo" },
+              set_arguments: { perception_gallery: "waldo_catalogue" } },
             { target: "brain_inst", when: { brain: "ai_brain_vla", camera_rig: "cameras_sim" },
               set_links: { camera: "chest", geometry: "chest" } },
             // The recorder films the rig; binding order fixes the dataset's

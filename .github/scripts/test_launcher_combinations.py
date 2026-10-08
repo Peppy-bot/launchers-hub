@@ -990,17 +990,28 @@ class CombinationsTests(unittest.TestCase):
                     self.assertEqual(thinking["add_links"], {
                         "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]})
 
-    def test_the_simulated_brain_sees_through_the_rendered_rig(self):
+    def test_the_brain_sees_through_its_rigs_chest_camera_and_names_by_words(self):
         root = Path(__file__).resolve().parents[2]
-        # The simulation runs where a GPU is, so the launcher gives a
-        # simulated brain the local perception pipeline and the chest camera
-        # the rendered rig binds; a physical brain keeps the fragment's "none".
-        sees = [
-            {"target": "brain_inst", "when": {"brain": "ai_brain_vla"},
-             "set_arguments": {"perception_backend": "sam3_siglip"}},
-            {"target": "brain_inst", "when": {"brain": "ai_brain_vla", "camera_rig": "cameras_sim"},
-             "set_links": {"camera": "chest", "geometry": "chest"}},
-        ]
+        # Every launcher gives a brain the local perception pipeline and the
+        # chest camera its rig binds, colour and depth with the intrinsics
+        # the camera serves: the rendered relay in a simulation, the ZED on
+        # hardware. A simulation under Waldo also enrols the catalogue's
+        # table objects, the prototypes the node ships, so a rendered mesh
+        # whose look the words miss keeps the catalogue's name; that is a
+        # condition of the simulation, and the robot's brain names by words
+        # alone, with no gallery.
+        def sees(rig, enrols):
+            writes = [
+                {"target": "brain_inst", "when": {"brain": "ai_brain_vla"},
+                 "set_arguments": {"perception_backend": "sam3_siglip"}},
+            ]
+            if enrols:
+                writes.append({"target": "brain_inst", "when": {"brain": "ai_brain_vla", "simulation": "waldo"},
+                               "set_arguments": {"perception_gallery": "waldo_catalogue"}})
+            writes.append({"target": "brain_inst", "when": {"brain": "ai_brain_vla", "camera_rig": rig},
+                           "set_links": {"camera": "chest", "geometry": "chest"}})
+            return writes
+
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:
@@ -1009,7 +1020,11 @@ class CombinationsTests(unittest.TestCase):
                 with self.subTest(path=path, robot=robot):
                     writes = [a for a in robot_option(document, robot)["adjustments"]
                               if a["target"] == "brain_inst" and "set_framework" not in a]
-                    self.assertEqual(writes, sees if robot == "openarm_sim" else [])
+                    expected = sees("cameras_sim", enrols=True) if robot == "openarm_sim" else sees("cameras", enrols=False)
+                    self.assertEqual(writes, expected)
+                    for write in writes:
+                        self.assertNotIn("perception_gallery", write.get("set_arguments", {}) if robot != "openarm_sim" else {},
+                                         "a physical brain enrols nothing")
 
     def test_the_backbone_reads_the_geometry_of_its_rigs_chest_camera(self):
         root = Path(__file__).resolve().parents[2]

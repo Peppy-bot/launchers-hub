@@ -16,22 +16,29 @@ table and the copy semantics.
 
 ## The endpoints
 
-`simulation_mcp` serves both endpoints, and the other launchers with
-robots serve the robots' with `--with robot_control`. The boundary between the two is
-whether what a model does transfers to the physical robots:
+`simulation_mcp` serves three endpoints, one per family of the MCP hub: a
+call to the framework, a call to the simulated world and a call to a robot
+each go to their own endpoint, so the user and the model can always tell
+where a call goes. The other launchers with robots serve the robots'
+endpoint alone, with `--with robot_control`. The boundary between the robots'
+and the simulated world's is whether what a model does transfers to the
+physical robots:
 
 | Family | Endpoint | Exposure | Bound to | On the physical robots |
 |---|---|---|---|---|
+| Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one | the peppy daemon that started the server, within the scope the launcher gives | the same functions; `physical.json5` deploys no framework endpoint |
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
 | Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
 
-The two URLs are the stack's: the same for one robot or ten, and the same
+The three URLs are the stack's: the same for one robot or ten, and the same
 before and after any join or removal, so a client registers them once. A
-model reads two `instructions` blocks. The robots' says it is the robots'
-own surface and is to be preferred; the simulated world's says it sets the
-world up and is never a way to complete a task.
+model reads three `instructions` blocks. The framework's says it controls
+the stack of nodes, not the world and not the motion of a robot; the
+robots' says it is the robots' own surface and is to be preferred; the
+simulated world's says it sets the world up and is never a way to complete
+a task.
 
-Each endpoint is an axis of the file that owns what it publishes:
+Each endpoint comes from an axis of the file that owns what it publishes:
 
 - **The robots' endpoint** is the `robot_control` axis of every launcher with robots
   ([fragments/robot_control.json5](fragments/robot_control.json5)), deployed by
@@ -67,6 +74,21 @@ Each endpoint is an axis of the file that owns what it publishes:
   listed when the join returns and gone when the remove returns. `--with robot_control=none` launches
   `simulation_mcp` without it, and a robot's `mcp_commander` is refused
   wherever the endpoint is off, with its reason.
+- **The framework's endpoint** comes with the robots' endpoint, on the
+  `robot_control` option of `simulation_mcp`
+  ([fragments/framework_controls.json5](fragments/framework_controls.json5)),
+  so `--with robot_control=none` switches both off. Its one target, `stack`,
+  is a daemon target: the peppy daemon that started the server serves it and
+  no node implements it, so the server takes no link, and it runs on the
+  coordinator. The launcher gives the target its scope with a top-level
+  `set_daemon_scopes` adjustment on `framework_controls_inst`: the robot
+  options a client can add, `openarm_sim` and `so101_sim`, each with one
+  line that says what the robot is and how it stands, and `max_copies`, the
+  most robots of these options on the stack, four. Every robot it adds runs
+  the MCP commander, which requires the robots' endpoint, so the framework's
+  endpoint comes with that endpoint alone, under Waldo, MuJoCo and Isaac Sim
+  alike, and needs no constraint. The `robot_control` fragment that the
+  other launchers serve deploys no framework endpoint.
 - **The simulated world's endpoint** is the `world_control` axis of
   `simulation_mcp` ([fragments/world_control.json5](fragments/world_control.json5)),
   deployed by the file, with a `none` option that switches it off. It binds
@@ -76,7 +98,8 @@ Each endpoint is an axis of the file that owns what it publishes:
   `simulation_reset`, which Waldo alone implements, so the launcher refuses
   it under MuJoCo or Isaac Sim with that reason.
 
-Both endpoints bind the simulation or nothing, so both keep running when
+The robots' and the simulated world's endpoints bind the simulation or
+nothing, and the framework's binds no node, so all three keep running when
 every robot is removed. Only Waldo models the cameras' response, so under
 the other two engines the frame resources, `camera.info` and the geometry
 tools work and the exposure, gain and white balance setters refuse with a
@@ -85,21 +108,24 @@ message, as the document tells a model to expect.
 ## simulation_mcp
 
 [simulation_mcp.json5](simulation_mcp.json5) is `openarm_simulation` with
-both endpoints deployed and every robot driven over MCP by default. It
-lists no robot, so its bare launch is Waldo and the two endpoints alone,
+the three endpoints deployed and every robot driven over MCP by default. It
+lists no robot, so its bare launch is Waldo and the three endpoints alone,
 and each robot entry states the MCP commander and the rendered rig for
 every copy of its option, so every robot named on the command line, at
-launch with `--join OPTION:NAME` or later with `stack join`, is driven over
-MCP with its cameras: `--join openarm_sim:alpha` starts `alpha`, an
-OpenArm v2, with the launch. The launcher turns the simulation's rendering
-on itself, which a join cannot, so every robot joined onto it gets its rig;
-a v1 OpenArm, which the simulations render no rig for, joins with `--with
+launch with `--join OPTION:NAME` or later with `stack join`, and every
+robot added over MCP, is driven over MCP with its cameras: `--join
+openarm_sim:alpha` starts `alpha`, an OpenArm v2, with the launch. A launch
+or a join of a simulated robot returns only once the simulation stands the
+robot. The launcher turns the simulation's rendering on itself, which a
+join cannot, so every robot joined onto it gets its rig; a v1 OpenArm,
+which the simulations render no rig for, joins with `--with
 v1,camera_rig=none`.
 
 `peppy stack list` reports, for the bare launch:
 
 | Node | Instance | Endpoint |
 |---|---|---|
+| `mcp_framework_controls_v1:builtin` | `framework_controls_inst` | `http://127.0.0.1:8903/framework_controls/v1/mcp` |
 | `mcp_robot_control_v1:builtin` | `robot_control_inst` | `http://127.0.0.1:8900/robot_control/v1/mcp` |
 | `mcp_simulation_v1:builtin` | `world_control_inst` | `http://127.0.0.1:8902/simulation/v1/mcp` |
 
@@ -108,13 +134,14 @@ v1,camera_rig=none`.
 Every endpoint speaks streamable HTTP. Register one server per family; the
 key spelling below (`mcpServers`, a `type` and a `url` per server) is the
 common shape, and a client that spells the transport differently takes the
-same two URLs:
+same three URLs:
 
 ```json
 {
   "mcpServers": {
     "robots": { "type": "http", "url": "http://127.0.0.1:8900/robot_control/v1/mcp" },
-    "simulation": { "type": "http", "url": "http://127.0.0.1:8902/simulation/v1/mcp" }
+    "simulation": { "type": "http", "url": "http://127.0.0.1:8902/simulation/v1/mcp" },
+    "framework_controls": { "type": "http", "url": "http://127.0.0.1:8903/framework_controls/v1/mcp" }
   }
 }
 ```
@@ -122,15 +149,53 @@ same two URLs:
 The servers bind `127.0.0.1`, so the client runs on the machine that
 launched the stack, or reaches it through a tunnel. Each endpoint keeps its
 own catalog, subscriptions and task handles: a tool name or a resource on
-one is unknown to the other. Each server prefers its port and takes another
+one is unknown to the others. Each server prefers its port and takes another
 from the operating system when it is held, printing the one it took under
-`MCP endpoints:`; the port is the `arguments.port` of
-[fragments/robot_control.json5](fragments/robot_control.json5).
+`MCP endpoints:`; the port is the `arguments.port` of the endpoint's
+fragment under [fragments/](fragments/).
+
+### Adding a robot over MCP
+
+The bare launch stands no robot, and a client adds one on the framework's
+endpoint, then stands it at a work surface on the simulated world's:
+
+1. `stack.list` reports the robot options the stack can add, under
+   `options`: `openarm_sim` and `so101_sim`, each with the line of the scope
+   that says what the robot is and how it stands. It also reports the
+   robots of these options on the stack, under `copies`, which
+   `stack.remove` can remove, and `max_copies`, four.
+2. `stack.join` with a `name` and an `option` adds a robot, as `peppy stack
+   join OPTION:NAME` does with no other word: the launcher's entry for the
+   option gives it the MCP commander and the rendered rig. Progress
+   messages report each step; building the robot's software and fetching
+   its files into the simulation can take minutes the first time. The call
+   ends with success only once the simulation stands the robot, on a free
+   spot of the floor that the simulation chooses, a robot clamped on a table
+   edge too. `robot.list` on the robots' endpoint and `scene.get_robots_list`
+   on the simulated world's then list it. The call is refused when the stack
+   holds four robots of these options, when a robot of the stack has the
+   name, and while another change of the stack runs. An addition that fails
+   is undone, and its message says why.
+3. `workspace.stand_at` on the simulated world's endpoint stands the robot
+   at a work surface of the loaded scene, by its stance: a standing robot
+   at the surface's joining spot, a mounted robot clamped on the edge of its
+   top. `workspace.describe` then says whether the robot can work the
+   surface.
+4. `stack.remove` with a `name` removes a robot of these options, one that
+   a launch named or `peppy stack join` added included.
+
+A cancel or a lost connection ends the wait of the call, not the addition
+or the removal, which goes on in the stack: `stack.list` lists an added
+robot under `copies` once its addition succeeded. Call
+`stack.recent_calls` for the calls of this endpoint. A client that ends a
+call after a time with no response and no progress ends only its wait: an
+addition can stay silent while the daemon adds or starts a node that
+prints nothing.
 
 ### One robot, two, many
 
 ```sh
-peppy stack launch simulation_mcp                                                  # Waldo and the two endpoints, no robot listed
+peppy stack launch simulation_mcp                                                  # Waldo and the three endpoints, no robot listed
 peppy stack launch simulation_mcp --join openarm_sim:alpha                         # alpha, an OpenArm v2
 peppy stack launch simulation_mcp --join openarm_sim:alpha --join so101_sim:charlie   # alpha and an SO-101
 peppy stack join openarm_sim:bravo                                                 # a second OpenArm, listed when the join returns
@@ -165,8 +230,9 @@ xr_commander` is a headset robot with the rig feeding its panels, and
 recorder filming. `--join openarm_sim:alpha --with
 robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 launch is the world's endpoint alone, alpha under the browser panel with
-the recorder filming its rig; a robot joined onto it needs a commander word
-too, since `mcp_commander` requires the endpoint. An OpenArm with its rig
+the recorder filming its rig: `robot_control=none` switches the framework's
+endpoint off with the robots'. A robot joined onto it needs a commander
+word too, since `mcp_commander` requires the robots' endpoint. An OpenArm with its rig
 adds three rendered cameras to the simulation and an SO-101 one, `wrist`.
 
 The simulated world's endpoint binds the simulation, not a robot, so it
@@ -174,9 +240,13 @@ lists and places every robot whatever its commander and its model:
 `scene.get_robots_list` names `alpha`, `charlie`, `delta`, `echo` and
 `foxtrot`, and `scene.move_robot` moves the base of any of them.
 
-`--with mujoco,world_control=none` is the robots' endpoint alone; `--with
-mujoco` on its own is refused, since the world's endpoint needs Waldo.
-Every simulation stands any number of robots at once.
+`--with mujoco,world_control=none` is the robots' and the framework's
+endpoints under MuJoCo, where `stack.join` adds a robot as it does under
+Waldo; `--with mujoco` on its own is refused, since the world's endpoint
+needs Waldo. Every simulation stands any number of robots at once. The
+framework's endpoint adds a robot only while the stack holds fewer than
+four robots of its options, counting the ones named at launch and joined
+from the command line; the limit holds for that endpoint alone.
 
 ### The same client on the real robots
 
@@ -190,7 +260,10 @@ those cameras and the listing leaves them out of that robot's `tools`. A v2's ba
 reads the ZED Mini's geometry for its workspace tools. The simulated world's
 endpoint has no counterpart there (its title and instructions say so): drop
 the `simulation` entry, keep `robots`, and launch `physical` with the
-endpoint, joining each robot with its MCP option and rig:
+endpoint, joining each robot with its MCP option and rig. `physical.json5`
+deploys no framework endpoint, so drop the `framework_controls` entry too:
+every physical robot is joined from the command line, on the machine its
+hardware is wired to.
 
 ```sh
 peppy stack launch physical --with robot_control
@@ -205,9 +278,11 @@ the physical robots have a launcher of their own.
 ### A session
 
 The tool names are the exposures' public names, `<target>.<verb>`, as the
-documents under `robot/` and `simulation/` of the MCP hub write them. With
-the stack up and `alpha` in it, `peppy stack launch simulation_mcp --join
-openarm_sim:alpha`:
+documents under `framework/`, `robot/` and `simulation/` of the MCP hub
+write them. With the stack up and `alpha` in it, `peppy stack launch
+simulation_mcp --join openarm_sim:alpha`, or the bare launch and
+`stack.join` with `name: alpha` and `option: openarm_sim` on the
+framework's endpoint:
 
 1. Find the robots: call `robot.list` on the robots' endpoint. Every entry
    carries `robot`, the name every other tool takes, its `identity`
@@ -288,19 +363,20 @@ peppy stack join openarm:alpha --with v2,mcp_commander,cameras
 The first is the browser scene commander on Waldo with `alpha` under the
 browser panel: the scene panel, the lighting and materials panels the
 scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's
-two endpoints and `alpha`, named at launch, with no browser panel. The
+three endpoints and `alpha`, named at launch, with no browser panel. The
 third adds the browser scene commander beside them, and with the rendered
 rig running its page carries the camera panel too, listing the same three
-relays the robots' endpoint serves. The fourth is the
-robots' endpoint alone, under MuJoCo. The fifth is the same robot on the
+relays the robots' endpoint serves. The fourth is the robots' and the
+framework's endpoints, under MuJoCo. The fifth is the same robot on the
 `openarm_simulation` launcher, selected by launch words: the robots'
-endpoint alone, since the simulated world's axis is this launcher's. The
+endpoint alone, since the simulated world's axis and the framework's
+endpoint are this launcher's. The
 sixth is a
 simulated SO-101 on its own launcher, its arm and wrist camera on the
 robots' endpoint. The last two are the real robot, the robots' endpoint
 alone with the three physical cameras behind it.
 
-`peppy stack remove alpha` leaves both endpoints running with the
+`peppy stack remove alpha` leaves the three endpoints running with the
 simulation. `peppy stack resolve` previews any of these without starting a
 node, its stdout the flat plan and its stderr the adjustment report;
 `peppy stack launch` replaces the current stack.

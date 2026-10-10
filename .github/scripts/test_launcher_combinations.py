@@ -201,6 +201,9 @@ def writes_link(adjustment, slot):
             or slot in adjustment.get("unset_links", []))
 
 
+#: The model ids the robots' initializers name.
+ROBOT_MODELS = ("openarm_v1", "openarm_v2", "so101")
+
 #: The robot files: each family's physical and simulated robot.
 ROBOT_FILES = {
     "openarm": "openarm/fragments/openarm.json5",
@@ -228,7 +231,7 @@ class FragmentInventoryTests(unittest.TestCase):
             ("robot_commanders/fragments", {"mcp_commander.json5", "xr_commander.json5"}),
             ("simulation/fragments", {"isaac_sim.json5", "mujoco.json5", "waldo.json5",
                                       "web_scene_commander.json5"}),
-            ("mcp/fragments", {"robot_control.json5", "world_control.json5"}),
+            ("mcp/fragments", {"framework_controls.json5", "robot_control.json5", "world_control.json5"}),
             ("common/fragments", {"none.json5"}),
         ]:
             with self.subTest(directory=directory):
@@ -429,6 +432,9 @@ class OptionShapeTests(unittest.TestCase):
                                                        "set_links": {"": "y"}}]},
             {"fragments": ["a.json5"], "adjustments": [{"target": "x",
                                                        "unset_links": [""]}]},
+            {"fragments": ["a.json5"], "adjustments": [{"target": "x", "set_daemon_scopes": {}}]},
+            {"fragments": ["a.json5"], "adjustments": [{"target": "x",
+                                                       "set_daemon_scopes": {"": {"max_copies": 1}}}]},
             {"fragments": ["a.json5"], "adjustments": [{"target": "x",
                                                        "when": {"robot": "arm"},
                                                        "set_arguments": {"a": 1}}]},
@@ -436,6 +442,16 @@ class OptionShapeTests(unittest.TestCase):
             with self.subTest(spec=spec):
                 with self.assertRaises(combinations.Json5Error):
                     self.parts(spec)
+
+    def test_a_daemon_scope_is_an_operation_written_by_target_name(self):
+        # peppy parses the scope against the exposure's daemon target when it
+        # resolves the launcher; the planner reads the operation's shape.
+        spec = {"fragments": ["fragments/a.json5"], "adjustments": [
+            {"target": "framework_controls_inst",
+             "set_daemon_scopes": {"stack": {"max_copies": 4, "options": [
+                 {"option": "arm", "description": "A simulated arm"}]}}},
+        ]}
+        self.assertEqual(self.parts(spec), ["fragments/a.json5"])
 
     def test_an_option_inside_a_body_carries_no_adjustments(self):
         spec = {"adjustments": [{"target": "x", "set_arguments": {"a": 1}}]}
@@ -597,6 +613,7 @@ class CombinationsTests(unittest.TestCase):
         ]:
             self.assertIn(reference, references)
         self.assertNotIn("world_control", references)
+        self.assertNotIn("framework_controls", references)
         # The so101_simulation launcher: the same selections, joined by any
         # simulated robot, plain and under every selection of its axes.
         so101_launcher = combos("so101_simulation")
@@ -617,13 +634,14 @@ class CombinationsTests(unittest.TestCase):
         )
         # The simulation_mcp launcher: the same stacks with the world's
         # endpoint on or off as well (the constraint refuses it off Waldo at
-        # resolve), each launched bare, with no robot, naming either robot
-        # at launch, and joined by any robot, plain and under every
-        # selection of its axes. The file lists no copy, so no launch word
-        # names one. The entries state the MCP commander and the rendered
-        # rig for every copy of their option, so the copy a launch names and
-        # the plain join are MCP robots, and the planner picks all of it up
-        # from the index and the fragments alone.
+        # resolve; the framework's endpoint comes with the robots' on its
+        # option, so it adds no combination), each launched bare, with no
+        # robot, naming either robot at launch, and joined by any robot,
+        # plain and under every selection of its axes. The file lists no
+        # copy, so no launch word names one. The entries state the MCP
+        # commander and the rendered rig for every copy of their option, so
+        # the copy a launch names and the plain join are MCP robots, and the
+        # planner picks all of it up from the index and the fragments alone.
         robot_control = combos("simulation_mcp")
         self.assertEqual(len(robot_control), stacks * 2 * (1 + 2 + openarm_sim + so101_sim))
         stack = "simulation=waldo,robot_control=robot_control,world_control=world_control"
@@ -654,6 +672,7 @@ class CombinationsTests(unittest.TestCase):
             "so101/fragments/so101_sim.json5",
             "simulation/fragments/waldo.json5",
             "mcp/fragments/world_control.json5",
+            "mcp/fragments/framework_controls.json5",
             "common/fragments/none.json5",
         ]:
             self.assertIn(reference, references)
@@ -665,8 +684,9 @@ class CombinationsTests(unittest.TestCase):
             for axis in combinations.load_json5(document, str(document)).get("components", []):
                 for option, spec in axis["options"].items():
                     # An option naming several files ends with its own; the
-                    # ones before it are shared with another option. An
-                    # option written in place names no file.
+                    # ones before it are shared with another option or deploy
+                    # what comes with its own. An option written in place
+                    # names no file.
                     files = [
                         part
                         for part in combinations.fragment_parts(spec, str(document))
@@ -1156,8 +1176,9 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(deployment["instances"], [{"instance_id": SERVER, "arguments": {"port": 8900}}])
         self.assertNotIn("adjustments", fragment)
         # Every launcher with robots declares the endpoint: simulation_mcp as
-        # a `one` axis it deploys, with `none` to switch it off, the others
-        # as a `zero_or_one` axis `--with robot_control` turns on.
+        # a `one` axis it deploys, with the framework's endpoint beside it
+        # and `none` to switch both off, the others as a `zero_or_one` axis
+        # `--with robot_control` turns on.
         for path, robots in ROBOT_LAUNCHERS.items():
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1166,9 +1187,12 @@ class CombinationsTests(unittest.TestCase):
                 deployed = path == "mcp/simulation_mcp.json5"
                 self.assertNotIn("provides", axes["robot_control"])
                 self.assertEqual(axes["robot_control"]["cardinality"], "one" if deployed else "zero_or_one")
-                options = {"robot_control": "fragments/robot_control.json5" if deployed else f"{prefix}mcp/fragments/robot_control.json5"}
+                options = {"robot_control": f"{prefix}mcp/fragments/robot_control.json5"}
                 if deployed:
-                    options["none"] = f"{prefix}common/fragments/none.json5"
+                    options = {
+                        "robot_control": {"fragments": ["fragments/framework_controls.json5", "fragments/robot_control.json5"]},
+                        "none": f"{prefix}common/fragments/none.json5",
+                    }
                 self.assertEqual(axes["robot_control"]["options"], options)
                 self.assertEqual(combinations.option_entries(document, path).get("robot_control"), "robot_control" if deployed else None)
                 self.assertEqual(axes["robot"]["cardinality"], "zero_or_more")
@@ -1186,12 +1210,15 @@ class CombinationsTests(unittest.TestCase):
         # simulation's, each simulated robot binding the instances it
         # deploys; the physical launcher adjusts nothing at the top level
         # and its robots read wall time. The MCP launcher turns rendering on
-        # itself, so a robot joined onto it gets its cameras.
+        # itself, so a robot joined onto it gets its cameras, and scopes its
+        # framework's endpoint, which
+        # `test_the_framework_endpoint_adds_the_mcp_launchers_robots` holds.
         for path in SIMULATION_LAUNCHERS:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
                 expected = [RENDERING_ON, SERVER_CLOCK] if path == "mcp/simulation_mcp.json5" else [SERVER_CLOCK]
-                self.assertEqual(document["adjustments"], expected)
+                self.assertEqual(
+                    [a for a in document["adjustments"] if "set_daemon_scopes" not in a], expected)
         physical = combinations.load_json5(root / "physical.json5", "physical")
         self.assertNotIn("adjustments", physical)
         self.assertEqual(physical["deployments"], [])
@@ -1265,6 +1292,67 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(
             combinations.load_json5(root / "common/fragments/none.json5", "none"),
             {"peppy_schema": "launcher_fragment/v1"})
+
+    def test_the_framework_endpoint_adds_the_mcp_launchers_robots(self):
+        root = Path(__file__).resolve().parents[2]
+        fragment = combinations.load_json5(root / "mcp/fragments/framework_controls.json5", "framework_controls")
+        deployment, = fragment["deployments"]
+        self.assertEqual(deployment["source"], {"exposures": ["framework_controls:v1"]})
+        # A port of its own beside the robots' endpoint (8900) and the
+        # world's (8902). Its one target is a daemon target, so it takes no
+        # link; it declares no core_node, since an instance serving a daemon
+        # target runs on the coordinator, and no clock, since it waits on the
+        # daemon and not on the simulation.
+        self.assertEqual(deployment["instances"], [
+            {"instance_id": "framework_controls_inst", "arguments": {"port": 8903}}])
+        self.assertNotIn("adjustments", fragment)
+        self.assertNotIn("components", fragment)
+        # The MCP launcher's robots' endpoint option composes it, and no
+        # other launcher does: the shared robot_control fragment leaves it
+        # out.
+        path = "mcp/simulation_mcp.json5"
+        for other in ROBOT_LAUNCHERS:
+            with self.subTest(path=other):
+                references = combinations.read_launcher(root, other).references
+                self.assertEqual("mcp/fragments/framework_controls.json5" in references, other == path)
+        # The launcher gives the scope with one top-level write: a scope
+        # belongs to the stack, so no robot option of any launcher writes
+        # one, since a copy's composition may not.
+        document = combinations.load_json5(root / path, path)
+        adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
+        self.assertEqual(set(adjustment), {"target", "set_daemon_scopes"})
+        self.assertEqual(adjustment["target"], "framework_controls_inst")
+        self.assertEqual(set(adjustment["set_daemon_scopes"]), {"stack"})
+        for other, robots in ROBOT_LAUNCHERS.items():
+            other_document = combinations.load_json5(root / other, other)
+            for robot in robots:
+                with self.subTest(path=other, robot=robot):
+                    self.assertEqual([a for a in robot_option(other_document, robot)["adjustments"]
+                                      if "set_daemon_scopes" in a], [])
+        # The scope offers each robot option of the file, in the axis's
+        # order, up to four robots on the stack.
+        scope = adjustment["set_daemon_scopes"]["stack"]
+        self.assertEqual(set(scope), {"max_copies", "options"})
+        self.assertEqual(scope["max_copies"], 4)
+        self.assertEqual([entry["option"] for entry in scope["options"]],
+                         list(axis_of(document, "robot")["options"]))
+        entries = {entry["robot"]: entry for entry in document["deployments"] if "robot" in entry}
+        for entry in scope["options"]:
+            with self.subTest(option=entry["option"]):
+                self.assertEqual(set(entry), {"option", "description"})
+                # One line of at most 200 characters for the client, which
+                # names no model id: robot.list reports the model once the
+                # robot is added.
+                description = entry["description"]
+                self.assertTrue(description.strip())
+                self.assertNotIn("\n", description)
+                self.assertLessEqual(len(description), 200)
+                for model in ROBOT_MODELS:
+                    self.assertIsNone(re.search(rf"\b{model}\b", description, re.IGNORECASE), model)
+                # Every robot it adds runs the MCP commander, which requires
+                # the robots' endpoint, so the framework's endpoint comes
+                # with that endpoint alone and needs no constraint.
+                self.assertEqual(entries[entry["option"]]["with"]["robot_commander"], "mcp_commander")
 
     def test_every_robot_offers_the_shared_mcp_commander_and_a_rig_with_a_consumer_rule(self):
         root = Path(__file__).resolve().parents[2]
@@ -1876,6 +1964,36 @@ class ResolveTests(unittest.TestCase):
             self.assertEqual(launch.join_option, "")
             self.assertEqual(launch.join_name, "")
 
+    def test_the_plan_names_the_robots_each_command_stands_in_a_simulation(self):
+        def initializer(copy, model):
+            return {"instance_id": f"{copy}_init_inst", "core_node": copy,
+                    "arguments": {"model": model}, "links": {"simulation": "simulation_inst"}}
+
+        def plan_of(*initializers):
+            return completed(json.dumps({"deployments": [
+                {"source": {"name": "waldo", "tag": "v1"}, "instances": [{"instance_id": "simulation_inst"}]},
+                {"source": {"name": "robot_initializer", "tag": "v1"}, "instances": list(initializers)},
+            ]}))
+
+        # The launch stands the file's copy, and the join the copy it adds.
+        both = plan_of(initializer("alpha", "openarm_v2"), initializer("bravo", "openarm_v1"))
+        answers = {
+            ("fleet.json5", "", "", ""): plan_of(initializer("alpha", "openarm_v2")),
+            ("fleet.json5", "", "openarm_v2", ""): both,
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"): both,
+        }
+        with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (_, labels, plan, _summary):
+            self.assertEqual(labels, ["fleet + join openarm_v2"])
+            launch, = plan
+            self.assertEqual(launch.launch_stands, [combinations.Stand("waldo", "openarm_v2")])
+            self.assertEqual(launch.join_stands, [combinations.Stand("waldo", "openarm_v1")])
+        # The launch stands the copy it names with `--join`.
+        answers = {("fleet.json5", "", "openarm_v2", ""): plan_of(initializer("bravo", "openarm_v2"))}
+        with planned({"fleet": fleet_launcher(at_launch=True)}, answers) as (_, _labels, plan, _summary):
+            launch, = [launch for launch in plan if launch.launch_joins]
+            self.assertEqual(launch.launch_stands, [combinations.Stand("waldo", "openarm_v2")])
+            self.assertEqual(launch.join_stands, [])
+
     def test_a_launcher_declaring_core_nodes_launches_locally(self):
         launcher = {**simulation_launcher("mujoco"), "core_nodes": ["robot_onboard"]}
         with planned({"split": launcher}) as (_, labels, plan, _summary):
@@ -1970,6 +2088,45 @@ class ResolveTests(unittest.TestCase):
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
                 pass
+
+
+class RobotStandTests(unittest.TestCase):
+    """The robots a command stands in a simulation, read off its plan."""
+
+    SIMULATION = {"source": {"name": "sim_mujoco", "tag": "v1"}, "instances": [{"instance_id": "simulation_inst"}]}
+
+    def test_a_copys_initializer_joined_to_a_simulation_stands_its_model_there(self):
+        plan = {"deployments": [
+            self.SIMULATION,
+            {"source": {"name": "robot_initializer", "tag": "v1"}, "instances": [
+                {"instance_id": "alpha_init_inst", "core_node": "alpha", "arguments": {"model": "so101"},
+                 "links": {"simulation": "simulation_inst"}},
+                {"instance_id": "bravo_init_inst", "core_node": "bravo", "arguments": {"model": "openarm_v2"},
+                 "links": {"simulation": {"vacant": "this robot drives its own limbs"},
+                           "limbs": ["bravo_left_arm_inst"]}},
+                {"instance_id": "charlie_init_inst", "core_node": "charlie", "arguments": {"model": "openarm_v1"},
+                 "links": {"simulation": "simulation_inst"}},
+            ]},
+            {"source": {"name": "so101_backbone", "tag": "v1"}, "instances": [
+                {"instance_id": "alpha_backbone_inst", "core_node": "alpha",
+                 "links": {"simulation": "simulation_inst"}}]},
+        ]}
+        # alpha stands in MuJoCo; bravo drives its own hardware and stands
+        # nowhere; charlie is not a copy of the command; a backbone is no
+        # initializer.
+        self.assertEqual(combinations.robot_stands(plan, ("alpha", "bravo")),
+                         [combinations.Stand("sim_mujoco", "so101")])
+        self.assertEqual(combinations.robot_stands(plan, ()), [])
+
+    def test_an_initializer_joined_to_an_instance_the_plan_lacks_stops_the_plan(self):
+        plan = {"deployments": [
+            {"source": {"name": "robot_initializer", "tag": "v1"}, "instances": [
+                {"instance_id": "bravo_init_inst", "core_node": "bravo", "arguments": {"model": "so101"},
+                 "links": {"simulation": "simulation_inst"}}]},
+        ]}
+        with self.assertRaises(SystemExit) as failure:
+            combinations.robot_stands(plan, ("bravo",))
+        self.assertIn("bravo_init_inst joins the simulation `simulation_inst`", str(failure.exception))
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -2464,17 +2621,24 @@ class FakePeppy:
     `copies`, copy name to the instances it minted, with every instance
     running and healthy but for `states`, instance id to the state peppy
     reports, and `unhealthy`, the running instances whose health probe
-    failed; the commands are kept in order."""
+    failed; the commands are kept in order. Its clock reads the seconds the
+    commands took, each `stack` command taking `seconds` of its verb."""
 
-    def __init__(self, failing=(), copies=None, states=None, unhealthy=()):
+    def __init__(self, failing=(), copies=None, states=None, unhealthy=(), seconds=None):
         self.failing = [list(words) for words in failing]
         self.copies = {combinations.COPY_NAME: JOINED_INSTANCES} if copies is None else copies
         self.states = states or {}
         self.unhealthy = set(unhealthy)
+        self.seconds = seconds or {}
+        self.now = 0.0
         self.commands = []
+
+    def clock(self):
+        return self.now
 
     def __call__(self, argv, capture=False):
         self.commands.append(argv)
+        self.now += self.seconds.get(argv[2], 0.0)
         failed = any(argv[: len(words)] == words for words in self.failing)
         instances = [
             {
@@ -2495,22 +2659,36 @@ class FakePeppy:
         return completed(listing if capture else "", returncode=1 if failed else 0)
 
 
-def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False, launch_joins=()):
+def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False, launch_joins=(),
+             launch_stands=(), join_stands=()):
     label = combinations.combination_label(launcher, words, join_option, join_words, local, launch_joins)
     join_name = combinations.COPY_NAME if join_option else ""
     return combinations.Launch(
         label, launcher, words, join_option, join_name, join_words, local,
         JOINED_INSTANCES if join_option or launch_joins else [], list(launch_joins),
+        list(launch_stands), list(join_stands),
     )
 
 
-def launched(launches, peppy):
+def timed_launches(launches, peppy):
+    """The launches run on `peppy`, timed by its clock: their outcomes, the
+    job's log and the stand times."""
+    stand_times = combinations.StandTimes(peppy.clock)
     with contextlib.redirect_stdout(io.StringIO()) as log:
-        outcomes = combinations.launch_all(launches, peppy)
-    return outcomes, log.getvalue()
+        outcomes = combinations.launch_all(launches, peppy, stand_times)
+    return outcomes, log.getvalue(), stand_times.times
+
+
+def launched(launches, peppy):
+    outcomes, log, _ = timed_launches(launches, peppy)
+    return outcomes, log
 
 
 IDLE = ["--node-build-idle-timeout-secs", "900"]
+
+WALDO_OPENARM = combinations.Stand("waldo", "openarm_v2")
+MUJOCO_OPENARM = combinations.Stand("sim_mujoco", "openarm_v2")
+MUJOCO_SO101 = combinations.Stand("sim_mujoco", "so101")
 
 
 class LaunchTests(unittest.TestCase):
@@ -2661,6 +2839,56 @@ class LaunchTests(unittest.TestCase):
         self.assertIn("`peppy stack launch fleet", outcomes[0].detail)
         self.assertIn("then `peppy stack reset` exited 1", outcomes[0].detail)
 
+    def test_each_command_that_stands_a_robot_is_timed_cold_then_warm(self):
+        peppy = FakePeppy(seconds={"launch": 100.0, "join": 40.0})
+        launches = [
+            a_launch(launch_joins=("openarm_v2",), launch_stands=[WALDO_OPENARM]),
+            a_launch(words="simulation=waldo", join_option="openarm_v2", join_stands=[WALDO_OPENARM]),
+            a_launch(words="simulation=mujoco", join_option="so101",
+                     launch_stands=[MUJOCO_OPENARM], join_stands=[MUJOCO_SO101]),
+            a_launch("rust_robot"),
+        ]
+        outcomes, log, times = timed_launches(launches, peppy)
+        self.assertEqual({outcome.status for outcome in outcomes}, {combinations.Status.PASSED})
+        # A command that stands no robot is not timed, and a model is cold
+        # in each engine until a command tries to stand it there.
+        self.assertEqual(times, [
+            combinations.StandTime(launches[0].label, "launch", (WALDO_OPENARM,), True, 100.0),
+            combinations.StandTime(launches[1].label, "join", (WALDO_OPENARM,), False, 40.0),
+            combinations.StandTime(launches[2].label, "launch", (MUJOCO_OPENARM,), True, 100.0),
+            combinations.StandTime(launches[2].label, "join", (MUJOCO_SO101,), True, 40.0),
+        ])
+        self.assertIn("stood openarm_v2 in waldo (cold) in 100.0 s\n", log)
+        self.assertIn("stood openarm_v2 in waldo (warm) in 40.0 s\n", log)
+
+    def test_a_failed_command_records_no_time_and_its_model_stands_warm_after_it(self):
+        # The engine may have fetched the model's files before the command
+        # failed, so the next stand of the model is warm.
+        peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]], seconds={"launch": 100.0})
+        launches = [a_launch(launch_stands=[WALDO_OPENARM]),
+                    a_launch("simulation_mcp", launch_stands=[WALDO_OPENARM])]
+        outcomes, _, times = timed_launches(launches, peppy)
+        self.assertEqual([outcome.status for outcome in outcomes],
+                         [combinations.Status.FAILED, combinations.Status.PASSED])
+        self.assertEqual(times, [
+            combinations.StandTime(launches[1].label, "launch", (WALDO_OPENARM,), False, 100.0)])
+
+    def test_the_summary_reads_each_stand_time_against_the_budget_and_fails_nothing(self):
+        peppy = FakePeppy(seconds={"launch": 200.0, "join": 87.3})
+        launches = [a_launch(launch_joins=("openarm_v2",), launch_stands=[WALDO_OPENARM]),
+                    a_launch(join_option="openarm_v2", join_stands=[WALDO_OPENARM])]
+        code, summary = self.run_command(peppy, launches)
+        # A stand time over the budget is a report: the launches passed.
+        self.assertEqual(code, 0)
+        self.assertIn("### ⏱️ Stand times (2)", summary)
+        self.assertIn("| combination | command | engine | robots | stand | wall time | "
+                      "of the 174.5 s stand budget |", summary)
+        self.assertIn("| fleet --join openarm_v2:bravo | `stack launch` | waldo | openarm_v2 | cold | "
+                      "200.0 s | 115% |", summary)
+        self.assertIn("| fleet + join openarm_v2 | `stack join` | waldo | openarm_v2 | warm | "
+                      "87.3 s | 50% |", summary)
+        self.assertIn("A stand is cold when it is the first stand of its model in its engine", summary)
+
     def run_command(self, peppy, launches):
         with tempfile.TemporaryDirectory() as directory:
             plan, summary = Path(directory) / "plan.json", Path(directory) / "summary.md"
@@ -2669,7 +2897,7 @@ class LaunchTests(unittest.TestCase):
                     patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
                     contextlib.redirect_stdout(io.StringIO()):
                 try:
-                    combinations.command_launch(plan)
+                    combinations.command_launch(plan, peppy.clock)
                     code = 0
                 except SystemExit as exit:
                     code = exit.code
@@ -2680,6 +2908,8 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("2 of 2 launches came up start to end.", summary)
         self.assertIn("| rust_robot | ✅ launched |", summary)
+        # No launch stood a robot, so no stand time is reported.
+        self.assertNotIn("Stand times", summary)
 
     def test_the_job_fails_when_any_launch_does_not(self):
         peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]])
@@ -2704,7 +2934,8 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(log.getvalue(), "::error title=a%2Cb%3Ac%0A::100%25%0A::group::x\n")
 
     def test_the_plan_reaches_the_launch_job_whole(self):
-        launches = [a_launch(words="simulation=mujoco", join_option="openarm_v2", local=True)]
+        launches = [a_launch(words="simulation=mujoco", join_option="openarm_v2", local=True,
+                             launch_stands=[MUJOCO_OPENARM], join_stands=[MUJOCO_SO101])]
         with tempfile.TemporaryDirectory() as directory:
             combinations.write_plan(launches, Path(directory) / "plan.json")
             self.assertEqual(combinations.read_plan(Path(directory) / "plan.json"), launches)

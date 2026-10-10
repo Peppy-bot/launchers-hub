@@ -157,19 +157,23 @@ XR commander's record button, or over MCP through `recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
 lighting, its materials, a view of it from any point, the preview of an
-asset of its catalogue, its clock and where a robot can work in it, is a
-second endpoint a model uses to set the world up,
+asset of its catalogue, its clock and where a robot can work in it, is an
+endpoint of its own a model uses to set the world up,
 `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
 not the robot's: the `simulation_mcp` launcher deploys it on an axis of
 its own, `world_control`, bound to the simulation alone, under Waldo, the one
 simulation implementing the object controls, lighting, materials, view,
-clock and workspace contracts. The
-endpoints, the
-client setup and the move from simulation to the real robot are in the
-[MCP guide](../mcp/README.md):
+clock and workspace contracts. With the robots' endpoint, `simulation_mcp`
+also deploys the framework's,
+`http://127.0.0.1:8903/framework_controls/v1/mcp`
+(`framework_controls:v1`), where a client adds a simulated OpenArm or
+SO-101 to the stack and removes it; `workspace.stand_at` on the world's
+endpoint then stands the robot at a work surface. The endpoints, adding a
+robot over MCP, the client setup and the move from simulation to the real
+robot are in the [MCP guide](../mcp/README.md):
 
 ```sh
-peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, both endpoints, alpha over MCP
+peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
 peppy stack join openarm:charlie --with v1,mcp_commander,cameras --place jetson-2

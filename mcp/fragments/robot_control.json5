@@ -28,7 +28,8 @@
           instance_id: "robot_control_inst",
           // The derived node's only parameter: the port the server prefers
           // on 127.0.0.1. One server serves the stack, so the port is the
-          // stack's, beside the simulated world's endpoint on 8902.
+          // stack's, beside the simulated world's endpoint on 8902 and the
+          // framework's on 8903 where simulation_mcp deploys them.
           arguments: { port: 8900 },
         },
       ],

@@ -66,18 +66,30 @@ name: Tests
 # boots one isolated daemon, whose registry resolves a launcher by name to
 # this checkout, and runs the planned launches one after the other: `peppy
 # stack launch` resolves the launcher, adds each deployment's node, builds its
-# container image, and runs it, returning only once every node has signalled
-# ready. A launch that plans a join then runs `peppy stack join`, plain or
-# with its words, beside whatever copies the file deploys: two robots side by
-# side where it deploys one, and the scene's first robot where it deploys
-# none. One join per launch is what a plan carries, so a simulation standing
-# three robots or more is proven by hand and not here.
+# container image, and runs it, returning only once every node has ended its
+# setup. A simulated robot's initializer ends its setup when the simulation
+# stands the robot, so a launch or a join of a simulated robot returns only
+# once the robot stands. A launch that plans a join then runs `peppy stack
+# join`, plain or with its words, beside whatever copies the file deploys:
+# two robots side by side where it deploys one, and the scene's first robot
+# where it deploys none. One join per launch is what a plan carries, so a
+# simulation standing three robots or more is proven by hand and not here.
 # The joined copy is held to the instances its preview gave it. `peppy stack
 # list` then records what came up and `peppy stack reset` hands the next
 # launch an empty stack. A failed launch is named and the run goes on, so a
 # red run names every failing combination. Refused and skipped
 # combinations are validated by `discover` alone and named, with reasons, in
 # the run summary.
+#
+# The job also times each launch and join that stands a robot in a
+# simulation, under Waldo and MuJoCo (Isaac Sim needs a GPU the runner does
+# not have), and the run summary lists each wall time against the stand
+# budget of 174.5 s: cold for the first stand of a model in an engine in the
+# job, warm after it. Waldo keeps the files of each model it stands in a
+# cache on the runner's own disk, which every job starts without, so a cold
+# stand fetches them. The wall time also holds the images the command built
+# and the start of its other instances, so it is an upper bound of the
+# stand. The times are a report: they fail nothing.
 #
 # The launches share one job because everything around a launch costs as
 # much as a warm launch itself: the release archive, the hub repositories
@@ -655,9 +667,10 @@ jobs:
       # reset it for the next launch. Each launch has a log group of its own
       # under its label; a failed one is annotated, the stack is reset, and
       # the run goes on, so a red run names every failing combination. The
-      # run summary lists every launch with its outcome. The commands
-      # themselves, and the build idle budget they raise, are the planner's
-      # `launch` command.
+      # run summary lists every launch with its outcome, and the wall time
+      # of each command that stood a robot in a simulation. The commands
+      # themselves, the build idle budget they raise and the stand times are
+      # the planner's `launch` command.
       #
       # The plan reaches the shell through the environment rather than a
       # `${{ }}` expansion: its labels and launch words are data the shell

@@ -1,0 +1,39 @@
+// The peppy framework's MCP endpoint, at
+// http://127.0.0.1:8903/framework_controls/v1/mcp: a client adds robots to
+// the stack and removes them. The server built into peppy serves the
+// framework_controls:v1 exposure from the MCP hub. Its one target is a
+// daemon target: the peppy daemon that started the server serves it and no
+// node implements it, so the instance takes no links. The launcher that
+// includes this fragment gives it its scope with a `set_daemon_scopes`
+// adjustment on framework_controls_inst: the robot options of that
+// launcher, a description for each, and max_copies. A launch without that
+// scope is refused. The robots it adds run the MCP commander, so the option
+// that includes this fragment also deploys the robots' endpoint.
+//
+// simulation_mcp's robot_control option deploys it beside the robots'
+// endpoint on port 8900; physical, openarm_simulation and so101_simulation
+// serve the robots' endpoint alone, so they deploy no framework endpoint.
+// The instance declares no core_node, so it runs on the coordinator, the
+// daemon that adds and removes the copies, as an instance serving a daemon
+// target must. It reads wall time: it waits on the daemon, not on the
+// simulation.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { exposures: ["framework_controls:v1"] },
+      instances: [
+        {
+          instance_id: "framework_controls_inst",
+          // The derived node's only parameter: the port the server prefers
+          // on 127.0.0.1, serving the exposure at
+          // /framework_controls/v1/mcp, beside the robots' endpoint on 8900
+          // and the simulated world's on 8902. A server that finds the port
+          // held takes another and announces it.
+          arguments: { port: 8903 },
+        },
+      ],
+    },
+  ],
+}

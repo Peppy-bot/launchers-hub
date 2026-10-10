@@ -1,9 +1,12 @@
-// Robots in Waldo driven over MCP: the two endpoints over a simulation
-// that starts with no robot, and the robots named at launch or joined
-// later, each driven over MCP with its rendered rig.
+// Robots in Waldo driven over MCP: three endpoints, one per family, over a
+// simulation that starts with no robot, and the robots named at launch,
+// joined later or added over MCP, each driven over MCP with its rendered
+// rig. A call to the framework, to the simulated world and to a robot each
+// goes to its own endpoint:
 //
-//   http://127.0.0.1:8900/robot_control/v1/mcp   every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
-//   http://127.0.0.1:8902/simulation/v1/mcp      the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it
+//   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it
+//   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it
+//   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
 //
 // The robots' endpoint is the robot_control axis every launcher with robots
 // carries; this file deploys it, and the other launchers serve it with
@@ -11,29 +14,37 @@
 // its limb state and where its design lets it work, and with its recorder
 // whenever it runs; its mcp_commander option adds the moves, its rig the
 // cameras and its brain the brain's tools, at launch or by a later join, and
-// a removal takes them out. The world's endpoint is this file's own
-// world_control axis, deployed with a `none` option: Waldo alone implements
-// the object controls, lighting, materials, view, clock and workspace
-// contracts it binds, so the constraint below refuses it under any other
-// engine, and `--with mujoco,world_control=none` is the robots' endpoint
-// alone. The two URLs are the same with no robot, one or ten and before and
-// after any join, so a client registers them once, and both run while no
-// robot stands in the simulation.
+// a removal takes them out. The framework's endpoint comes with it, on the
+// same option of this file alone: stack.list, stack.join and stack.remove
+// add and remove the robots of the scope the adjustment below gives, the
+// two robot options of this file, up to four robots on the stack. The
+// world's endpoint is this file's own world_control axis, deployed with a
+// `none` option: Waldo alone implements the object controls, lighting,
+// materials, view, clock and workspace contracts it binds, so the
+// constraint below refuses it under any other engine, and `--with
+// mujoco,world_control=none` is the robots' and the framework's endpoints
+// under MuJoCo. The three URLs are the same with no robot, one or ten and
+// before and after any join, so a client registers them once, and all three
+// run while no robot stands in the simulation.
 //
-// What this file adds to openarm_simulation: the robots' endpoint
-// deployed, the world's endpoint on its own axis, rendering on from the
-// launch, no robot listed, and its robot entries: for each option the MCP
-// commander and the rendered rig, so every robot named on the command line,
-// at launch with `--join OPTION:NAME` or later with a plain `stack join`,
-// comes up driven over MCP with its cameras, listed on the same URL when
-// the join returns. A v1 OpenArm, which the simulations render no rig for,
-// joins with `--with v1,camera_rig=none`. The stacks this file is meant
-// for, and the same client on the real robots, are in mcp/README.md:
+// What this file adds to openarm_simulation: the robots' and the
+// framework's endpoints deployed, the world's endpoint on its own axis,
+// rendering on from the launch, no robot listed, and its robot entries: for
+// each option the MCP commander and the rendered rig, so every robot named
+// on the command line, at launch with `--join OPTION:NAME` or later with a
+// plain `stack join`, and every robot stack.join adds, comes up driven over
+// MCP with its cameras, listed on the same URL when the join returns. A
+// launch or a join of a simulated robot returns only once the simulation
+// stands the robot. A robot that stack.join adds stands on a free floor
+// spot, and workspace.stand_at on the world's endpoint stands it at a work
+// surface. A v1 OpenArm, which the simulations render no rig for, joins with
+// `--with v1,camera_rig=none`. The stacks this file is meant for, and the
+// same client on the real robots, are in mcp/README.md:
 //
-//   peppy stack launch simulation_mcp                                    # Waldo and the two endpoints, no robot
+//   peppy stack launch simulation_mcp                                    # Waldo and the three endpoints, no robot
 //   peppy stack launch simulation_mcp --join openarm_sim:alpha           # an OpenArm v2 over MCP
 //   peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # an OpenArm and an SO-101
-//   peppy stack launch simulation_mcp --with mujoco,world_control=none   # the robots' endpoint alone, under MuJoCo
+//   peppy stack launch simulation_mcp --with mujoco,world_control=none   # the robots' and the framework's endpoints, under MuJoCo
 //   peppy stack join openarm_sim:bravo                                   # an OpenArm, on the same URL when the join returns
 //   peppy stack remove alpha                                             # the endpoints keep running
 //
@@ -43,7 +54,7 @@
 // robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 // launch is the world's endpoint alone, alpha under the browser panel with
 // the recorder filming its rig; a joined robot needs a commander word too,
-// since mcp_commander requires the endpoint.
+// since mcp_commander requires the robots' endpoint.
 {
   peppy_schema: "launcher/v1",
 
@@ -58,14 +69,17 @@
         waldo: "../simulation/fragments/waldo.json5",
       },
     },
-    // The robots' MCP endpoint, deployed by this file; `--with
-    // robot_control=none` switches it off. Every robot is listed on it, and
-    // a robot's mcp_commander option adds its moves and requires it.
+    // The robots' MCP endpoint, and the framework's endpoint that adds and
+    // removes the robots it drives; `--with robot_control=none` switches
+    // both off. Every robot is listed on the robots' endpoint, and a robot's
+    // mcp_commander option adds its moves and requires it.
     {
       name: "robot_control",
       cardinality: "one",
       options: {
-        robot_control: "fragments/robot_control.json5",
+        robot_control: {
+          fragments: ["fragments/framework_controls.json5", "fragments/robot_control.json5"],
+        },
         none: "../common/fragments/none.json5",
       },
     },
@@ -212,8 +226,8 @@
   // An entry's `with` selects the robot's own axes for every copy of the
   // option, and no entry lists a copy, so the bare launch stands no robot:
   // every copy named on the command line, at launch with `--join
-  // OPTION:NAME` or later with `stack join`, runs the MCP commander and
-  // films.
+  // OPTION:NAME` or later with `stack join`, and every copy stack.join adds
+  // on the framework's endpoint, runs the MCP commander and films.
   deployments: [
     { simulation: "waldo" },
     { robot_control: "robot_control" },
@@ -237,6 +251,21 @@
     // The server reads the simulation's clock, as every instance a robot
     // copy runs does; each simulated robot's fragment binds its own.
     { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+    // The robots a client of the framework's endpoint can add: each robot
+    // option of this file, with one line for the client that says what the
+    // robot is and how it stands, since no tool reports a stance before the
+    // robot stands, up to four robots on the stack. Every copy renders its
+    // cameras, and a furnished scene has three work surfaces 1.5 m apart.
+    { target: "framework_controls_inst",
+      set_daemon_scopes: { stack: {
+        max_copies: 4,
+        options: [
+          { option: "openarm_sim",
+            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest and a camera on each wrist" },
+          { option: "so101_sim",
+            description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
+        ],
+      } } },
   ],
 
   constraints: [

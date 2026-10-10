@@ -31,9 +31,9 @@ an entry on a `one` axis takes no `with`, and a launch word is what selects a ne
 What must serve by default and still let a launch switch off is therefore
 a `one` axis of its own, deployed by the file that declares it, with a
 `none` option whose fragment deploys nothing: `simulation_mcp.json5`
-declares `robot_control`, the robots' MCP endpoint, and `world_control`, the simulated
-world's, that way; `--with robot_control=none` and
-`--with world_control=none` turn them off. The other launchers declare `robot_control`
+declares `robot_control`, the robots' MCP endpoint with the framework's
+beside it, and `world_control`, the simulated world's, that way; `--with
+robot_control=none` and `--with world_control=none` turn them off. The other launchers declare `robot_control`
 as a `zero_or_one` axis, and `--with robot_control` turns it on.
 Every launcher that runs robots declares a `robot_control` axis and lists
 each robot on `robot_control_inst` under the option that selects the robot;
@@ -58,15 +58,19 @@ OPTION:NAME` names another at launch and `--with robot_control` serves the endpo
 launcher with another robot first: `alpha` is a simulated SO-101 with no
 commander, which launches on a machine with no SO-101 hardware.
 [mcp/simulation_mcp.json5](mcp/simulation_mcp.json5) is
-`openarm_simulation` with the endpoint deployed, no robot listed and every
-robot driven over MCP by default: its bare launch is the simulation and the
-two endpoints alone, and its
-entries for the two simulated robots state the MCP commander and the
-rendered rig for every copy of the option, so a robot named at launch and a
-robot joined later alike are listed on the one endpoint, on
-the same URL when the join returns, and the simulated world's endpoint runs
-beside it from the file's `world_control` axis. The endpoints, the client setup
-and the move to the real robots are in the [MCP guide](mcp/README.md).
+`openarm_simulation` with the MCP endpoints deployed, no robot listed and
+every robot driven over MCP by default: its bare launch is the simulation
+and three endpoints alone, one per family: the framework's, the simulated
+world's and the robots'. Its entries for the two simulated robots state the
+MCP commander and the rendered rig for every copy of the option, so a robot
+named at launch, a robot joined later and a robot added over MCP alike are
+listed on the robots' endpoint, on the same URL when the join returns. The
+framework's endpoint comes with the robots' and adds and removes the
+file's two robots, up to four on the stack, and the simulated world's
+endpoint runs beside them from the file's `world_control` axis, where
+`workspace.stand_at` stands an added robot at a work surface. The
+endpoints, adding a robot over MCP, the client setup and the move to the
+real robots are in the [MCP guide](mcp/README.md).
 
 The robot options are the two OpenArm fragments, `openarm` (physical) and
 `openarm_sim` (simulated), each standing the hardware version its
@@ -96,7 +100,7 @@ peppy stack launch simulation                                               # a 
 peppy stack launch physical                                                 # a new stack with no robot
 peppy stack join openarm:alpha --with v2 --place jetson-1
 peppy stack join so101:bravo
-peppy stack launch simulation_mcp                                           # Waldo and the two endpoints, no robot
+peppy stack launch simulation_mcp                                           # Waldo and the three endpoints, no robot
 peppy stack launch simulation_mcp --join openarm_sim:alpha                  # alpha, an OpenArm v2 over MCP
 peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # alpha and an SO-101 over MCP
 peppy stack join openarm_sim:bravo                                          # a second OpenArm, listed on the same URL when the join returns
@@ -122,7 +126,7 @@ discovery and host setup.
 | Axis | Declared by | Options |
 |---|---|---|
 | `simulation` | `simulation.json5`, `openarm_simulation.json5`, `so101_simulation.json5` and `simulation_mcp.json5` (`one`) | `waldo` (deployed), `mujoco`, `isaac_sim`; `simulation.json5` offers the two that answer scene calls |
-| `robot_control` | `simulation_mcp.json5` (`one`), `physical.json5`, `openarm_simulation.json5` and `so101_simulation.json5` (`zero_or_one`) | `robot_control`: the robots' MCP endpoint on port 8900, one server every robot is listed on, its `mcp_commander` adding the moves; deployed by `simulation_mcp.json5`, where `none` switches it off, and turned on elsewhere with `--with robot_control`. The server reads the simulation's clock in the simulation launchers and wall time in `physical.json5` |
+| `robot_control` | `simulation_mcp.json5` (`one`), `physical.json5`, `openarm_simulation.json5` and `so101_simulation.json5` (`zero_or_one`) | `robot_control`: the robots' MCP endpoint on port 8900, one server every robot is listed on, its `mcp_commander` adding the moves; deployed by `simulation_mcp.json5`, where `none` switches it off, and turned on elsewhere with `--with robot_control`. The server reads the simulation's clock in the simulation launchers and wall time in `physical.json5`. In `simulation_mcp.json5` the option also deploys the framework's MCP endpoint on port 8903, where a client adds and removes the file's robots, up to four |
 | `world_control` | `simulation_mcp.json5` (`one`) | `world_control` (deployed): the simulated world's MCP endpoint on port 8902, bound to the simulation alone; requires `waldo`. `none` switches it off |
 | `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting and materials, and it shows a camera panel when a rendered rig runs |
 | `robot` | the four launchers with robots (`zero_or_more`) | `openarm_sim` and `so101_sim` in the three simulation launchers; `openarm` and `so101` in `physical.json5` |
@@ -321,7 +325,7 @@ combination. The run summary names the hub commits that ran.
 
 A joined copy comes up beside the copies the file deploys and the one the
 launch names, so a launch of `simulation_mcp` under Waldo ends with
-an MCP robot on the stack's endpoint, and one of `openarm_simulation` with
+an MCP robot on the stack's robots' endpoint, and one of `openarm_simulation` with
 an SO-101 in the simulation. The runner has no SO-101 hardware, no headset
 and no GPU, so of the simulated SO-101 it launches the selections that open
 no device, the plain join and `mcp_commander` with `cameras_sim`, under
@@ -334,11 +338,21 @@ The [skip file](.github/unlaunchable-nodes.json5) lists the hardware the
 runner lacks. Structural checks and runtime startup checks are separate
 results.
 
+A launch or a join of a simulated robot returns only once the simulation
+stands the robot. The launch job times each launch and join that stands a
+robot, under Waldo and MuJoCo, and the run summary lists each wall time
+against the stand budget of 174.5 s, `robot_initializer`'s setup budget
+less the time it keeps for its leave report: cold for the first stand of a
+model in an engine in the job, when Waldo fetches the model's files into a
+cache on the runner's own disk, and warm after it. The wall time also holds
+the images the command built and the start of its other instances, so it
+is an upper bound of the stand. The times are a report: they fail nothing.
+
 ## Configuration ownership
 
 | Location | Owns |
 |---|---|
-| `physical.json5`, `openarm_simulation.json5`, `so101_simulation.json5`, `mcp/simulation_mcp.json5`, `simulation/simulation.json5` | The simulation axis, the `robot_control` axis, the robot options, what the file deploys and the server's clock, and under each robot option the robot's connections to the stack: its listing on the `robot_control` endpoint, its commander's sockets, tuning, telemetry and clock, its recorder's rig, dataset and clock, its brain's clock and listing, and the simulation's rendering under its rig; `mcp/simulation_mcp.json5` also turns rendering on from the launch and serves the simulated world's endpoint, and `simulation/simulation.json5` declares no robot options at all |
+| `physical.json5`, `openarm_simulation.json5`, `so101_simulation.json5`, `mcp/simulation_mcp.json5`, `simulation/simulation.json5` | The simulation axis, the `robot_control` axis, the robot options, what the file deploys and the server's clock, and under each robot option the robot's connections to the stack: its listing on the `robot_control` endpoint, its commander's sockets, tuning, telemetry and clock, its recorder's rig, dataset and clock, its brain's clock and listing, and the simulation's rendering under its rig; `mcp/simulation_mcp.json5` also turns rendering on from the launch, serves the simulated world's endpoint and the framework's, and gives the framework's endpoint the robots it can add, and `simulation/simulation.json5` declares no robot options at all |
 | `openarm/fragments/openarm.json5`, `openarm_sim.json5` | One OpenArm each, physical or simulated: the four CAN drivers on a physical robot, a v2 set to a v1's frames and interfaces per hardware version, the backbone, its leader sockets vacant until the file releases the ones the selected leader drives and switched to pose mode under the headset, the hardware version, robot commander, recorder, camera rig and brain axes, the hardware version's `hardware_version`, the rig's consumer rule and the recorder's trigger rule |
 | `so101/fragments/so101.json5`, `so101_sim.json5` | One SO-101 each: the follower, or the simulation slots the backbone leads, the initializer, the backbone with its sockets vacant until the file releases the ones the selected leader drives, the axes, the default commander, the rig's consumer rule and the recorder's trigger rule |
 | `robot_commanders/fragments/` | The commanders every robot shares: the headset, which binds its own record button, and the MCP commander, which streams nothing and requires the `robot_control` endpoint; what a robot needs of them is written in the launcher under the robot |
@@ -348,11 +362,11 @@ results.
 | `openarm/fragments/lerobot_recorder.json5`, `so101/fragments/lerobot_recorder.json5` | The family's recorder: its rate and the limbs it films |
 | `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander, which binds its lighting, materials and camera panels to Waldo |
 | `common/fragments/none.json5` | The empty option, which deploys nothing, so an axis carrying it can be switched off |
-| `mcp/` | The two MCP endpoints, the robots' (`fragments/robot_control.json5`) and the simulated world's (`fragments/world_control.json5`), the launcher whose robots are driven over MCP by default, and the guide to the endpoints and clients |
+| `mcp/` | The three MCP endpoints, the framework's (`fragments/framework_controls.json5`), the robots' (`fragments/robot_control.json5`) and the simulated world's (`fragments/world_control.json5`), the launcher whose robots are driven over MCP by default, and the guide to the endpoints and clients |
 
 OpenArm's web commander references OpenArm interfaces, so its fragment
 stays under `openarm/fragments/`. The headset and the MCP commander are
-shared by both robots. Both MCP endpoints are served by the server built into peppy, so their
+shared by both robots. The three MCP endpoints are served by the server built into peppy, so their
 fragments sit together under `mcp/fragments/`. A launcher
 whose command surface is MCP lives under `mcp/` and composes the same robot
 and simulation fragments as the others. Any axis can carry the empty option,
@@ -366,7 +380,10 @@ A repository launcher can reference siblings, such as
 must stay within it. Standalone launchers are confined to their own
 directory. A fragment file is named for the option that selects it, and a
 simulated variant of an option takes the `_sim` suffix: `openarm` and
-`openarm_sim`, `so101` and `so101_sim`, `cameras` and `cameras_sim`.
+`openarm_sim`, `so101` and `so101_sim`, `cameras` and `cameras_sim`. An
+option that names several files names its own last: `simulation_mcp`'s
+`robot_control` option names `framework_controls.json5`, then
+`robot_control.json5`.
 
 After adding or moving a launcher, run `peppy repo index .` and commit the
 index. Fragments use `launcher_fragment/v1` and are excluded from the

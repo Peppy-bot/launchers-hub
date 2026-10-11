@@ -20,9 +20,10 @@ plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
 classifies unavailable hardware and rollout dependencies. A joined copy
 comes up beside the copies the file deploys. A resolve whose report says the
-link rules went unchecked fails the plan, naming the caches to fill; where
-LINK_RULES_UNPROVABLE says why this machine's caches are short, those
-combinations pass, stay out of the plan, and are named in the run summary.
+link rules or the daemon scopes went unchecked fails the plan, naming the
+caches to fill; where LINK_RULES_UNPROVABLE says why this machine's caches
+lack a node manifest, the combinations whose link rules alone went
+unchecked pass, stay out of the plan, and are named in the run summary.
 Of the launchable combinations in scope it keeps the launches that, between
 them, run every configured node instance and every pair of instances that run
 side by side.
@@ -57,9 +58,18 @@ COMBINATION_CEILING = 4096
 
 # Both constraint refusals (`... requires ..., which this selection (...) does
 # not satisfy` and `... forbids ..., which this selection (...) has`) carry this
-# phrase; no other resolution error does. It is what separates a combination
-# refused by design from a launcher that is broken.
+# phrase. It is what separates a combination refused by design from a launcher
+# that is broken. A daemon scope refusal can quote a constraint refusal, so the
+# planner reads DAEMON_SCOPE_REFUSAL_MARK first.
 CONSTRAINT_REFUSAL_MARK = "which this selection"
+
+# `stack resolve` refuses a flat launcher whose daemon scopes a launch would
+# reject with this phrase: a scope that does not parse, a feature whose axis or
+# option the robot lacks, or a feature set that does not compose as a join over
+# the stack. The scope is the launcher author's, so the refusal is a broken
+# launcher whatever text it quotes, a constraint refusal or a join that would
+# change an instance that runs included.
+DAEMON_SCOPE_REFUSAL_MARK = "the flat launcher breaks daemon scope rules a launch would reject"
 
 # A copy named on the command line is composed as a join, so it is refused
 # where it writes a stack instance differently from how that instance runs
@@ -70,17 +80,23 @@ CONSTRAINT_REFUSAL_MARK = "which this selection"
 JOIN_CHANGE_MARK = "would change"
 
 # `stack resolve` holds the flat plan to the launch-time link rules only where
-# this machine's caches hold every deployed node's manifest, and writes a
-# report line to stderr opening with this phrase when they do not. A run whose
-# caches are cold resolves every combination without checking one, so the line
-# fails the plan and names the caches to fill.
+# this machine's caches hold every deployed node's manifest, and to the daemon
+# scope rules only where they hold the exposure documents of every exposure
+# deployment. For each family it could not check, it writes a report line to
+# stderr opening with its phrase. A run whose caches are cold resolves every
+# combination without checking one, so the line fails the plan and names the
+# caches to fill.
 LINK_RULES_UNCHECKED_MARK = "link rules not checked"
+DAEMON_SCOPES_UNCHECKED_MARK = "daemon scopes not checked"
+UNCHECKED_MARKS = (LINK_RULES_UNCHECKED_MARK, DAEMON_SCOPES_UNCHECKED_MARK)
 
 # The environment variable the step that fills the caches sets when it knows
 # they are short: its value says why, in one clause, and a resolve reporting
 # the link rules unchecked is then the expected outcome. The private hub needs
-# a deploy key a fork's pull request is not given, which is the case it names
-# today.
+# a deploy key a fork's pull request is not given, which is the case it names.
+# It excuses the link rules alone: every exposure document comes from the MCP
+# hub, which every run registers, so a resolve reporting the daemon scopes
+# unchecked fails the plan whatever this variable says.
 LINK_RULES_UNPROVABLE = "LINK_RULES_UNPROVABLE"
 
 # The name every previewed and launched copy joins under in CI. A copy name is
@@ -1029,8 +1045,9 @@ class Verdict(enum.Enum):
     SKIPPED = "skipped"
     #: The copy runs only where the launcher's file deploys it.
     FILE_ONLY = "file-only"
-    #: It resolves, but this machine's caches lack a manifest the link rules
-    #: read, so the resolve proves less than it looks like it proves.
+    #: It resolves, but this machine's caches lack a node manifest the link
+    #: rules read or an exposure document the daemon scope rules read, so the
+    #: resolve proves less than it looks like it proves.
     UNCHECKED = "unchecked"
     #: It does not resolve and nothing above explains why.
     BROKEN = "broken"
@@ -1226,13 +1243,17 @@ def resolve_candidate(root, candidate, skips):
     )
     if resolve.returncode != 0:
         output = (resolve.stderr + resolve.stdout).strip()
+        if DAEMON_SCOPE_REFUSAL_MARK in output:
+            return Resolution(Verdict.BROKEN, output)
         if CONSTRAINT_REFUSAL_MARK in output:
             return Resolution(Verdict.REFUSED, output)
         if candidate.names_a_copy and JOIN_CHANGE_MARK in output:
             return Resolution(Verdict.FILE_ONLY, output)
         return Resolution(Verdict.BROKEN, output)
     unchecked = [
-        line for line in resolve.stderr.splitlines() if LINK_RULES_UNCHECKED_MARK in line
+        line
+        for line in resolve.stderr.splitlines()
+        if any(mark in line for mark in UNCHECKED_MARKS)
     ]
     if unchecked:
         return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
@@ -1504,10 +1525,10 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
                 f"{candidate.label} does not resolve and the launcher's constraints "
                 "do not refuse it either"
             )
-        if resolution.verdict is Verdict.UNCHECKED and not unprovable:
+        if resolution.verdict is Verdict.UNCHECKED and not excused(resolution, unprovable):
             raise SystemExit(
                 f"{candidate.label}: {resolution.detail}; register the repositories "
-                "holding those nodes and run `peppy repo refresh` before planning"
+                "holding those nodes and exposures and run `peppy repo refresh` before planning"
             )
 
     in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)
@@ -1535,6 +1556,13 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
             candidates, in_scope, resolutions, by_key, selected, units_by_key, unprovable
         ),
     )
+
+
+def excused(resolution, unprovable):
+    """Whether `unprovable`, the reason LINK_RULES_UNPROVABLE gives, covers
+    every rule an unchecked resolution left unchecked: it covers the link
+    rules alone."""
+    return bool(unprovable) and DAEMON_SCOPES_UNCHECKED_MARK not in resolution.detail
 
 
 def markdown_table(title, headers, rows):

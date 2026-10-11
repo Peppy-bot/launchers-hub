@@ -54,8 +54,8 @@ and hardware version before enabling the buses.
 peppy repo refresh
 peppy stack launch physical
 peppy stack join openarm:alpha --with v2                 # a v2 with the browser panel, on this machine
-peppy stack join openarm:alpha --with v2 --place jetson-1
-peppy stack join openarm:bravo --with v1 --place jetson-2
+peppy stack join openarm:alpha@jetson-1 --with v2        # a v2 on the machine jetson-1
+peppy stack join openarm:bravo@jetson-2 --with v1        # a v1 on the machine jetson-2
 peppy stack list
 peppy stack remove alpha
 peppy stack reset --federated
@@ -107,7 +107,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 
 ```sh
 peppy stack join openarm:bravo --with v2,xr_commander,lerobot_recorder,cameras
-peppy stack join openarm:charlie --with v1,xr_commander,cameras --place jetson-2
+peppy stack join openarm:charlie@jetson-2 --with v1,xr_commander,cameras
 peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with v2,ker_commander
 ```
@@ -176,7 +176,7 @@ robot are in the [MCP guide](../mcp/README.md):
 peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:charlie --with v1,mcp_commander,cameras --place jetson-2
+peppy stack join openarm:charlie@jetson-2 --with v1,mcp_commander,cameras
 ```
 
 A copy's `brain` axis adds `ai_brain_vla`, the environment aware action layer
@@ -186,7 +186,12 @@ the brain send the same kind of goal to the same producer, and it reads
 where the chest camera stands from the backbone's `camera_mounts`. Under
 `mcp_commander` the brain's tools are listed under the robot's name on the
 `robot_control` endpoint, beside the direct moves. The recorder's episodes
-are listed there under any commander.
+are listed there under any commander. The brain runs on the copy's machine,
+or on the machine its word names: `--with ai_brain_vla@cn-gpu-box` runs it
+on `cn-gpu-box`, a machine with an NVIDIA GPU for its perception models,
+and the rest of the robot on its own machine. `simulation_mcp` offers the
+brain of `openarm_sim` on its framework's endpoint as the feature
+`ai_brain`, which a client adds on the machine it names.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras
@@ -204,10 +209,11 @@ X starts or saves an episode; holding Y for one second finishes the session.
 Set the demonstration task at `https://<host>:4443/task` before recording.
 
 For the KER, install [the KER udev rule](rules/60-openarm-ker.rules) on the
-machine the copy is placed on, following its header, and zero the KER on its
-calibration jig first (the
-`openarm_ker` README has that procedure). Plug the KER into the machine the
-copy is placed on, since the commander runs there. Squeeze an arm's trigger
+machine the commander runs on, the copy's machine unless
+`ker_commander@CORE_NODE` names another, following its header, and zero the
+KER on its calibration jig first (the `openarm_ker` README has that
+procedure). Plug the KER into that machine, since the commander reads it
+there. Squeeze an arm's trigger
 down to a fifth open, near shut, to engage that arm; from then on the arm and
 its gripper track the KER. Engagement latches: releasing the trigger opens
 that gripper and the arm keeps tracking. The same lever drives both, so a

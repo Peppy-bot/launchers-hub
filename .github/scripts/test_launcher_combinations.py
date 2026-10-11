@@ -1320,35 +1320,39 @@ class CombinationsTests(unittest.TestCase):
         # one, since a copy's composition may not.
         document = combinations.load_json5(root / path, path)
         adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
-        self.assertEqual(set(adjustment), {"target", "set_daemon_scopes"})
         self.assertEqual(adjustment["target"], "framework_controls_inst")
-        self.assertEqual(set(adjustment["set_daemon_scopes"]), {"stack"})
         for other, robots in ROBOT_LAUNCHERS.items():
             other_document = combinations.load_json5(root / other, other)
             for robot in robots:
                 with self.subTest(path=other, robot=robot):
                     self.assertEqual([a for a in robot_option(other_document, robot)["adjustments"]
                                       if "set_daemon_scopes" in a], [])
+        # The hub's policy alone: peppy's parse and launch checks hold the
+        # shape of the scope and of its descriptions, and every feature's
+        # axis and option, in the `peppy stack resolve` step of the same CI.
         # The scope offers each robot option of the file, in the axis's
         # order, up to four robots on the stack.
         scope = adjustment["set_daemon_scopes"]["stack"]
-        self.assertEqual(set(scope), {"max_copies", "options"})
         self.assertEqual(scope["max_copies"], 4)
         self.assertEqual([entry["option"] for entry in scope["options"]],
                          list(axis_of(document, "robot")["options"]))
+        # The OpenArm offers its brain as a feature, and the SO-101, which
+        # has no brain axis, offers none.
+        self.assertEqual(
+            {entry["option"]: [(feature["feature"], feature["axis"], feature["option"])
+                               for feature in entry.get("features", [])]
+             for entry in scope["options"]},
+            {"openarm_sim": [("ai_brain", "brain", "ai_brain_vla")], "so101_sim": []})
         entries = {entry["robot"]: entry for entry in document["deployments"] if "robot" in entry}
         for entry in scope["options"]:
             with self.subTest(option=entry["option"]):
-                self.assertEqual(set(entry), {"option", "description"})
-                # One line of at most 200 characters for the client, which
-                # names no model id: robot.list reports the model once the
-                # robot is added.
-                description = entry["description"]
-                self.assertTrue(description.strip())
-                self.assertNotIn("\n", description)
-                self.assertLessEqual(len(description), 200)
-                for model in ROBOT_MODELS:
-                    self.assertIsNone(re.search(rf"\b{model}\b", description, re.IGNORECASE), model)
+                # No line for the client names a model id: robot.list reports
+                # the model once the robot is added.
+                descriptions = [entry["description"]] + [
+                    feature["description"] for feature in entry.get("features", [])]
+                self.assertEqual([(model, description) for description in descriptions
+                                  for model in ROBOT_MODELS
+                                  if re.search(rf"\b{model}\b", description, re.IGNORECASE)], [])
                 # Every robot it adds runs the MCP commander, which requires
                 # the robots' endpoint, so the framework's endpoint comes
                 # with that endpoint alone and needs no constraint.

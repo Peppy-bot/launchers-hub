@@ -83,12 +83,17 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   coordinator. The launcher gives the target its scope with a top-level
   `set_daemon_scopes` adjustment on `framework_controls_inst`: the robot
   options a client can add, `openarm_sim` and `so101_sim`, each with one
-  line that says what the robot is and how it stands, and `max_copies`, the
-  most robots of these options on the stack, four. Every robot it adds runs
-  the MCP commander, which requires the robots' endpoint, so the framework's
-  endpoint comes with that endpoint alone, under Waldo, MuJoCo and Isaac Sim
-  alike, and needs no constraint. The `robot_control` fragment that the
-  other launchers serve deploys no framework endpoint.
+  line that says what the robot is and how it stands and with the features
+  it offers, and `max_copies`, the most robots of these options on the
+  stack, four. A feature selects one option of one of the robot's own axes
+  that brings a node, with one line that says what it adds: `openarm_sim`
+  offers `ai_brain`, its brain `ai_brain_vla`, and `so101_sim`, which has
+  no brain axis, offers none. No line of the scope names a model id, which
+  `robot.list` reports once the robot is added. Every robot it adds runs
+  the MCP commander, which requires the robots' endpoint, so the
+  framework's endpoint comes with that endpoint alone, under Waldo, MuJoCo
+  and Isaac Sim alike, and needs no constraint. The `robot_control`
+  fragment that the other launchers serve deploys no framework endpoint.
 - **The simulated world's endpoint** is the `world_control` axis of
   `simulation_mcp` ([fragments/world_control.json5](fragments/world_control.json5)),
   deployed by the file, with a `none` option that switches it off. It binds
@@ -161,21 +166,36 @@ endpoint, then stands it at a work surface on the simulated world's:
 
 1. `stack.list` reports the robot options the stack can add, under
    `options`: `openarm_sim` and `so101_sim`, each with the line of the scope
-   that says what the robot is and how it stands. It also reports the
+   that says what the robot is and how it stands, and its `features`, each
+   with its line: `ai_brain` on `openarm_sim`, none on `so101_sim`. It
+   reports the machines a robot or a feature can run on: `this_core_node`,
+   the machine of this stack, and `core_nodes`, that machine and every live
+   machine of the federation, read again on every call. It also reports the
    robots of these options on the stack, under `copies`, which
-   `stack.remove` can remove, and `max_copies`, four.
-2. `stack.join` with a `name` and an `option` adds a robot, as `peppy stack
-   join OPTION:NAME` does with no other word: the launcher's entry for the
-   option gives it the MCP commander and the rendered rig. Progress
-   messages report each step; building the robot's software and fetching
-   its files into the simulation can take minutes the first time. The call
-   ends with success only once the simulation stands the robot, on a free
-   spot of the floor that the simulation chooses, a robot clamped on a table
-   edge too. `robot.list` on the robots' endpoint and `scene.get_robots_list`
-   on the simulated world's then list it. The call is refused when the stack
-   holds four robots of these options, when a robot of the stack has the
-   name, and while another change of the stack runs. An addition that fails
-   is undone, and its message says why.
+   `stack.remove` can remove, each with its `name`, `option`, `core_node`
+   and `features`, each feature with the `core_node` it runs on, and
+   `max_copies`, four.
+2. `stack.join` with a `name`, an `option`, a `core_node` and `features`
+   adds a robot, as `peppy stack join OPTION:NAME@CORE_NODE` does with the
+   word of each feature: the launcher's entry for the option gives it the
+   MCP commander and the rendered rig, and each feature adds the option it
+   selects, on the machine the feature names. Every field is required:
+   `features` is empty for the robot of the launcher's entry, and a feature
+   that runs with the robot names the robot's machine. Every `copies` item
+   of `stack.list` is a `stack.join` input, and for a robot that
+   `stack.join` added, that input adds the same robot on the same machines.
+   Progress messages report each step; building the robot's software on
+   each of its machines and fetching its files into the simulation can take
+   minutes the first time.
+   The call ends with success only once the simulation stands the robot, on
+   a free spot of the floor that the simulation chooses, a robot clamped on
+   a table edge too. `robot.list` on the robots' endpoint and
+   `scene.get_robots_list` on the simulated world's then list it. The call
+   is refused when the stack holds four robots of these options, when a
+   robot of the stack has the name, while another change of the stack runs,
+   for a feature that the option does not offer or that the call names
+   twice, and for a machine that is not live, with the live machines in its
+   message. An addition that fails is undone, and its message says why.
 3. `workspace.stand_at` on the simulated world's endpoint stands the robot
    at a work surface of the loaded scene, by its stance: a standing robot
    at the surface's joining spot, a mounted robot clamped on the edge of its
@@ -248,6 +268,35 @@ framework's endpoint adds a robot only while the stack holds fewer than
 four robots of its options, counting the ones named at launch and joined
 from the command line; the limit holds for that endpoint alone.
 
+### One robot on several machines
+
+A robot runs on the machine its name is placed on, the coordinator unless
+`OPTION:NAME@CORE_NODE` names another, and each part of it, the instances
+one of its own axes brings, runs where the word that selects it says. So a
+brain can run on a machine with an NVIDIA GPU while its robot runs beside
+the simulation:
+
+```sh
+peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box                       # delta here, its brain on cn-gpu-box
+peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box   # the same at launch
+peppy stack join openarm_sim:golf@cn-jetson-1 --with ai_brain_vla@self                  # golf on cn-jetson-1, its brain on the coordinator
+```
+
+A machine is the core node name a daemon runs under, and `self` names the
+coordinator. On the framework's endpoint, `stack.join` with `name: delta`,
+`option: openarm_sim`, the `this_core_node` of `stack.list` as `core_node`
+and `features: [{ feature: "ai_brain", core_node: "cn-gpu-box" }]` adds
+the robot of the first line. `peppy stack list` prints each robot with its
+machine and its selections, `brain=ai_brain_vla@cn-gpu-box` for a brain on
+another machine, in the words that `stack join` takes to add it again. A
+robot on another machine than the simulation's streams its cameras to and
+from the simulation's machine. A brain runs its perception models on the
+NVIDIA GPU of its machine, or slowly on the CPU of a machine without one,
+and its first load on a machine downloads about 7 GB of weights there. A
+removal stops the robot on each of its machines, and warns for a machine
+that is not live, whose instances stay there until `peppy stack reset` runs
+on it.
+
 ### The same client on the real robots
 
 The robots' endpoint is the same document, `robot_control:v1`, whether a
@@ -267,7 +316,7 @@ hardware is wired to.
 
 ```sh
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha --with v2,mcp_commander,cameras --place jetson-1
+peppy stack join openarm:alpha@jetson-1 --with v2,mcp_commander,cameras
 peppy stack join so101:bravo --with mcp_commander,cameras
 ```
 
@@ -281,7 +330,8 @@ The tool names are the exposures' public names, `<target>.<verb>`, as the
 documents under `framework/`, `robot/` and `simulation/` of the MCP hub
 write them. With the stack up and `alpha` in it, `peppy stack launch
 simulation_mcp --join openarm_sim:alpha`, or the bare launch and
-`stack.join` with `name: alpha` and `option: openarm_sim` on the
+`stack.join` with `name: alpha`, `option: openarm_sim`, the
+`this_core_node` of `stack.list` as `core_node` and no feature on the
 framework's endpoint:
 
 1. Find the robots: call `robot.list` on the robots' endpoint. Every entry

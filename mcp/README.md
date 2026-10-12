@@ -34,9 +34,9 @@ The three URLs are the stack's: the same for one robot or ten, and the same
 before and after any join or removal, so a client registers them once. A
 model reads three `instructions` blocks. The framework's says it controls
 the stack of nodes, not the world and not the motion of a robot; the
-robots' says it is the robots' own surface and is to be preferred; the
-simulated world's says it sets the world up and is never a way to complete
-a task.
+robots' says it is the robots' own surface and names no other endpoint, so
+a client of the physical robots reads it alone; the simulated world's says it
+sets the world up and is never a way to complete a task.
 
 Each endpoint comes from an axis of the file that owns what it publishes:
 

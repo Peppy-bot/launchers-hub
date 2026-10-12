@@ -19,7 +19,11 @@
 // add and remove the robots of the scope the adjustment below gives, the
 // two robot options of this file with the features each offers, up to four
 // robots on the stack, each robot and each feature on the machine of the
-// federation the client names. The world's endpoint is this file's own
+// federation the client names. The launch builds on its machine the nodes
+// of each of these robots with each set of its features before it starts
+// anything, so a robot or a feature that a client adds on this machine
+// builds nothing, and one on another machine builds there when it joins;
+// `--no-prebuild` builds only what the launch starts. The world's endpoint is this file's own
 // world_control axis, deployed with a `none` option: Waldo alone implements
 // the object controls, lighting, materials, view, clock and workspace
 // contracts it binds, so the constraint below refuses it under any other

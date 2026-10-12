@@ -70,7 +70,9 @@ name: Tests
 # this checkout, and runs the planned launches one after the other: `peppy
 # stack launch` resolves the launcher, adds each deployment's node, builds its
 # container image, and runs it, returning only once every node has ended its
-# setup. A simulated robot's initializer ends its setup when the simulation
+# setup. A launch of `simulation_mcp` also builds, and starts none of, the
+# nodes of each robot and feature its framework endpoint's scope offers, so
+# a later join of one of them builds nothing. A simulated robot's initializer ends its setup when the simulation
 # stands the robot, so a launch or a join of a simulated robot returns only
 # once the robot stands. A launch that plans a join then runs `peppy stack
 # join`, plain or with its words, beside whatever copies the file deploys:

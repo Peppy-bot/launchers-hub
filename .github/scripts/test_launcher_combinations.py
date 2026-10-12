@@ -1336,6 +1336,11 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(scope["max_copies"], 4)
         self.assertEqual([entry["option"] for entry in scope["options"]],
                          list(axis_of(document, "robot")["options"]))
+        # Each option names the model its robot initializer names, which a
+        # client shows before it adds the robot; the plan holds it to the
+        # robot a plain join of the option adds.
+        self.assertEqual({entry["option"]: entry["model"] for entry in scope["options"]},
+                         {"openarm_sim": "openarm_v2", "so101_sim": "so101"})
         # The OpenArm offers its brain as a feature, and the SO-101, which
         # has no brain axis, offers none.
         self.assertEqual(
@@ -1346,8 +1351,7 @@ class CombinationsTests(unittest.TestCase):
         entries = {entry["robot"]: entry for entry in document["deployments"] if "robot" in entry}
         for entry in scope["options"]:
             with self.subTest(option=entry["option"]):
-                # No line for the client names a model id: robot.list reports
-                # the model once the robot is added.
+                # No description names a model id: the option's model does.
                 descriptions = [entry["description"]] + [
                     feature["description"] for feature in entry.get("features", [])]
                 self.assertEqual([(model, description) for description in descriptions
@@ -2202,6 +2206,71 @@ class RobotStandTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as failure:
             combinations.robot_stands(plan, ("bravo",))
         self.assertIn("bravo_init_inst joins the simulation `simulation_inst`", str(failure.exception))
+
+
+class ScopeModelTests(unittest.TestCase):
+    """The model a daemon scope gives a robot option is the model of the
+    robot a plain join of that option adds, read off its plan."""
+
+    @staticmethod
+    def plan(scope_options, *initializers):
+        """A flattened launcher whose framework endpoint holds a scope of
+        `scope_options`, beside the robot initializers `(copy, model)`."""
+        return {"deployments": [
+            {"source": {"exposures": ["framework_controls:v1"]}, "instances": [
+                {"instance_id": "framework_controls_inst", "arguments": {"port": 8903},
+                 "daemon_scopes": {"stack": {"max_copies": 4, "options": [
+                     {"option": option, "model": model, "description": "A robot."}
+                     for option, model in scope_options]}}}]},
+            {"source": {"name": "robot_initializer", "tag": "v1"}, "instances": [
+                {"instance_id": f"{copy}_init_inst", "core_node": copy, "arguments": {"model": model}}
+                for copy, model in initializers]},
+        ]}
+
+    @staticmethod
+    def candidate(join_option="", join_words="", launch_joins=()):
+        return combinations.Candidate("fleet", "fleet.json5", "", join_option, join_words,
+                                      local=False, launch_joins=launch_joins)
+
+    def test_a_plain_join_adds_the_model_the_scope_gives_its_option(self):
+        plan = self.plan([("arm_sim", "arm_v2")], (combinations.COPY_NAME, "arm_v2"), ("alpha", "other"))
+        self.assertIsNone(combinations.scope_model_drift(plan, self.candidate("arm_sim")))
+        self.assertIsNone(combinations.scope_model_drift(plan, self.candidate(launch_joins=("arm_sim",))))
+
+    def test_a_plain_join_of_another_model_names_both_models(self):
+        plan = self.plan([("arm_sim", "arm_v2")], (combinations.COPY_NAME, "arm_v1"))
+        for candidate in (self.candidate("arm_sim"), self.candidate(launch_joins=("arm_sim",))):
+            with self.subTest(candidate=candidate.label):
+                self.assertEqual(
+                    combinations.scope_model_drift(plan, candidate),
+                    "the daemon scope gives option `arm_sim` the model `arm_v2`, and the "
+                    "robot_initializer of its copy names `arm_v1`; write the model that the "
+                    "option's robot runs in the scope")
+        bare = self.plan([("arm_sim", "arm_v2")])
+        self.assertIn("names no model", combinations.scope_model_drift(bare, self.candidate("arm_sim")))
+
+    def test_only_a_plain_join_of_a_scoped_option_is_held_to_the_scope(self):
+        plan = self.plan([("arm_sim", "arm_v2")], (combinations.COPY_NAME, "arm_v1"))
+        # A join with words of its own adds another robot than a client
+        # adds; an option the scope does not list, and a combination that
+        # joins nothing, have no model to compare.
+        for candidate in (self.candidate("arm_sim", "hardware_version=v1"),
+                          self.candidate("other_sim"),
+                          self.candidate()):
+            with self.subTest(candidate=candidate.label):
+                self.assertIsNone(combinations.scope_model_drift(plan, candidate))
+        unscoped = {"deployments": self.plan([], (combinations.COPY_NAME, "arm_v1"))["deployments"][1:]}
+        self.assertIsNone(combinations.scope_model_drift(unscoped, self.candidate("arm_sim")))
+
+    def test_a_scope_naming_another_model_than_the_join_adds_fails_the_plan(self):
+        drifted = completed(json.dumps(self.plan([("openarm_v2", "openarm_v1")],
+                                                 (combinations.COPY_NAME, "openarm_v2"))))
+        answers = {("fleet.json5", "", "openarm_v2", ""): drifted}
+        with self.assertRaises(SystemExit) as failure:
+            with planned({"fleet": fleet_launcher()}, answers):
+                pass
+        self.assertIn("fleet + join openarm_v2: the daemon scope gives option `openarm_v2` the model "
+                      "`openarm_v1`", str(failure.exception))
 
 
 ROOT = Path(__file__).resolve().parents[2]

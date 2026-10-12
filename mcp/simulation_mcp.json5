@@ -268,10 +268,12 @@
     // copy runs does; each simulated robot's fragment binds its own.
     { target: "robot_control_inst", set_framework: { clock: "simulation" } },
     // The robots a client of the framework's endpoint can add: each robot
-    // option of this file, with one line for the client that says what the
-    // robot is and how it stands, since no tool reports a stance before the
-    // robot stands, up to four robots on the stack. Every copy renders its
-    // cameras, and a furnished scene has three work surfaces 1.5 m apart.
+    // option of this file, with the model its robot initializer names, which
+    // a client shows a picture of before it adds the robot, and one line for
+    // the client that says what the robot is and how it stands, since no
+    // tool reports a stance before the robot stands, up to four robots on
+    // the stack. Every copy renders its cameras, and a furnished scene has
+    // three work surfaces 1.5 m apart.
     // An option also lists its features: each selects one option of one of
     // the robot's own axes that brings a node, with one line that says what
     // it adds, so the client adds it when its task needs it. The OpenArm
@@ -287,13 +289,13 @@
       set_daemon_scopes: { stack: {
         max_copies: 4,
         options: [
-          { option: "openarm_sim",
+          { option: "openarm_sim", model: "openarm_v2",
             description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest and a camera on each wrist",
             features: [
               { feature: "ai_brain", axis: "brain", option: "ai_brain_vla",
                 description: "An AI brain that finds and names items by words, then grabs and places them; it runs slowly without an NVIDIA GPU on its machine" },
             ] },
-          { option: "so101_sim",
+          { option: "so101_sim", model: "so101",
             description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
         ],
       } } },

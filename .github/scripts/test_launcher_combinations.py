@@ -1320,35 +1320,39 @@ class CombinationsTests(unittest.TestCase):
         # one, since a copy's composition may not.
         document = combinations.load_json5(root / path, path)
         adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
-        self.assertEqual(set(adjustment), {"target", "set_daemon_scopes"})
         self.assertEqual(adjustment["target"], "framework_controls_inst")
-        self.assertEqual(set(adjustment["set_daemon_scopes"]), {"stack"})
         for other, robots in ROBOT_LAUNCHERS.items():
             other_document = combinations.load_json5(root / other, other)
             for robot in robots:
                 with self.subTest(path=other, robot=robot):
                     self.assertEqual([a for a in robot_option(other_document, robot)["adjustments"]
                                       if "set_daemon_scopes" in a], [])
+        # The hub's policy alone: peppy's parse and launch checks hold the
+        # shape of the scope and of its descriptions, and every feature's
+        # axis and option, in the `peppy stack resolve` step of the same CI.
         # The scope offers each robot option of the file, in the axis's
         # order, up to four robots on the stack.
         scope = adjustment["set_daemon_scopes"]["stack"]
-        self.assertEqual(set(scope), {"max_copies", "options"})
         self.assertEqual(scope["max_copies"], 4)
         self.assertEqual([entry["option"] for entry in scope["options"]],
                          list(axis_of(document, "robot")["options"]))
+        # The OpenArm offers its brain as a feature, and the SO-101, which
+        # has no brain axis, offers none.
+        self.assertEqual(
+            {entry["option"]: [(feature["feature"], feature["axis"], feature["option"])
+                               for feature in entry.get("features", [])]
+             for entry in scope["options"]},
+            {"openarm_sim": [("ai_brain", "brain", "ai_brain_vla")], "so101_sim": []})
         entries = {entry["robot"]: entry for entry in document["deployments"] if "robot" in entry}
         for entry in scope["options"]:
             with self.subTest(option=entry["option"]):
-                self.assertEqual(set(entry), {"option", "description"})
-                # One line of at most 200 characters for the client, which
-                # names no model id: robot.list reports the model once the
-                # robot is added.
-                description = entry["description"]
-                self.assertTrue(description.strip())
-                self.assertNotIn("\n", description)
-                self.assertLessEqual(len(description), 200)
-                for model in ROBOT_MODELS:
-                    self.assertIsNone(re.search(rf"\b{model}\b", description, re.IGNORECASE), model)
+                # No line for the client names a model id: robot.list reports
+                # the model once the robot is added.
+                descriptions = [entry["description"]] + [
+                    feature["description"] for feature in entry.get("features", [])]
+                self.assertEqual([(model, description) for description in descriptions
+                                  for model in ROBOT_MODELS
+                                  if re.search(rf"\b{model}\b", description, re.IGNORECASE)], [])
                 # Every robot it adds runs the MCP commander, which requires
                 # the robots' endpoint, so the framework's endpoint comes
                 # with that endpoint alone and needs no constraint.
@@ -1903,6 +1907,21 @@ UNCHECKED = completed(
     resolved_plan("waldo:v1").stdout,
     stderr="link rules not checked, 1 manifest(s) unavailable: waldo:v1 (not in the nodes cache)",
 )
+#: A resolve that flattened its launcher and checked no daemon scope over it.
+SCOPES_UNCHECKED = completed(
+    resolved_plan("waldo:v1").stdout,
+    stderr=(
+        "daemon scopes not checked for 1 exposure deployment(s) this machine's caches do not "
+        "hold: framework_controls:v1 (not in the exposure cache)"
+    ),
+)
+#: A resolve that refused the flat launcher's daemon scopes: a feature set of
+#: the scope that one of the launcher's constraints refuses as a join, its
+#: refusal quoted under the scope refusal.
+SCOPE_REFUSAL = completed(returncode=1, stderr=(
+    "Error: the flat launcher breaks daemon scope rules a launch would reject:\n"
+    "  - option `openarm_v2` with the features `recorder`: " + REFUSAL.stderr.removeprefix("Error: ")
+))
 
 
 class ResolveTests(unittest.TestCase):
@@ -2082,6 +2101,62 @@ class ResolveTests(unittest.TestCase):
             self.assertIn("### 🔓 Link rules not checked (1)", summary)
             self.assertIn(f"checked no link rule over these plans: {reason}.", summary)
             self.assertIn("- sim (simulation=waldo)", summary)
+
+    def test_a_daemon_scope_refusal_quoting_a_constraint_is_a_broken_launcher(self):
+        """The scope is the launcher author's, so a launch refusing it is
+        a launcher to fix, never a selection its constraints refuse by
+        design, whatever constraint text the refusal quotes."""
+        self.assertIn(combinations.CONSTRAINT_REFUSAL_MARK, SCOPE_REFUSAL.stderr)
+        answers = {("sim.json5", "simulation=waldo", "", ""): SCOPE_REFUSAL}
+        with self.assertRaises(SystemExit) as failure, contextlib.redirect_stderr(io.StringIO()) as printed:
+            with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
+                pass
+        self.assertIn("sim (simulation=waldo) does not resolve", str(failure.exception))
+        self.assertIn("option `openarm_v2` with the features `recorder`", printed.getvalue())
+        # A scope refusal quoting a join that would change what runs, in a
+        # combination that names a copy, is the launcher's too, not a copy
+        # that runs from the file alone.
+        quoting_a_join_change = completed(returncode=1, stderr=(
+            "Error: the flat launcher breaks daemon scope rules a launch would reject:\n"
+            "  - option `openarm_v2` with the features `recorder`: "
+            + JOIN_REFUSAL.stderr.removeprefix("Error: ")
+        ))
+        candidate = combinations.Candidate("fleet", "fleet.json5", "", "openarm_v2", "", local=False)
+        self.assertTrue(candidate.names_a_copy)
+        for answer in (SCOPE_REFUSAL, quoting_a_join_change):
+            with self.subTest(stderr=answer.stderr):
+                with patch.object(combinations.subprocess, "run", return_value=answer):
+                    resolution = combinations.resolve_candidate(Path("."), candidate, {})
+                self.assertIs(resolution.verdict, combinations.Verdict.BROKEN)
+
+    def test_a_resolve_that_checked_no_daemon_scope_is_unchecked_and_fails_the_plan(self):
+        """With the caches filled, a resolve that reports the daemon scopes
+        unchecked names an exposure document the run should have had."""
+        candidate = combinations.Candidate("sim", "sim.json5", "simulation=waldo", "", "", local=False)
+        with patch.object(combinations.subprocess, "run", return_value=SCOPES_UNCHECKED):
+            resolution = combinations.resolve_candidate(Path("."), candidate, {})
+        self.assertIs(resolution.verdict, combinations.Verdict.UNCHECKED)
+        self.assertIn("framework_controls:v1", resolution.detail)
+        answers = {("sim.json5", "simulation=waldo", "", ""): SCOPES_UNCHECKED}
+        with self.assertRaises(SystemExit) as failure:
+            with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
+                pass
+        self.assertIn("sim (simulation=waldo): daemon scopes not checked", str(failure.exception))
+        self.assertIn("run `peppy repo refresh` before planning", str(failure.exception))
+
+    def test_the_reason_the_link_rules_went_unchecked_does_not_excuse_the_daemon_scopes(self):
+        """Every exposure document comes from the MCP hub, which every run
+        registers, so a short private hub explains no unchecked scope."""
+        both = completed(
+            UNCHECKED.stdout, stderr=UNCHECKED.stderr + "\n" + SCOPES_UNCHECKED.stderr)
+        for answer in (SCOPES_UNCHECKED, both):
+            with self.subTest(stderr=answer.stderr):
+                answers = {("sim.json5", "simulation=waldo", "", ""): answer}
+                with self.assertRaises(SystemExit) as failure:
+                    with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers,
+                                 unprovable="the private hub is not registered"):
+                        pass
+                self.assertIn("daemon scopes not checked", str(failure.exception))
 
     def test_a_refusal_naming_no_copy_is_not_mistaken_for_a_file_only_one(self):
         answers = {("sim.json5", "simulation=waldo", "", ""): JOIN_REFUSAL}

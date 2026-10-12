@@ -17,15 +17,16 @@
 // a removal takes them out. The framework's endpoint comes with it, on the
 // same option of this file alone: stack.list, stack.join and stack.remove
 // add and remove the robots of the scope the adjustment below gives, the
-// two robot options of this file, up to four robots on the stack. The
-// world's endpoint is this file's own world_control axis, deployed with a
-// `none` option: Waldo alone implements the object controls, lighting,
-// materials, view, clock and workspace contracts it binds, so the
-// constraint below refuses it under any other engine, and `--with
-// mujoco,world_control=none` is the robots' and the framework's endpoints
-// under MuJoCo. The three URLs are the same with no robot, one or ten and
-// before and after any join, so a client registers them once, and all three
-// run while no robot stands in the simulation.
+// two robot options of this file with the features each offers, up to four
+// robots on the stack, each robot and each feature on the machine of the
+// federation the client names. The world's endpoint is this file's own
+// world_control axis, deployed with a `none` option: Waldo alone implements
+// the object controls, lighting, materials, view, clock and workspace
+// contracts it binds, so the constraint below refuses it under any other
+// engine, and `--with mujoco,world_control=none` is the robots' and the
+// framework's endpoints under MuJoCo. The three URLs are the same with no
+// robot, one or ten and before and after any join, so a client registers
+// them once, and all three run while no robot stands in the simulation.
 //
 // What this file adds to openarm_simulation: the robots' and the
 // framework's endpoints deployed, the world's endpoint on its own axis,
@@ -46,6 +47,8 @@
 //   peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # an OpenArm and an SO-101
 //   peppy stack launch simulation_mcp --with mujoco,world_control=none   # the robots' and the framework's endpoints, under MuJoCo
 //   peppy stack join openarm_sim:bravo                                   # an OpenArm, on the same URL when the join returns
+//   peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box    # an OpenArm here, its brain on the machine cn-gpu-box
+//   peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box   # an OpenArm named at launch, its brain on cn-gpu-box
 //   peppy stack remove alpha                                             # the endpoints keep running
 //
 // A `--with` word on a join wins on its own axis and the entry's other axes
@@ -54,7 +57,11 @@
 // robot_control=none,alpha.web_commander,alpha.lerobot_recorder` on the
 // launch is the world's endpoint alone, alpha under the browser panel with
 // the recorder filming its rig; a joined robot needs a commander word too,
-// since mcp_commander requires the robots' endpoint.
+// since mcp_commander requires the robots' endpoint. A robot runs on the
+// machine its name is placed on, `OPTION:NAME@CORE_NODE`, else on the
+// coordinator, and a word with a machine runs the part of the robot it
+// selects there: `ai_brain_vla@cn-gpu-box` runs the brain on cn-gpu-box,
+// and `NAME.ai_brain_vla@cn-gpu-box` does so at launch.
 {
   peppy_schema: "launcher/v1",
 
@@ -146,11 +153,16 @@
             // The brain's tools, under the same commander as the moves.
             { target: "robot_control_inst", when: { brain: "ai_brain_vla", robot_commander: "mcp_commander" },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
-            // The simulated robot's brain sees: the simulation runs where a
-            // GPU is, so it finds and names items with the local SAM 3 and
-            // SigLIP pipeline, by words from the node's general vocabulary,
-            // looking through the chest camera the rendered rig binds, color
-            // and depth from one producer.
+            // The simulated robot's brain sees: it finds and names items with
+            // the SAM 3 and SigLIP pipeline, by words from the node's general
+            // vocabulary, looking through the chest camera the rendered rig
+            // binds, color and depth from one producer. The pipeline runs in
+            // the brain's node, on the machine the brain runs on: the
+            // robot's, or the one its word names (`ai_brain_vla@cn-gpu-box`).
+            // It computes on that machine's NVIDIA GPU, or slowly on its CPU
+            // when the machine has none, and its first load on a machine
+            // downloads its weights there. A brain on another machine than
+            // the simulation's reads the chest camera over the network.
             { target: "brain_inst", when: { brain: "ai_brain_vla" },
               set_arguments: { perception_backend: "sam3_siglip" } },
             { target: "brain_inst", when: { brain: "ai_brain_vla", camera_rig: "cameras_sim" },
@@ -256,12 +268,27 @@
     // robot is and how it stands, since no tool reports a stance before the
     // robot stands, up to four robots on the stack. Every copy renders its
     // cameras, and a furnished scene has three work surfaces 1.5 m apart.
+    // An option also lists its features: each selects one option of one of
+    // the robot's own axes that brings a node, with one line that says what
+    // it adds, so the client adds it when its task needs it. The OpenArm
+    // offers its brain; the SO-101 has no brain axis, so it offers no
+    // feature. stack.join adds a robot of an option with the features it
+    // names, as `peppy stack join` does with their words, each on its
+    // machine: the robot on the machine the client names for it, and each
+    // feature on the machine the client names for that feature. So a brain
+    // can run on another machine than its robot, for example one with an
+    // NVIDIA GPU. stack.list lists each robot with its features and their
+    // machines, whether the client or the command line added it.
     { target: "framework_controls_inst",
       set_daemon_scopes: { stack: {
         max_copies: 4,
         options: [
           { option: "openarm_sim",
-            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest and a camera on each wrist" },
+            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest and a camera on each wrist",
+            features: [
+              { feature: "ai_brain", axis: "brain", option: "ai_brain_vla",
+                description: "An AI brain that finds and names items by words, then grabs and places them; it runs slowly without an NVIDIA GPU on its machine" },
+            ] },
           { option: "so101_sim",
             description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
         ],

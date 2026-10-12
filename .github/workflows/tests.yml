@@ -55,12 +55,15 @@ name: Tests
 # deployed node needs hardware the runner has none of, per
 # .github/unlaunchable-nodes.json5). The resolve also holds each flat plan to
 # the link rules a launch would reject it for, reading the manifest of every
-# node it deploys, so `discover` boots a daemon of its own and refreshes the
-# hub repositories into this machine's caches before it plans; a resolve
-# reporting those rules unchecked fails the job, except where the caches could
-# not be filled for a reason the workflow already tolerates, which today is a
-# fork's pull request with no deploy key for the private hub: there the run
-# summary names every combination left unproven and the job stays green. The
+# node it deploys, and to the daemon scope rules, reading the exposure
+# document of every exposure deployment, so `discover` boots a daemon of its
+# own and refreshes the hub repositories into this machine's caches before it
+# plans; a resolve reporting either family unchecked fails the job, except
+# where the link rules alone went unchecked for a reason the workflow
+# tolerates, a fork's pull request with no deploy key for the private hub:
+# there the run summary names every combination left unproven and the job
+# stays green. A resolve refusing the daemon scopes fails the job as a broken
+# launcher, whatever constraint text the refusal quotes. The
 # launches picked among the launchable ones are the plan `launch` runs.
 # `launch` checks out the commit `discover` planned from, installs peppy,
 # boots one isolated daemon, whose registry resolves a launcher by name to
@@ -401,11 +404,12 @@ jobs:
       # launchable ones in scope, the launches that between them run every
       # configured node instance and every pair running side by side leave
       # as the plan the launch job runs. The resolve reads the caches filled
-      # above and talks to no daemon; a combination whose link rules it could
-      # not check fails this step, naming the manifest it could not read,
-      # unless the step above set LINK_RULES_UNPROVABLE, when those
-      # combinations pass, stay out of the plan, and are listed in the run
-      # summary under that reason.
+      # above and talks to no daemon; a combination whose link rules or daemon
+      # scopes it could not check fails this step, naming the manifest or the
+      # exposure document it could not read, unless the step above set
+      # LINK_RULES_UNPROVABLE and the link rules alone went unchecked, when
+      # those combinations pass, stay out of the plan, and are listed in the
+      # run summary under that reason.
       - name: Plan the combinations this run launches
         id: plan
         if: steps.scope.outputs.any == 'true'

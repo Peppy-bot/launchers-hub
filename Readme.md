@@ -66,7 +66,9 @@ MCP commander and the rendered rig for every copy of the option, so a robot
 named at launch, a robot joined later and a robot added over MCP alike are
 listed on the robots' endpoint, on the same URL when the join returns. The
 framework's endpoint comes with the robots' and adds and removes the
-file's two robots, up to four on the stack, and the simulated world's
+file's two robots, each with the features its option offers, such as the
+OpenArm's brain, up to four on the stack, each robot and each feature on
+the machine of the federation the client names, and the simulated world's
 endpoint runs beside them from the file's `world_control` axis, where
 `workspace.stand_at` stands an added robot at a work surface. The
 endpoints, adding a robot over MCP, the client setup and the move to the
@@ -98,12 +100,13 @@ peppy stack launch openarm_simulation --join so101_sim:charlo               # al
 peppy stack join so101_sim:delta                                            # another SO-101 beside them
 peppy stack launch simulation                                               # a simulation with no robot
 peppy stack launch physical                                                 # a new stack with no robot
-peppy stack join openarm:alpha --with v2 --place jetson-1
+peppy stack join openarm:alpha@jetson-1 --with v2                           # alpha on the machine jetson-1
 peppy stack join so101:bravo
 peppy stack launch simulation_mcp                                           # Waldo and the three endpoints, no robot
 peppy stack launch simulation_mcp --join openarm_sim:alpha                  # alpha, an OpenArm v2 over MCP
 peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # alpha and an SO-101 over MCP
 peppy stack join openarm_sim:bravo                                          # a second OpenArm, listed on the same URL when the join returns
+peppy stack join openarm_sim:echo --with ai_brain_vla@cn-gpu-box            # an OpenArm here, its brain on the machine cn-gpu-box
 peppy stack join so101_sim:delta                                            # an SO-101, its arm and wrist camera on the same URL
 ```
 
@@ -118,7 +121,13 @@ These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
 requires access to its private node repository; MuJoCo and Isaac Sim are in
 nodes-hub. Run join and remove on the coordinator, locally or with
-`--core-node NAME`. A copy nobody placed runs on the coordinator. All
+`--core-node NAME`. A copy runs on the machine its name is placed on:
+`OPTION:NAME@CORE_NODE` on `stack join` and on `--join`, and `--place
+NAME@CORE_NODE` for a copy the launcher's file lists, else the
+coordinator. A part of a copy, the instances one of its own axes brings,
+runs where the word that selects it says: `--with ai_brain_vla@cn-gpu-box`
+on `stack join`, `--with NAME.ai_brain_vla@cn-gpu-box` at launch, and runs
+with the rest of the copy when the word names no machine. All
 participating daemons must use the same Peppy version and workspace. See
 [federation](https://docs.peppy.bot/advanced_guides/federation/) for
 discovery and host setup.
@@ -135,7 +144,7 @@ discovery and host setup.
 | `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`), `xr_commander`, and `mcp_commander`, which adds the arm's moves, and with a rig the wrist camera, to the stack's `robot_control` endpoint; `none` on `so101` and the unfilled `zero_or_one` axis on `so101_sim` run the robot on actions alone |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or the headset, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated one, which the simulations render on v2 links only; either gives a v2's backbone the chest camera's geometry for its workspace answers; requires a consumer: a recorder, XR, `mcp_commander`, which lists the cameras on the `robot_control` endpoint, or on a simulated v2 the brain, which looks through the chest camera |
-| `brain` | an OpenArm | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander` |
+| `brain` | an OpenArm | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint under `mcp_commander`; it runs on the copy's machine, or on the machine its word names (`ai_brain_vla@cn-gpu-box`), and `simulation_mcp.json5` offers it on the framework's endpoint as the feature `ai_brain` of `openarm_sim` |
 
 A copy selects one option per axis of its robot. `stack resolve` previews a
 launch and each copy it names, in order, without starting nodes:

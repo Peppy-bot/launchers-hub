@@ -99,11 +99,16 @@
             // The brain's tools, under the same commander as the moves.
             { target: "robot_control_inst", when: { brain: "ai_brain_vla", robot_commander: "mcp_commander" },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
-            // The simulated robot's brain sees: the simulation runs where a
-            // GPU is, so it finds and names items with the local SAM 3 and
-            // SigLIP pipeline, by words from the node's general vocabulary,
-            // looking through the chest camera the rendered rig binds, color
-            // and depth from one producer.
+            // The simulated robot's brain sees: it finds and names items with
+            // the SAM 3 and SigLIP pipeline, by words from the node's general
+            // vocabulary, looking through the chest camera the rendered rig
+            // binds, color and depth from one producer. The pipeline runs in
+            // the brain's node, on the machine the brain runs on: the
+            // robot's, or the one its word names (`ai_brain_vla@cn-gpu-box`).
+            // It computes on that machine's NVIDIA GPU, or slowly on its CPU
+            // when the machine has none, and its first load on a machine
+            // downloads its weights there. A brain on another machine than
+            // the simulation's reads the chest camera over the network.
             { target: "brain_inst", when: { brain: "ai_brain_vla" },
               set_arguments: { perception_backend: "sam3_siglip" } },
             { target: "brain_inst", when: { brain: "ai_brain_vla", camera_rig: "cameras_sim" },

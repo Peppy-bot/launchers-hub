@@ -184,9 +184,11 @@ endpoint, then stands it at a work surface on the simulated world's:
    that runs with the robot names the robot's machine. Every `copies` item
    of `stack.list` is a `stack.join` input, and for a robot that
    `stack.join` added, that input adds the same robot on the same machines.
-   Progress messages report each step; building the robot's software on
-   each of its machines and fetching its files into the simulation can take
-   minutes the first time.
+   Progress messages report each step. The launch built the software of
+   every robot and feature of the scope on the stack's machine, so an
+   addition there builds nothing; a robot or a feature on another machine
+   builds its software there, which can take minutes the first time, and so
+   can fetching a robot's files into the simulation.
    The call ends with success only once the simulation stands the robot, on
    a free spot of the floor that the simulation chooses, a robot clamped on
    a table edge too. `robot.list` on the robots' endpoint and
@@ -203,6 +205,22 @@ endpoint, then stands it at a work surface on the simulated world's:
    surface.
 4. `stack.remove` with a `name` removes a robot of these options, one that
    a launch named or `peppy stack join` added included.
+
+The launch of `simulation_mcp` builds on its machine the nodes of each
+robot option of the scope with each set of its features before it starts
+the stack: `openarm_backbone`, `robot_initializer`, `sim_rgb_camera`,
+`sim_rgbd_camera`, `so101_backbone` and the OpenArm's brain
+`openarm_ai_brain_vla`. It starts none of them, and `peppy stack list`
+shows them `Ready` with no instance. So the first launch after a peppy
+upgrade, after a hub change of a robot node or on a new machine takes
+longer, and each addition on that machine then adds and starts the robot's
+nodes and builds none. An addition runs the node versions the launch
+built: launch again for newer ones. `peppy stack launch simulation_mcp
+--no-prebuild` builds only what the launch starts, and each addition then
+builds its robot's software; `--with robot_control=none` deploys no
+framework endpoint, so it builds no robot either. A `peppy stack join` of
+one of these options on this machine builds nothing too, unless a `--with`
+word selects a part that no feature offers, such as `xr_commander`.
 
 A cancel or a lost connection ends the wait of the call, not the addition
 or the removal, which goes on in the stack: `stack.list` lists an added

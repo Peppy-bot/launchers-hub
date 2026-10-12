@@ -82,18 +82,21 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   no node implements it, so the server takes no link, and it runs on the
   coordinator. The launcher gives the target its scope with a top-level
   `set_daemon_scopes` adjustment on `framework_controls_inst`: the robot
-  options a client can add, `openarm_sim` and `so101_sim`, each with one
-  line that says what the robot is and how it stands and with the features
-  it offers, and `max_copies`, the most robots of these options on the
-  stack, four. A feature selects one option of one of the robot's own axes
-  that brings a node, with one line that says what it adds: `openarm_sim`
-  offers `ai_brain`, its brain `ai_brain_vla`, and `so101_sim`, which has
-  no brain axis, offers none. No line of the scope names a model id, which
-  `robot.list` reports once the robot is added. Every robot it adds runs
-  the MCP commander, which requires the robots' endpoint, so the
-  framework's endpoint comes with that endpoint alone, under Waldo, MuJoCo
-  and Isaac Sim alike, and needs no constraint. The `robot_control`
-  fragment that the other launchers serve deploys no framework endpoint.
+  options a client can add, `openarm_sim` and `so101_sim`, each with its
+  `model`, the model its robot initializer names (`openarm_v2`, `so101`),
+  with one line that says what the robot is and how it stands and with the
+  features it offers, and `max_copies`, the most robots of these options on
+  the stack, four. A feature selects one option of one of the robot's own
+  axes that brings a node, with one line that says what it adds:
+  `openarm_sim` offers `ai_brain`, its brain `ai_brain_vla`, and
+  `so101_sim`, which has no brain axis, offers none. No description in the
+  scope names a model id: only the `model` of an option does. The CI fails a
+  scope whose `model` is not the model that a plain join of the option adds.
+  Every robot it adds runs the MCP commander, which requires the robots'
+  endpoint, so the framework's endpoint comes with that endpoint alone,
+  under Waldo, MuJoCo and Isaac Sim alike, and needs no constraint. The
+  `robot_control` fragment that the other launchers serve deploys no
+  framework endpoint.
 - **The simulated world's endpoint** is the `world_control` axis of
   `simulation_mcp` ([fragments/world_control.json5](fragments/world_control.json5)),
   deployed by the file, with a `none` option that switches it off. It binds
@@ -165,16 +168,17 @@ The bare launch stands no robot, and a client adds one on the framework's
 endpoint, then stands it at a work surface on the simulated world's:
 
 1. `stack.list` reports the robot options the stack can add, under
-   `options`: `openarm_sim` and `so101_sim`, each with the line of the scope
-   that says what the robot is and how it stands, and its `features`, each
-   with its line: `ai_brain` on `openarm_sim`, none on `so101_sim`. It
-   reports the machines a robot or a feature can run on: `this_core_node`,
-   the machine of this stack, and `core_nodes`, that machine and every live
-   machine of the federation, read again on every call. It also reports the
-   robots of these options on the stack, under `copies`, which
-   `stack.remove` can remove, each with its `name`, `option`, `core_node`
-   and `features`, each feature with the `core_node` it runs on, and
-   `max_copies`, four.
+   `options`: `openarm_sim` and `so101_sim`, each with its `model`, of which
+   `scene.preview_asset` on the simulated world's endpoint shows a picture
+   as `robot/<model>`, the line of the scope that says what the robot is and
+   how it stands, and its `features`, each with its line: `ai_brain` on
+   `openarm_sim`, none on `so101_sim`. It reports the machines a robot or a
+   feature can run on: `this_core_node`, the machine of this stack, and
+   `core_nodes`, that machine and every live machine of the federation, read
+   again on every call. It also reports the robots of these options on the
+   stack, under `copies`, which `stack.remove` can remove, each with its
+   `name`, `option`, `core_node` and `features`, each feature with the
+   `core_node` it runs on, and `max_copies`, four.
 2. `stack.join` with a `name`, an `option`, a `core_node` and `features`
    adds a robot, as `peppy stack join OPTION:NAME@CORE_NODE` does with the
    word of each feature: the launcher's entry for the option gives it the

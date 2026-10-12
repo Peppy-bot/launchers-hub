@@ -24,6 +24,8 @@ link rules or the daemon scopes went unchecked fails the plan, naming the
 caches to fill; where LINK_RULES_UNPROVABLE says why this machine's caches
 lack a node manifest, the combinations whose link rules alone went
 unchecked pass, stay out of the plan, and are named in the run summary.
+A plain join of an option a daemon scope lists, whose robot's initializer
+names another model than the scope gives the option, fails the plan.
 Of the launchable combinations in scope it keeps the launches that, between
 them, run every configured node instance and every pair of instances that run
 side by side.
@@ -1158,6 +1160,53 @@ def robot_stands(plan, copies):
     return stands
 
 
+def scoped_models(plan):
+    """The robot model each daemon scope of a flattened launcher gives the
+    options it lists, option to model: a `stack_copies` scope names the
+    model of each robot option a client may add, which the client shows
+    before it adds one."""
+    models = {}
+    for _deployer, instance in plan_instances(plan):
+        for scope in (instance.get("daemon_scopes") or {}).values():
+            for entry in scope.get("options", []):
+                models[entry["option"]] = entry["model"]
+    return models
+
+
+def initializer_models(plan, copy):
+    """The models the initializers of the copy `copy` name, sorted."""
+    return sorted(
+        str((instance.get("arguments") or {}).get("model", ""))
+        for deployer, instance in plan_instances(plan)
+        if deployer == INITIALIZER_NODE and instance.get("core_node") == copy
+    )
+
+
+def scope_model_drift(plan, candidate):
+    """Why the model a daemon scope gives an option is not the model of the
+    robot a plain join of that option adds, or None where they agree or the
+    combination joins no scoped option plainly. A join with no word of its
+    own adds the robot a client adds with no feature, so its initializer
+    names the model the scope must give."""
+    joined = (*candidate.launch_joins, candidate.join_option)
+    options = [option for option in joined if option]
+    if len(options) != 1 or candidate.join_words:
+        return None
+    option, = options
+    scoped = scoped_models(plan).get(option)
+    if scoped is None:
+        return None
+    named = initializer_models(plan, COPY_NAME)
+    if named == [scoped]:
+        return None
+    named_text = ", ".join(f"`{model}`" for model in named) or "no model"
+    return (
+        f"the daemon scope gives option `{option}` the model `{scoped}`, and the "
+        f"{INITIALIZER_NODE} of its copy names {named_text}; write the model that "
+        "the option's robot runs in the scope"
+    )
+
+
 def plan_instances(plan):
     """Every instance a flattened launcher deploys, and what deploys it: the
     node a deployment names, or the deployment's own source where it names
@@ -1530,6 +1579,9 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
                 f"{candidate.label}: {resolution.detail}; register the repositories "
                 "holding those nodes and exposures and run `peppy repo refresh` before planning"
             )
+        drift = scope_model_drift(resolution.plan, candidate) if resolution.plan else None
+        if drift is not None:
+            raise SystemExit(f"{candidate.label}: {drift}")
 
     in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)
 

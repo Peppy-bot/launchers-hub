@@ -28,11 +28,11 @@
             // rig that renders it binds the chest camera here
             // (cameras_sim.json5); without a rig the brain refuses both
             // searches with "no perception source" and serves the rest.
-            camera: { vacant: "select cameras_sim to give the brain the chest camera" },
+            camera: { vacant: "select a camera rig, cameras or cameras_sim, to give the brain the chest camera" },
             // Where that camera's pixels point, from the same camera: the
             // rig binds it beside `camera`. Vacant, no pixel can become a
             // position and both searches are refused naming the slot.
-            geometry: { vacant: "select cameras_sim to give the brain the chest camera's geometry" },
+            geometry: { vacant: "select a camera rig, cameras or cameras_sim, to give the brain the chest camera's geometry" },
             // Where that camera stands on the robot, in the robot frame:
             // the backbone answers it for every camera the robot's design
             // carries, and the brain reads the chest camera's.

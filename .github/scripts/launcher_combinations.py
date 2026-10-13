@@ -20,9 +20,12 @@ plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
 classifies unavailable hardware and rollout dependencies. A joined copy
 comes up beside the copies the file deploys. A resolve whose report says the
-link rules went unchecked fails the plan, naming the caches to fill; where
-LINK_RULES_UNPROVABLE says why this machine's caches are short, those
-combinations pass, stay out of the plan, and are named in the run summary.
+link rules or the daemon scopes went unchecked fails the plan, naming the
+caches to fill; where LINK_RULES_UNPROVABLE says why this machine's caches
+lack a node manifest, the combinations whose link rules alone went
+unchecked pass, stay out of the plan, and are named in the run summary.
+A plain join of an option a daemon scope lists, whose robot's initializer
+names another model than the scope gives the option, fails the plan.
 Of the launchable combinations in scope it keeps the launches that, between
 them, run every configured node instance and every pair of instances that run
 side by side.
@@ -30,12 +33,14 @@ side by side.
 launch runs the planned launches one after the other on the running daemon,
 resetting the stack between them, holds each joined copy to the instances
 its preview promised, every one of them running, and reports each one's
-outcome.
+outcome. It also times each command that stands a robot in a simulation,
+cold or warm, against the stand budget: a report, which fails nothing.
 
 The JSON5 subset reader reports unsupported syntax with its file and line.
 """
 
 import argparse
+import contextlib
 import enum
 import itertools
 import json
@@ -44,6 +49,7 @@ import posixpath
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 
 # peppy's own cross-combination check refuses to enumerate a selection space
@@ -54,9 +60,18 @@ COMBINATION_CEILING = 4096
 
 # Both constraint refusals (`... requires ..., which this selection (...) does
 # not satisfy` and `... forbids ..., which this selection (...) has`) carry this
-# phrase; no other resolution error does. It is what separates a combination
-# refused by design from a launcher that is broken.
+# phrase. It is what separates a combination refused by design from a launcher
+# that is broken. A daemon scope refusal can quote a constraint refusal, so the
+# planner reads DAEMON_SCOPE_REFUSAL_MARK first.
 CONSTRAINT_REFUSAL_MARK = "which this selection"
+
+# `stack resolve` refuses a flat launcher whose daemon scopes a launch would
+# reject with this phrase: a scope that does not parse, a feature whose axis or
+# option the robot lacks, or a feature set that does not compose as a join over
+# the stack. The scope is the launcher author's, so the refusal is a broken
+# launcher whatever text it quotes, a constraint refusal or a join that would
+# change an instance that runs included.
+DAEMON_SCOPE_REFUSAL_MARK = "the flat launcher breaks daemon scope rules a launch would reject"
 
 # A copy named on the command line is composed as a join, so it is refused
 # where it writes a stack instance differently from how that instance runs
@@ -67,17 +82,23 @@ CONSTRAINT_REFUSAL_MARK = "which this selection"
 JOIN_CHANGE_MARK = "would change"
 
 # `stack resolve` holds the flat plan to the launch-time link rules only where
-# this machine's caches hold every deployed node's manifest, and writes a
-# report line to stderr opening with this phrase when they do not. A run whose
-# caches are cold resolves every combination without checking one, so the line
-# fails the plan and names the caches to fill.
+# this machine's caches hold every deployed node's manifest, and to the daemon
+# scope rules only where they hold the exposure documents of every exposure
+# deployment. For each family it could not check, it writes a report line to
+# stderr opening with its phrase. A run whose caches are cold resolves every
+# combination without checking one, so the line fails the plan and names the
+# caches to fill.
 LINK_RULES_UNCHECKED_MARK = "link rules not checked"
+DAEMON_SCOPES_UNCHECKED_MARK = "daemon scopes not checked"
+UNCHECKED_MARKS = (LINK_RULES_UNCHECKED_MARK, DAEMON_SCOPES_UNCHECKED_MARK)
 
 # The environment variable the step that fills the caches sets when it knows
 # they are short: its value says why, in one clause, and a resolve reporting
 # the link rules unchecked is then the expected outcome. The private hub needs
-# a deploy key a fork's pull request is not given, which is the case it names
-# today.
+# a deploy key a fork's pull request is not given, which is the case it names.
+# It excuses the link rules alone: every exposure document comes from the MCP
+# hub, which every run registers, so a resolve reporting the daemon scopes
+# unchecked fails the plan whatever this variable says.
 LINK_RULES_UNPROVABLE = "LINK_RULES_UNPROVABLE"
 
 # The name every previewed and launched copy joins under in CI. A copy name is
@@ -427,12 +448,16 @@ BODY_SHAPES = {
 
 #: The operations an adjustment writes, as `peppy`'s `Adjustment` declares
 #: them. A key outside this set is a typo the daemon refuses.
+#: `set_daemon_scopes` gives the daemon targets of an MCP exposure instance
+#: their scopes, by target name; `peppy` parses each scope against the
+#: exposure when it resolves the launcher, so the planner reads it as a map.
 ADJUSTMENT_OPERATIONS = (
     "set_arguments",
     "set_framework",
     "set_links",
     "add_links",
     "unset_links",
+    "set_daemon_scopes",
 )
 
 
@@ -465,7 +490,7 @@ def check_adjustments(written, label):
                 f"{label}: adjustment on `{target}` declares an empty `when`; "
                 "name the axes it guards on, or leave `when` out"
             )
-        for key in ("set_arguments", "set_links", "add_links"):
+        for key in ("set_arguments", "set_links", "add_links", "set_daemon_scopes"):
             if any(not name.strip() for name in (entry.get(key) or {})):
                 raise Json5Error(
                     f"{label}: adjustment on `{target}` names an empty key under `{key}`"
@@ -1022,8 +1047,9 @@ class Verdict(enum.Enum):
     SKIPPED = "skipped"
     #: The copy runs only where the launcher's file deploys it.
     FILE_ONLY = "file-only"
-    #: It resolves, but this machine's caches lack a manifest the link rules
-    #: read, so the resolve proves less than it looks like it proves.
+    #: It resolves, but this machine's caches lack a node manifest the link
+    #: rules read or an exposure document the daemon scope rules read, so the
+    #: resolve proves less than it looks like it proves.
     UNCHECKED = "unchecked"
     #: It does not resolve and nothing above explains why.
     BROKEN = "broken"
@@ -1092,6 +1118,93 @@ def joined_into(plan, name):
         for target in wired_into(instance)
     } - own
     return frozenset(deployer_of[host] for host in hosts)
+
+
+#: The node every robot runs to name its model, and its slot that links the
+#: simulation the robot joins. A robot that drives its own hardware leaves
+#: the slot vacant and joins no simulation.
+INITIALIZER_NODE = "robot_initializer"
+INITIALIZER_SIMULATION_SLOT = "simulation"
+
+
+@dataclass(frozen=True)
+class Stand:
+    """A robot a simulation stands: the simulation's node and the model the
+    robot's initializer names."""
+
+    engine: str
+    model: str
+
+
+def robot_stands(plan, copies):
+    """The robots the copies named in `copies` stand in a simulation, read
+    off a flattened launcher: each copy's initializer whose simulation slot
+    links an instance, as the node deploying that instance and the model the
+    initializer names."""
+    instances = plan_instances(plan)
+    deployer_of = {instance.get("instance_id", ""): deployer for deployer, instance in instances}
+    stands = []
+    for deployer, instance in instances:
+        if deployer != INITIALIZER_NODE or instance.get("core_node") not in copies:
+            continue
+        simulation = (instance.get("links") or {}).get(INITIALIZER_SIMULATION_SLOT)
+        if not isinstance(simulation, str):
+            continue
+        engine = deployer_of.get(simulation.split("/", 1)[0])
+        if engine is None:
+            raise SystemExit(
+                f"{instance.get('instance_id', 'an initializer')} joins the simulation "
+                f"`{simulation}`, which the plan does not deploy"
+            )
+        stands.append(Stand(engine, str((instance.get("arguments") or {}).get("model", ""))))
+    return stands
+
+
+def scoped_models(plan):
+    """The robot model each daemon scope of a flattened launcher gives the
+    options it lists, option to model: a `stack_copies` scope names the
+    model of each robot option a client may add, which the client shows
+    before it adds one."""
+    models = {}
+    for _deployer, instance in plan_instances(plan):
+        for scope in (instance.get("daemon_scopes") or {}).values():
+            for entry in scope.get("options", []):
+                models[entry["option"]] = entry["model"]
+    return models
+
+
+def initializer_models(plan, copy):
+    """The models the initializers of the copy `copy` name, sorted."""
+    return sorted(
+        str((instance.get("arguments") or {}).get("model", ""))
+        for deployer, instance in plan_instances(plan)
+        if deployer == INITIALIZER_NODE and instance.get("core_node") == copy
+    )
+
+
+def scope_model_drift(plan, candidate):
+    """Why the model a daemon scope gives an option is not the model of the
+    robot a plain join of that option adds, or None where they agree or the
+    combination joins no scoped option plainly. A join with no word of its
+    own adds the robot a client adds with no feature, so its initializer
+    names the model the scope must give."""
+    joined = (*candidate.launch_joins, candidate.join_option)
+    options = [option for option in joined if option]
+    if len(options) != 1 or candidate.join_words:
+        return None
+    option, = options
+    scoped = scoped_models(plan).get(option)
+    if scoped is None:
+        return None
+    named = initializer_models(plan, COPY_NAME)
+    if named == [scoped]:
+        return None
+    named_text = ", ".join(f"`{model}`" for model in named) or "no model"
+    return (
+        f"the daemon scope gives option `{option}` the model `{scoped}`, and the "
+        f"{INITIALIZER_NODE} of its copy names {named_text}; write the model that "
+        "the option's robot runs in the scope"
+    )
 
 
 def plan_instances(plan):
@@ -1179,13 +1292,17 @@ def resolve_candidate(root, candidate, skips):
     )
     if resolve.returncode != 0:
         output = (resolve.stderr + resolve.stdout).strip()
+        if DAEMON_SCOPE_REFUSAL_MARK in output:
+            return Resolution(Verdict.BROKEN, output)
         if CONSTRAINT_REFUSAL_MARK in output:
             return Resolution(Verdict.REFUSED, output)
         if candidate.names_a_copy and JOIN_CHANGE_MARK in output:
             return Resolution(Verdict.FILE_ONLY, output)
         return Resolution(Verdict.BROKEN, output)
     unchecked = [
-        line for line in resolve.stderr.splitlines() if LINK_RULES_UNCHECKED_MARK in line
+        line
+        for line in resolve.stderr.splitlines()
+        if any(mark in line for mark in UNCHECKED_MARKS)
     ]
     if unchecked:
         return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
@@ -1381,9 +1498,16 @@ class Launch:
     join_instances: list
     #: The options `--join OPTION:NAME` starts a copy of with the launch.
     launch_joins: list = field(default_factory=list)
+    #: The robots `stack launch` stands in a simulation: the file's copies
+    #: and the copy the launch names.
+    launch_stands: list = field(default_factory=list)
+    #: The robot `stack join` stands in a simulation.
+    join_stands: list = field(default_factory=list)
 
     @classmethod
     def of(cls, candidate, resolution):
+        launched = candidate.file_copies + ((COPY_NAME,) if candidate.launch_joins else ())
+        joined = (COPY_NAME,) if candidate.join_option else ()
         return cls(
             candidate.label,
             candidate.launcher,
@@ -1394,7 +1518,18 @@ class Launch:
             candidate.local,
             copy_instances(resolution.plan, COPY_NAME) if candidate.names_a_copy else [],
             list(candidate.launch_joins),
+            robot_stands(resolution.plan, launched),
+            robot_stands(resolution.plan, joined),
         )
+
+    @classmethod
+    def parse(cls, entry):
+        """One entry of the plan file, as `write_plan` wrote it."""
+        return cls(**{
+            **entry,
+            "launch_stands": [Stand(**stand) for stand in entry["launch_stands"]],
+            "join_stands": [Stand(**stand) for stand in entry["join_stands"]],
+        })
 
 
 def write_plan(launches, path):
@@ -1404,7 +1539,7 @@ def write_plan(launches, path):
 
 def read_plan(path):
     with open(path, encoding="utf-8") as handle:
-        return [Launch(**entry) for entry in json.load(handle)]
+        return [Launch.parse(entry) for entry in json.load(handle)]
 
 
 def candidates_in_scope(scope, candidates, resolutions, base_root, skips):
@@ -1439,11 +1574,14 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
                 f"{candidate.label} does not resolve and the launcher's constraints "
                 "do not refuse it either"
             )
-        if resolution.verdict is Verdict.UNCHECKED and not unprovable:
+        if resolution.verdict is Verdict.UNCHECKED and not excused(resolution, unprovable):
             raise SystemExit(
                 f"{candidate.label}: {resolution.detail}; register the repositories "
-                "holding those nodes and run `peppy repo refresh` before planning"
+                "holding those nodes and exposures and run `peppy repo refresh` before planning"
             )
+        drift = scope_model_drift(resolution.plan, candidate) if resolution.plan else None
+        if drift is not None:
+            raise SystemExit(f"{candidate.label}: {drift}")
 
     in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)
 
@@ -1470,6 +1608,13 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
             candidates, in_scope, resolutions, by_key, selected, units_by_key, unprovable
         ),
     )
+
+
+def excused(resolution, unprovable):
+    """Whether `unprovable`, the reason LINK_RULES_UNPROVABLE gives, covers
+    every rule an unchecked resolution left unchecked: it covers the link
+    rules alone."""
+    return bool(unprovable) and DAEMON_SCOPES_UNCHECKED_MARK not in resolution.detail
 
 
 def markdown_table(title, headers, rows):
@@ -1626,8 +1771,9 @@ class JoinedCopyDiffers(LaunchFailed):
 
 class JoinedCopyNotRunning(LaunchFailed):
     """An instance of the joined copy is not running once the join returned:
-    a robot the engine took out during the join leaves its initializer
-    finished, and the join reports nothing of it."""
+    a join ends when the simulation stands the robot, and a robot the engine
+    takes out after that leaves its initializer finished, which the join
+    reports nothing of."""
 
     def __init__(self, name, states):
         super().__init__(
@@ -1703,19 +1849,23 @@ def join_command(launch):
     return argv + BUILD_IDLE_TIMEOUT
 
 
-def launch_start_to_end(launch, run):
-    """Launches one combination and returns once every node has signaled
-    ready, then joins its copy where it plans one, beside the copies the file
-    deploys. The copy the launch names with `--join` and the joined copy are
-    held to the instances the preview gave them, every one of them running,
-    so a copy that comes up as another robot than the one planned fails the
-    launch, and a copy whose robot the engine took out during the join fails
-    it too."""
-    checked(run, launch_command(launch))
+def launch_start_to_end(launch, run, stand_times):
+    """Launches one combination and returns once every node has ended its
+    setup, then joins its copy where it plans one, beside the copies the
+    file deploys. A simulated robot's initializer ends its setup when the
+    simulation stands the robot, so a command that stands one returns after
+    the stand, and `stand_times` times it. The copy the launch names with
+    `--join` and the joined copy are held to the instances the preview gave
+    them, every one of them running, so a copy that comes up as another
+    robot than the one planned fails the launch, and a copy whose robot the
+    engine took out after it stood fails it too."""
+    with stand_times.timing(launch.label, "launch", launch.launch_stands):
+        checked(run, launch_command(launch))
     if launch.launch_joins:
         hold_copy_to_preview(launch, run)
     if launch.join_option:
-        checked(run, join_command(launch))
+        with stand_times.timing(launch.label, "join", launch.join_stands):
+            checked(run, join_command(launch))
         hold_copy_to_preview(launch, run)
         checked(run, ["peppy", "stack", "list"])
         checked(run, ["peppy", "stack", "remove", launch.join_name])
@@ -1736,6 +1886,103 @@ def hold_copy_to_preview(launch, run):
     }
     if stalled:
         raise JoinedCopyNotRunning(COPY_NAME, stalled)
+
+
+# The stand budget of a simulated robot: robot_initializer's setup budget of
+# 180 s, less the 5.5 s it keeps for its leave report. The run summary
+# reads each stand time against it.
+STAND_BUDGET_SECS = 174.5
+
+
+@dataclass(frozen=True)
+class StandTime:
+    """One command of a launch that stood robots in a simulation, and the
+    seconds it took from start to end."""
+
+    label: str
+    #: `launch` or `join`.
+    command: str
+    stands: tuple
+    cold: bool
+    seconds: float
+
+    @property
+    def engines(self):
+        return ", ".join(sorted({stand.engine for stand in self.stands}))
+
+    @property
+    def models(self):
+        return ", ".join(stand.model for stand in self.stands)
+
+    @property
+    def kind(self):
+        return "cold" if self.cold else "warm"
+
+
+class StandTimes:
+    """The wall time of each command of the job that stands robots in a
+    simulation. A command's stand is cold when no command before it in the
+    job tried to stand one of its models in its engine: Waldo keeps the
+    files of each model it stood in a cache on the runner's disk, which
+    every job starts without, so the first stand of a model in a job
+    fetches them. A command that fails records no time, since its robot did
+    not stand. The times are a report: nothing fails on them."""
+
+    def __init__(self, clock):
+        self.clock = clock
+        self.tried = set()
+        self.times = []
+
+    @contextlib.contextmanager
+    def timing(self, label, command, stands):
+        """Times the command run in the block, when it stands robots and
+        returns."""
+        cold = any(stand not in self.tried for stand in stands)
+        self.tried.update(stands)
+        started = self.clock()
+        yield
+        if not stands:
+            return
+        timed = StandTime(label, command, tuple(stands), cold, self.clock() - started)
+        self.times.append(timed)
+        print(
+            f"stood {timed.models} in {timed.engines} ({timed.kind}) in {timed.seconds:.1f} s",
+            flush=True,
+        )
+
+
+def stand_summary(times):
+    """The run summary's account of the stand times, in the order the
+    commands ran, or nothing where no command stood a robot."""
+    if not times:
+        return ""
+    rows = [
+        (
+            timed.label,
+            f"`stack {timed.command}`",
+            timed.engines,
+            timed.models,
+            timed.kind,
+            f"{timed.seconds:.1f} s",
+            f"{timed.seconds / STAND_BUDGET_SECS:.0%}",
+        )
+        for timed in times
+    ]
+    return markdown_table(
+        "⏱️ Stand times",
+        ("combination", "command", "engine", "robots", "stand", "wall time",
+         f"of the {STAND_BUDGET_SECS} s stand budget"),
+        rows,
+    ) + (
+        "\nEach command that stood a robot in a simulation, timed from start to "
+        "end. A simulated robot's initializer ends its setup when the simulation "
+        f"stands the robot, within the stand budget of {STAND_BUDGET_SECS} s, so "
+        "the command returns after the stand. Its wall time also holds every "
+        "image the command built and every other instance it started, so it is "
+        "an upper bound of the stand. A stand is cold when it is the first stand "
+        "of its model in its engine in this job. These times are a report: they "
+        "fail nothing.\n"
+    )
 
 
 class Status(enum.Enum):
@@ -1766,13 +2013,13 @@ def workflow_command(name, message, **properties):
     print(f"::{name}{' ' + rendered if rendered else ''}::{escaped(message)}", flush=True)
 
 
-def launch_and_reset(launch, run):
+def launch_and_reset(launch, run, stand_times):
     """One launch inside its log group, and the reset that hands the next
     launch an empty stack. Returns the outcome and whether the stack is
     empty again."""
     workflow_command("group", launch.label)
     try:
-        launch_start_to_end(launch, run)
+        launch_start_to_end(launch, run, stand_times)
         failure = ""
     except LaunchFailed as error:
         failure = str(error)
@@ -1789,15 +2036,16 @@ def launch_and_reset(launch, run):
     return Outcome(launch.label, Status.FAILED, failure), stack_is_empty
 
 
-def launch_all(launches, run):
+def launch_all(launches, run, stand_times):
     """Every planned launch, one after the other on the one daemon. A failed
     launch does not stop the ones after it: the stack is reset and the run
     goes on, so a red run names every failing combination. A stack that does
     not reset is the exception: nothing launched onto it could be trusted,
-    so the remaining launches are reported as not launched."""
+    so the remaining launches are reported as not launched. `stand_times`
+    times each command that stands a robot."""
     outcomes = []
     for index, launch in enumerate(launches):
-        outcome, stack_is_empty = launch_and_reset(launch, run)
+        outcome, stack_is_empty = launch_and_reset(launch, run, stand_times)
         outcomes.append(outcome)
         if not stack_is_empty:
             reason = f"the stack did not reset after {launch.label}"
@@ -1809,8 +2057,9 @@ def launch_all(launches, run):
     return outcomes
 
 
-def command_launch(plan_path):
-    outcomes = launch_all(read_plan(plan_path), run_peppy)
+def command_launch(plan_path, clock=time.monotonic):
+    stand_times = StandTimes(clock)
+    outcomes = launch_all(read_plan(plan_path), run_peppy, stand_times)
     rows = [
         (outcome.label, f"{outcome.status.value} {sanitize(outcome.detail)}".strip())
         for outcome in outcomes
@@ -1819,7 +2068,8 @@ def command_launch(plan_path):
     append_to_env_file(
         "GITHUB_STEP_SUMMARY",
         f"\n{passed} of {len(outcomes)} launches came up start to end.\n"
-        + markdown_table("Launches", ("combination", "result"), rows),
+        + markdown_table("Launches", ("combination", "result"), rows)
+        + stand_summary(stand_times.times),
     )
     if passed != len(outcomes):
         raise SystemExit(1)

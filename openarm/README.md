@@ -54,8 +54,8 @@ and hardware version before enabling the buses.
 peppy repo refresh
 peppy stack launch physical
 peppy stack join openarm:alpha --with v2                 # a v2 with the browser panel, on this machine
-peppy stack join openarm:alpha --with v2 --place jetson-1
-peppy stack join openarm:bravo --with v1 --place jetson-2
+peppy stack join openarm:alpha@jetson-1 --with v2        # a v2 on the machine jetson-1
+peppy stack join openarm:bravo@jetson-2 --with v1        # a v1 on the machine jetson-2
 peppy stack list
 peppy stack remove alpha
 peppy stack reset --federated
@@ -107,7 +107,7 @@ copy: with `with:` in the file, or `--with` on `stack join`:
 
 ```sh
 peppy stack join openarm:bravo --with v2,xr_commander,lerobot_recorder,cameras
-peppy stack join openarm:charlie --with v1,xr_commander,cameras --place jetson-2
+peppy stack join openarm:charlie@jetson-2 --with v1,xr_commander,cameras
 peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with v2,ker_commander
 ```
@@ -157,22 +157,26 @@ XR commander's record button, or over MCP through `recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
 lighting, its materials, a view of it from any point, the preview of an
-asset of its catalogue, its clock and where a robot can work in it, is a
-second endpoint a model uses to set the world up,
+asset of its catalogue, its clock and where a robot can work in it, is an
+endpoint of its own a model uses to set the world up,
 `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
 not the robot's: the `simulation_mcp` launcher deploys it on an axis of
 its own, `world_control`, bound to the simulation alone, under Waldo, the one
 simulation implementing the object controls, lighting, materials, view,
-clock and workspace contracts. The
-endpoints, the
-client setup and the move from simulation to the real robot are in the
-[MCP guide](../mcp/README.md):
+clock and workspace contracts. With the robots' endpoint, `simulation_mcp`
+also deploys the framework's,
+`http://127.0.0.1:8903/framework_controls/v1/mcp`
+(`framework_controls:v1`), where a client adds a simulated OpenArm or
+SO-101 to the stack and removes it; `workspace.stand_at` on the world's
+endpoint then stands the robot at a work surface. The endpoints, adding a
+robot over MCP, the client setup and the move from simulation to the real
+robot are in the [MCP guide](../mcp/README.md):
 
 ```sh
-peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, both endpoints, alpha over MCP
+peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:charlie --with v1,mcp_commander,cameras --place jetson-2
+peppy stack join openarm:charlie@jetson-2 --with v1,mcp_commander,cameras
 ```
 
 A copy's `brain` axis adds `ai_brain_vla`, the environment aware action layer
@@ -180,15 +184,20 @@ serving `item_perception` and `item_manipulation` over the backbone's
 `limb_motion`. It composes with the selected commander: the operator and
 the brain send the same kind of goal to the same producer, and it reads
 where the chest camera stands from the backbone's `camera_mounts`. Every
-launcher gives it the local SAM 3 and SigLIP pipeline and its rig's chest
-camera, so it names what it sees by words from the node's general
-vocabulary; under Waldo the simulation launchers also enrol the catalogue's
-table objects from the prototypes the node ships, so a rendered mesh is
-reported under the catalogue's name, a condition of the simulation and not
-of the robot, which enrols nothing. Under `mcp_commander` the brain's tools
-are listed under the robot's name on the `robot_control` endpoint, beside
-the direct moves. The recorder's episodes
-are listed there under any commander.
+launcher gives it the SAM 3 and SigLIP pipeline and its rig's chest camera,
+so it names what it sees by words from the node's general vocabulary; under
+Waldo the simulation launchers also enrol the catalogue's table objects from
+the prototypes the node ships, so a rendered mesh is reported under the
+catalogue's name, a condition of the simulation and not of the robot, which
+enrols nothing. Under
+`mcp_commander` the brain's tools are listed under the robot's name on the
+`robot_control` endpoint, beside the direct moves. The recorder's episodes
+are listed there under any commander. The brain runs on the copy's machine,
+or on the machine its word names: `--with ai_brain_vla@cn-gpu-box` runs it
+on `cn-gpu-box`, a machine with an NVIDIA GPU for its perception models,
+and the rest of the robot on its own machine. `simulation_mcp` offers the
+brain of `openarm_sim` on its framework's endpoint as the feature
+`ai_brain`, which a client adds on the machine it names.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras
@@ -206,10 +215,11 @@ X starts or saves an episode; holding Y for one second finishes the session.
 Set the demonstration task at `https://<host>:4443/task` before recording.
 
 For the KER, install [the KER udev rule](rules/60-openarm-ker.rules) on the
-machine the copy is placed on, following its header, and zero the KER on its
-calibration jig first (the
-`openarm_ker` README has that procedure). Plug the KER into the machine the
-copy is placed on, since the commander runs there. Squeeze an arm's trigger
+machine the commander runs on, the copy's machine unless
+`ker_commander@CORE_NODE` names another, following its header, and zero the
+KER on its calibration jig first (the `openarm_ker` README has that
+procedure). Plug the KER into that machine, since the commander reads it
+there. Squeeze an arm's trigger
 down to a fifth open, near shut, to engage that arm; from then on the arm and
 its gripper track the KER. Engagement latches: releasing the trigger opens
 that gripper and the arm keeps tracking. The same lever drives both, so a

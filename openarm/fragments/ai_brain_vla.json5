@@ -2,9 +2,9 @@
 // the environment aware layer above limb_motion. It leads no pairing and reaches the arms only
 // through the backbone's discrete moves, so it composes with the selected
 // commander: the operator and the brain send the same kind of goal to the
-// same producer, and the governor sizes both on the way down. Under the MCP
-// commander the brain's tools are listed on the stack's endpoint as this
-// robot's, so a model drives it by the robot's name beside the direct moves.
+// same producer, and the governor sizes both on the way down. The brain's
+// tools are listed on the stack's endpoint as this robot's, so a model
+// drives it by the robot's name beside the direct moves.
 {
   peppy_schema: "launcher_fragment/v1",
 

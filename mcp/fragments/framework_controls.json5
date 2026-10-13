@@ -8,8 +8,9 @@
 // adjustment on framework_controls_inst: the robot options of that
 // launcher, a description for each, the features of each option (the name
 // a client adds it by, the own axis and option it selects, and a
-// description), and max_copies. A launch without that scope is refused. The robots it adds run the MCP commander, so the option
-// that includes this fragment also deploys the robots' endpoint.
+// description), and max_copies. A launch without that scope is refused. The
+// robots it adds are listed on the robots' endpoint, so the option that
+// includes this fragment also deploys that endpoint.
 //
 // simulation_mcp's robot_control option deploys it beside the robots'
 // endpoint on port 8900; physical, openarm_simulation and so101_simulation

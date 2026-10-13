@@ -1,10 +1,9 @@
 // The three-episode-viewpoint camera set, tuned for the recorder; the
-// adjustments below retune them for the headset's panels. The launcher
-// binds the cameras to the recorder, the headset and the MCP endpoint
-// under the robot's option, by the instance ids written here. The
-// endpoint's server reads the rgb8 the recorder does: it transcodes
-// rgb8 to JPEG and refuses yuyv, which only the headset selection below
-// switches to, and a copy runs one commander.
+// adjustment below retunes the chest for the headset's panels. The launcher
+// binds the cameras to the recorder, the stack's headset and the MCP
+// endpoint under the robot's option, by the instance ids written here. All
+// three read the rgb8 the wrist cameras publish: the endpoint's server
+// transcodes rgb8 to JPEG and refuses yuyv.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -68,35 +67,11 @@
   ],
 
   adjustments: [
-    // Panels take the Arducams as raw yuyv (half of rgb8) and the chest a
+    // The stack's headset, when it leads this robot, takes the chest with a
     // deeper disparity floor. Rate and resolution stay with the camera rig;
     // the XR node relays at view_max_width.
     {
-      when: { robot_commander: "xr_commander" },
-      target: "wrist_left",
-      set_arguments: {
-        video: {
-          frame_rate: 15,
-          resolution: { width: 960, height: 600 },
-          camera_encoding: "yuyv",
-          topic_encoding: "yuyv",
-        },
-      },
-    },
-    {
-      when: { robot_commander: "xr_commander" },
-      target: "wrist_right",
-      set_arguments: {
-        video: {
-          frame_rate: 15,
-          resolution: { width: 960, height: 600 },
-          camera_encoding: "yuyv",
-          topic_encoding: "yuyv",
-        },
-      },
-    },
-    {
-      when: { robot_commander: "xr_commander" },
+      when: { headset: "xr_commander", robot_commander: "none" },
       target: "chest",
       set_arguments: { depth: { min_depth_m: 0.45, downscale: 2, block_size: 5 } },
     },

@@ -1,0 +1,27 @@
+// The stack's teleoperation headset: one xr_commander per stack. Every robot
+// the launcher pairs into it is drivable; the headset drives the robot chosen
+// on its page or, until one is chosen, the first robot that paired, which it
+// keeps until that robot leaves. The node generates a TLS certificate and
+// serves HTTPS on port 4443, once per stack; accept its certificate in the
+// headset browser. Headset access requires a reachable host port.
+//
+// A robot whose robot_commander is none pairs its backbone's pose and
+// gripper sockets into the four slots (its own fragment declares the
+// pairs), and the launcher binds its postures, recorder, cameras, alerts
+// and motor health here under the option that selects the robot.
+{
+  peppy_schema: "launcher_fragment/v1",
+  deployments: [
+    {
+      source: { name: "xr_commander", tag: "v1" },
+      instances: [
+        {
+          instance_id: "headset_inst",
+          // A released trigger rests at half travel, since fully open splays
+          // the OpenArm fingers nearly flat.
+          arguments: { command_rate_hz: 100, gripper_open_fraction: 0.5 },
+        },
+      ],
+    },
+  ],
+}

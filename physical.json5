@@ -40,10 +40,10 @@
     // xr_commander`: a robot running no commander of its own pairs into it,
     // and the headset drives the one chosen on its page.
     {
-      name: "headset",
+      name: "teleop",
       cardinality: "zero_or_one",
       options: {
-        xr_commander: "headset/fragments/xr_commander.json5",
+        xr_commander: "teleop/fragments/xr_commander.json5",
       },
     },
     {
@@ -63,15 +63,15 @@
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into it (the robot's fragment), and the
             // headset's buttons reach the robot's postures and recorder.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { postures: ["backbone_inst"] } },
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // Real drivers report per-motor health and operator alerts; the
             // panel and the stack's headset show them.
             { target: "commander_inst", when: { robot_commander: "web_commander" },
               add_links: { motor_health: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"], alerts: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"] } },
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { motor_health: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"], alerts: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
@@ -101,7 +101,7 @@
               add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
             // The stack's headset shows the rig in its panels while it leads
             // this robot.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", camera_rig: "cameras" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras" },
               add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
             // Listed on the MCP endpoint; neither node describes a profile,
             // and the launcher lists no geometry on hardware.
@@ -121,13 +121,13 @@
             // the backbone pairs into its right hand (the robot's fragment),
             // and the headset's buttons reach the robot's postures and
             // recorder.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { postures: ["backbone_inst"] } },
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // The follower reports per-motor health and operator alerts; the
             // stack's headset shows them.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { motor_health: ["follower_inst"], alerts: ["follower_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
@@ -141,7 +141,7 @@
               add_links: { color_cameras: ["wrist"] } },
             // The stack's headset shows the rig in its panel while it leads
             // this robot.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", camera_rig: "cameras" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras" },
               add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint; the uvc node describes no profile and
             // refuses every geometry call, so neither is listed on hardware.

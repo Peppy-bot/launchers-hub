@@ -71,7 +71,7 @@
     // deeper disparity floor. Rate and resolution stay with the camera rig;
     // the XR node relays at view_max_width.
     {
-      when: { headset: "xr_commander", robot_commander: "none" },
+      when: { teleop: "xr_commander", robot_commander: "none" },
       target: "chest",
       set_arguments: { depth: { min_depth_m: 0.45, downscale: 2, block_size: 5 } },
     },

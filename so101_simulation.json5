@@ -53,10 +53,10 @@
     // xr_commander`: a robot running no commander of its own pairs into it,
     // and the headset drives the one chosen on its page.
     {
-      name: "headset",
+      name: "teleop",
       cardinality: "zero_or_one",
       options: {
-        xr_commander: "headset/fragments/xr_commander.json5",
+        xr_commander: "teleop/fragments/xr_commander.json5",
       },
     },
     // Every simulated robot, an option of the same name in every simulation
@@ -78,9 +78,9 @@
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into it (the robot's fragment), and the
             // headset's buttons reach the robot's postures and recorder.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { postures: ["backbone_inst"] } },
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // The panel streams the live cap the simulated backbone starts on.
             { target: "commander_inst", when: { robot_commander: "web_commander" },
@@ -131,7 +131,7 @@
               add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
             // The stack's headset shows the rig in its panels while it leads
             // this robot.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
               add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
@@ -159,9 +159,9 @@
             // the backbone pairs into its right hand (the robot's fragment),
             // and the headset's buttons reach the robot's postures and
             // recorder.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { postures: ["backbone_inst"] } },
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
@@ -179,7 +179,7 @@
               add_links: { color_cameras: ["wrist"] } },
             // The stack's headset shows the rig in its panel while it leads
             // this robot.
-            { target: "headset_inst", when: { headset: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
               add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
@@ -212,7 +212,7 @@
     // a robot copy runs, and Waldo's headset panel shows it: the link that
     // opens its page in the headset.
     { target: "headset_inst", set_framework: { clock: "simulation" } },
-    { target: "simulation_inst", when: { simulation: "waldo", headset: "xr_commander" },
+    { target: "simulation_inst", when: { simulation: "waldo", teleop: "xr_commander" },
       add_links: { headsets: ["headset_inst"] } },
   ],
 }

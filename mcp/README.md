@@ -128,7 +128,7 @@ join cannot, so every robot joined onto it gets its rig; a v1 OpenArm,
 which the simulations render no rig for, joins with `--with
 v1,camera_rig=none`.
 
-The headset is the file's `headset` axis; `--with headset=none` switches it
+The headset is the file's `teleop` axis; `--with teleop=none` switches it
 off. It drives one robot at a time: the one chosen on its page or, until one
 is chosen, the first robot that paired, which it keeps until that robot
 leaves. Waldo's headset panel shows the page's URL and a **Send to headset**
@@ -279,7 +279,7 @@ stay selected, so the rendered rig runs for every v2 and SO-101: `--with
 web_commander` puts that robot under its own browser panel, which the
 headset does not drive, and `--with web_commander,lerobot_recorder` is the
 browser panel with the recorder filming. `--join openarm_sim:alpha --with
-robot_control=none,headset=none,alpha.web_commander,alpha.lerobot_recorder`
+robot_control=none,teleop=none,alpha.web_commander,alpha.lerobot_recorder`
 on the launch is the world's endpoint alone, alpha under the browser panel
 with the recorder filming its rig: `robot_control=none` switches the
 framework's endpoint off with the robots'. A robot joined onto it needs

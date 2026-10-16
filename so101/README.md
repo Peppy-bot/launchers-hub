@@ -37,7 +37,7 @@ clock, and there is no follower node: the engine plays the follower role
 toward the backbone. `so101_backbone` does not wait on `robot_ready`.
 
 The stack's headset is shared with OpenArm through the repository-level
-`headset/` directory, and leads the SO-101 with its right hand; the
+`teleop/` directory, and leads the SO-101 with its right hand; the
 recorder is the family's,
 [fragments/lerobot_recorder.json5](fragments/lerobot_recorder.json5). "Leader"/"follower"
 name pairing roles here; the SO-101 leader arm is one leader, the headset

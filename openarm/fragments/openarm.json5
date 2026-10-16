@@ -168,14 +168,14 @@
       requires: [
         { recorder: "lerobot_recorder" },
         { robot_control: "robot_control" },
-        { headset: "xr_commander", robot_commander: "none" },
+        { teleop: "xr_commander", robot_commander: "none" },
       ],
       reason: "the camera rig needs a consumer: select lerobot_recorder, or launch with robot_control (the MCP endpoint lists the cameras), or select robot_commander=none and launch with xr_commander (the headset shows them)" },
     // An episode needs a trigger: the record button of the web panel or the
     // headset, or the recorder.record_episode tool of the stack's MCP
     // endpoint. The KER leader carries none.
     { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: "web_commander" }, { headset: "xr_commander", robot_commander: "none" }, { robot_control: "robot_control" }],
+      requires: [{ robot_commander: "web_commander" }, { teleop: "xr_commander", robot_commander: "none" }, { robot_control: "robot_control" }],
       reason: "the recorder needs a trigger: select web_commander (its record button), or select robot_commander=none and launch with xr_commander (the headset's record button), or launch with robot_control (recorder.record_episode on the MCP endpoint)" },
     { when: { robot_commander: "ker_commander" },
       requires: [{ hardware_version: "v2" }],
@@ -219,7 +219,7 @@
     // vacant.
     {
       target: "backbone_inst",
-      when: { headset: "xr_commander", robot_commander: "none" },
+      when: { teleop: "xr_commander", robot_commander: "none" },
       set_arguments: { upstream_mode: "pose" },
       set_links: {
         leader_left_arm_pose: "headset_inst/left_arm",

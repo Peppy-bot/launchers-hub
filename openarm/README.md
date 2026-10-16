@@ -13,9 +13,9 @@ its model, `openarm_v1` or `openarm_v2`; the physical file deploys the four
 CAN drivers as a v2 and sets a v1's frames and interfaces on them per
 hardware version, and the simulated one joins the initializer to the simulation. A fragment writes only the
 instances it deploys, so the robot's connections to the stack, its
-commander's sockets and tuning, its recorder's rig and dataset and its
-listing on the MCP endpoint, are written in each launcher under the option
-that selects the robot.
+commander's sockets and tuning, the headset's slots, its recorder's rig and
+dataset and its listing on the MCP endpoint, are written in each launcher
+under the option that selects the robot.
 The backbone names its downstream links after the limbs, `left_arm`,
 `right_arm`, `left_gripper` and `right_gripper`: on hardware each pairs
 with its driver, in a simulation with the simulation's `arms` or `grippers`
@@ -28,10 +28,12 @@ with `--join OPTION:NAME` or joined later,
 [../so101_simulation.json5](../so101_simulation.json5) is the
 same launcher with the simulated SO-101 first and the simulated OpenArm as
 an option, and [../mcp/simulation_mcp.json5](../mcp/simulation_mcp.json5) is
-`openarm_simulation` with every robot driven over MCP and no robot listed,
-each one named at launch with `--join OPTION:NAME` or joined later.
-`simulation_mcp` deploys the robots' MCP endpoint, the other launchers
-serve it with `--with robot_control`, and every robot is listed on it. A copy's ids
+`openarm_simulation` with every robot driven over MCP and from the stack's
+headset and no robot listed, each one named at launch with `--join
+OPTION:NAME` or joined later. `simulation_mcp` deploys the robots' MCP
+endpoint and the headset, the other launchers serve them with `--with
+robot_control` and `--with xr_commander`, and every robot is listed on the
+endpoint. A copy's ids
 carry its name: `alpha_backbone_inst`. See
 the [repository README](../Readme.md) for the option table, limits, and
 configuration ownership.
@@ -103,48 +105,45 @@ Select the option matching the physical robot.
 ## Commanders, recording, and cameras
 
 These are the robot's own axes, declared by its fragments, and selected per
-copy: with `with:` in the file, or `--with` on `stack join`:
+copy: with `with:` in the file, or `--with` on `stack join`. The headset is
+the stack's, one for every robot, selected at launch:
 
 ```sh
-peppy stack join openarm:bravo --with v2,xr_commander,lerobot_recorder,cameras
-peppy stack join openarm:charlie@jetson-2 --with v1,xr_commander,cameras
+peppy stack launch physical --with xr_commander   # the stack's headset
+peppy stack join openarm:bravo --with v2,robot_commander=none,lerobot_recorder,cameras
+peppy stack join openarm:charlie@jetson-2 --with v1,robot_commander=none,cameras
 peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with v2,ker_commander
 ```
 
-The default web commander streams joint setpoints. XR streams end-effector
-poses and selects the backbone's pose mode. MCP drives the robot by name
-on the stack's `robot_control:v1`
-endpoint, the robots' own surface, where every call names its robot: the
-robot's identity, the backbone's discrete motion actions, its limb state
-and collision readout, where its design lets it work, and the cameras of
-the copy's rig, their latest
-frames and the chest's depth as resources and their stream info, exposure,
-gain and white balance as tools.
+The default web commander streams joint setpoints. `robot_commander=none`
+gives the robot no commander of its own. If the stack runs the headset, the
+headset drives the robot, streaming end-effector poses to the backbone in
+pose mode; otherwise only actions move it. The headset drives one robot at a
+time: the one chosen on its page or, until one is chosen, the first robot
+that paired, which it keeps until that robot leaves. MCP drives the robot by
+name, under any commander, on the stack's `robot_control:v1` endpoint, the
+robots' own surface, where every call names its robot: the robot's identity,
+the backbone's discrete motion actions, its limb state and collision
+readout, where its design lets it work, and the cameras of the copy's rig,
+their latest frames and the chest's depth as resources and their stream
+info, exposure, gain and white balance as tools.
 
 The endpoint is the launcher's `robot_control` axis, deployed by `simulation_mcp`
 and selected with `--with robot_control` on the other launchers. Every robot beside
 it is listed with its
-identity, limb state, collision readout, camera mounts and workspace under
-any commander, by the launcher's `add_links` on `robot_control_inst` under the
-robot's option,
-with its recorder whenever it runs, and with its brain under
-`mcp_commander`. `mcp_commander`
-([../robot_commanders/fragments/mcp_commander.json5](../robot_commanders/fragments/mcp_commander.json5))
-is one option, shared by every robot and the same on hardware and in
-simulation: no node of its own; it requires the endpoint, and the launcher
-adds the backbone's moves under it. The backbone's leader sockets stand
-vacant unless the robot file releases them for a leader, so the option
-touches the backbone not at all. The launcher lists the rig's cameras under
-it, `cameras` on a physical robot and `cameras_sim` on a simulated one; a
-robot without a rig is listed with no camera. The backbone's workspace
-answers judge what the chest camera sees from that camera's geometry, a
-link the robot file writes vacant: `openarm` binds the ZED Mini whenever
-`cameras` runs on a v2 and `openarm_sim` the rendered chest camera whenever
-`cameras_sim` runs; without a rig, and on a v1, whose design carries no
-perception camera, the answers check reach alone. No simulation renders a
-rig on v1 links, so `cameras_sim` on a simulated v1 is refused; a physical
-v1 films with `cameras`.
+identity, limb state, moves, collision readout, camera mounts and workspace
+under any commander, by the launcher's `add_links` on `robot_control_inst`
+under the robot's option, and with its recorder, its brain and its rig's
+cameras whenever they run, `cameras` on a physical robot and `cameras_sim`
+on a simulated one; a robot without a rig is listed with no camera. The
+backbone's workspace answers judge what the chest camera sees from that
+camera's geometry, a link the robot file writes vacant: `openarm` binds the
+ZED Mini whenever `cameras` runs on a v2 and `openarm_sim` the rendered
+chest camera whenever `cameras_sim` runs; without a rig, and on a v1, whose
+design carries no perception camera, the answers check reach alone. No
+simulation renders a rig on v1 links, so `cameras_sim` on a simulated v1 is
+refused; a physical v1 films with `cameras`.
 
 The KER leader, on either hardware version (physical or simulated), streams joint
 setpoints from enactic's motorless leader arm.
@@ -152,8 +151,9 @@ setpoints from enactic's motorless leader arm.
 The robots' endpoint is `http://127.0.0.1:8900/robot_control/v1/mcp`, the
 stack's, the same for every robot; the launch prints every exposure's URL
 under `MCP endpoints:`, labeled `<exposure>_<tag>`, and `stack list`
-reports them under `Instance endpoints`. Recording starts from the web or
-XR commander's record button, or over MCP through `recorder.record_episode`.
+reports them under `Instance endpoints`. Recording starts from the record
+button of the web commander or of the stack's headset, or over MCP through
+`recorder.record_episode`.
 
 What exists only because the world is simulated, the scene's objects, its
 lighting, its materials, a view of it from any point, the preview of an
@@ -174,39 +174,42 @@ robot are in the [MCP guide](../mcp/README.md):
 
 ```sh
 peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
-peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim
+peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:charlie@jetson-2 --with v1,mcp_commander,cameras
+peppy stack join openarm:charlie@jetson-2 --with v1,cameras
 ```
 
-A copy's `brain` axis adds `ai_brain_vla`, the environment aware action layer
-serving `item_perception` and `item_manipulation` over the backbone's
+A copy's `brain` axis adds `ai_brain_vla`, the environment aware action
+layer serving `item_perception` and `item_manipulation` over the backbone's
 `limb_motion`. It composes with the selected commander: the operator and
 the brain send the same kind of goal to the same producer, and it reads
 where the chest camera stands from the backbone's `camera_mounts`. Every
 launcher gives it the SAM 3 and SigLIP pipeline and its rig's chest camera,
 so it names what it sees by words from the node's general vocabulary; under
-Waldo the simulation launchers also enrol the catalogue's table objects from
-the prototypes the node ships, so a rendered mesh is reported under the
-catalogue's name, a condition of the simulation and not of the robot, which
-enrols nothing. Under
-`mcp_commander` the brain's tools are listed under the robot's name on the
-`robot_control` endpoint, beside the direct moves. The recorder's episodes
-are listed there under any commander. The brain runs on the copy's machine,
-or on the machine its word names: `--with ai_brain_vla@cn-gpu-box` runs it
-on `cn-gpu-box`, a machine with an NVIDIA GPU for its perception models,
-and the rest of the robot on its own machine. `simulation_mcp` offers the
-brain of `openarm_sim` on its framework's endpoint as the feature
-`ai_brain`, which a client adds on the machine it names.
+Waldo the simulation launchers also enrol the catalogue's table objects
+from the prototypes the node ships, so a rendered mesh is reported under
+the catalogue's name, a condition of the simulation and not of the robot,
+which enrols nothing. The brain's tools are listed under the robot's name
+on the `robot_control` endpoint, beside the direct moves and the recorder's
+episodes. The brain runs on the copy's machine, or on the machine its word
+names: `--with
+ai_brain_vla@cn-gpu-box` runs it on `cn-gpu-box`, a machine with an NVIDIA
+GPU for its perception models, and the rest of the robot on its own
+machine. `simulation_mcp` offers the brain of `openarm_sim` on its
+framework's endpoint as the feature `ai_brain`, which a client adds on the
+machine it names.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras
-and the chest camera, attaches them to the recorder or headset, and lists
-them on the endpoint under `mcp_commander`.
+and the chest camera, attaches them to the recorder or the stack's headset,
+and lists them on the endpoint.
 
-For XR, open one of the HTTPS URLs the launch prints under `Web pages:` and
-accept its self-signed certificate. Over USB, enable developer mode and run
-`adb reverse tcp:4443 tcp:4443`, then open `https://localhost:4443`.
+In the headset's browser, open one of the HTTPS URLs the launch prints under
+`Web pages:`, accept the self-signed certificate and press **Start** (or
+**Start Passthrough** to see the room). Over USB, enable developer mode and run
+`adb reverse tcp:4443 tcp:4443`, then open `https://localhost:4443`. Under
+Waldo, **Send to headset** in its headset panel sends the page to the
+headset over Meta's Web Launch.
 
 Hold a grip button to move the matching arm; release it to hold position.
 The trigger controls that hand's gripper while grip is held. A moves home,
@@ -219,17 +222,20 @@ machine the commander runs on, the copy's machine unless
 `ker_commander@CORE_NODE` names another, following its header, and zero the
 KER on its calibration jig first (the `openarm_ker` README has that
 procedure). Plug the KER into that machine, since the commander reads it
-there. Squeeze an arm's trigger
-down to a fifth open, near shut, to engage that arm; from then on the arm and
-its gripper track the KER. Engagement latches: releasing the trigger opens
-that gripper and the arm keeps tracking. The same lever drives both, so a
-released trigger holds its gripper half open, a full squeeze closes it, and an
-arm engages with its gripper near shut. Unplugging the KER pauses it, holding
-both arms where they are and still energized; `peppy stack remove echo` ends
-the session and the arms disable, going limp where they are, so bring them low
-first. After a pause, plug the KER back in, then release a trigger and squeeze
-it again to re-engage. The node reads the hardware 2.x channel layout, so any
-2.x unit runs on the arguments in the fragment.
+there. Squeeze an arm's trigger down to a fifth open, near shut, to engage
+that arm; from then on the arm and its gripper track the KER. Engagement
+latches: releasing the trigger opens that gripper and the arm keeps
+tracking. The same lever drives both, so a released trigger holds its
+gripper half open, a full squeeze closes it, and an arm engages with its
+gripper near shut. While an arm tracks the KER, its backbone refuses every
+goal on that arm, including MCP moves and the brain's, so the KER keeps the
+arm until it is unplugged or its node is stopped. Unplugging the KER pauses
+it, holding both arms where they are and still energized; `peppy stack
+remove echo` ends the session and the arms disable, going limp where they
+are, so bring them low first. After a pause, plug the KER back in, then
+release a trigger and squeeze it again to re-engage. The node reads the
+hardware 2.x channel layout, so any 2.x unit runs on the arguments in the
+fragment.
 
 The KER replaces the browser panel, so a KER session has no alerts or
 motor-health readout and no record button; with the endpoint on,
@@ -257,23 +263,24 @@ Arguments name the instance as the fragment writes it, such as
 The backbone follows exactly one kind of upstream arm command, named by its required `upstream_mode` argument, and subscribes only that kind of arm slot (gripper and posture slots are read under either mode):
 
 - `"joints"` - `openarm_web_commander` (the browser panel) streams joint setpoints on `joint_link`. The commander every robot fragment deploys. `openarm_ker` (the KER leader) streams them the same way.
-- `"pose"` - `xr_commander` streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The robot file selects the mode and releases the pose sockets under that selection.
-- Nobody streams - `mcp_commander` drives the backbone through discrete actions only: the whole-robot posture moves and the per-limb arm and gripper moves it exposes as tools, beside the cameras it publishes from the rig. `upstream_mode` stays `"joints"`, all six leader sockets keep their vacancies, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
+- `"pose"` - the stack's headset, `xr_commander`, streams an end-effector pose per hand on `pose_link`, and the backbone solves it. The robot file selects the mode and pairs the pose and gripper sockets into the headset's slots when the stack runs the headset and the copy's `robot_commander` is `none`.
+- Nobody streams - `robot_commander=none` with no headset in the stack: discrete actions alone drive the backbone, the whole-robot posture moves and the per-limb arm and gripper moves the `robot_control` endpoint exposes as tools and the brain sends. `upstream_mode` stays `"joints"`, all six leader sockets keep their vacancies, and the governor keeps its launch-time band, enable, and EE-speed caps for the whole session, as under the headset.
 
-The backbone comes up with every leader socket vacant and `governor_control` unproduced; the robot file releases the sockets the selected leader drives (the panel and the KER the four joint sockets, the panel binding `governor_control` too), and under the headset switches the backbone to pose mode and releases the pose sockets.
+The backbone comes up with every leader socket vacant and `governor_control` unproduced; the robot file releases the sockets the selected leader drives (the panel and the KER the four joint sockets, the panel binding `governor_control` too), and under the stack's headset with `robot_commander` `none` switches the backbone to pose mode and pairs the pose and gripper sockets into the headset's slots by side.
 
 One or the other, never both: a backbone reading two command authorities for one arm is not a state the mode can express. An arm slot of the kind the mode does *not* name would never be read, so linking one refuses the launch, naming every offending slot.
 
-The `xr_commander` and `ker_commander` selections run without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic and the KER produces only motion, so neither ever will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
+A copy the headset leads and a `ker_commander` copy run without `openarm_web_commander` entirely. `governor_control` is an optional backbone feature, since not every leader can produce it (`xr_commander` is robot-agnostic and the KER produces only motion, so neither ever will): with no producer bound, the governor runs on the backbone's launch-time band, enable, and EE-speed cap for the whole session. To retune, edit the backbone arguments and relaunch, or use the panel.
 
-Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for the dataset workflow). The `cameras` option adds the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header); the headset retunes them for in-headset panels as part of its own selection.
+Recording adds `lerobot_recorder` (see the recorder's README in nodes-hub for the dataset workflow). The `cameras` option adds the three cameras, whose device paths come from `rules/99-openarm-cameras.rules` (install it per the file's header); the stack's headset retunes the chest camera's depth for in-headset panels when it leads the copy.
 
 ## Simulation
 
 `openarm_simulation.json5` runs the simulation as the stack and the robot
 as a copy. The file deploys Waldo and `alpha`, a v2 with the browser
-commander; `--join OPTION:NAME` names another robot at launch and
-`--with robot_control` serves the robots' MCP endpoint:
+commander; `--join OPTION:NAME` names another robot at launch,
+`--with robot_control` serves the robots' MCP endpoint and `--with
+xr_commander` runs the stack's headset:
 
 ```sh
 peppy stack launch openarm_simulation                                   # Waldo and alpha
@@ -289,11 +296,11 @@ The `robot` axis offers every simulated robot, so an SO-101
 ([so101_sim](../so101/README.md#simulation)) joins beside the OpenArm:
 
 ```sh
-peppy stack launch openarm_simulation --with isaac_sim
-peppy stack join openarm_sim:bravo --with xr_commander
+peppy stack launch openarm_simulation --with isaac_sim,xr_commander   # with the stack's headset
+peppy stack join openarm_sim:bravo --with robot_commander=none        # bravo, led by the headset
 peppy stack join openarm_sim:charlie --with v1
-peppy stack join so101_sim:charlo                              # an SO-101 beside the OpenArm alpha
-peppy stack join openarm_sim:delta --with ker_commander        # the KER against a simulated follower
+peppy stack join so101_sim:charlo                                     # an SO-101 beside the OpenArm alpha
+peppy stack join openarm_sim:delta --with ker_commander               # the KER against a simulated follower
 peppy stack remove bravo
 ```
 
@@ -309,7 +316,7 @@ Waldo world. For rendered wrist/chest streams and recording, the launch
 words select them on the copy it names:
 
 ```sh
-peppy stack launch openarm_simulation --with alpha.xr_commander,alpha.lerobot_recorder,alpha.cameras_sim
+peppy stack launch openarm_simulation --with xr_commander,alpha.robot_commander=none,alpha.lerobot_recorder,alpha.cameras_sim
 ```
 
 Rendered cameras require v2: `openarm_sim` declares the rig,
@@ -342,11 +349,18 @@ carries the engine's 3D viewer of the running world, served by its debug
 inspector (the `debug_inspector` parameter), and around it every UI element
 of the page, each a Waldo plugin the fragment's `plugins` argument runs: the
 connection badge, the frame rate and its caps, the physics budget, the
-robots' names, the "Start camera" panel, the pause, contact points and dark
-mode buttons, and the viewer's controls (Waldo's `plugins/README.md` says
-which plugin shows each, and where). With `hand_teleop`, webcam hand tracking drives an arm of the robot
+robots' names, the "Start camera" panel, the headset panel, the pause,
+contact points and dark mode buttons, and the viewer's controls (Waldo's
+`plugins/README.md` says which plugin shows each, and where). With
+`hand_teleop`, webcam hand tracking drives an arm of the robot
 the panel chooses (the first standing when none is chosen), ahead of that
-robot's pairing while a hand is tracked. With `robot_names`, the viewer
+robot's pairing while a hand is tracked. With `headset_teleop`, the panel
+shows the stack's headset, bound into the simulation's `headsets` slot
+when the launch runs one: **Send to headset**, which sends the headset's
+page to the headset over Meta's Web Launch, the page's URL and how to open
+it there. The headset drives the robot chosen on its page; with nothing
+chosen it drives the first robot paired until that robot leaves. With
+`robot_names`, the viewer
 writes `<robot>@<core node>` over every robot (`beta@cn-funky-animal` for
 `peppy stack join openarm_sim:beta` on the core node
 `cn-funky-animal`), which tells the robots of one world apart. With
@@ -355,8 +369,8 @@ simulation, as the `simulation_clock` contract does, and shows every pause
 and resume, whoever asked for it. With `physics_budget`, a panel shows how
 long Waldo's physics thread works for each step against the 2 ms a step
 simulates: past that budget the simulation runs slower than real time, and
-the panel turns red. Every plugin but `hand_teleop` needs the debug
-inspector. The fragment runs the debug
+the panel turns red. Every plugin but `hand_teleop` and `headset_teleop`
+needs the debug inspector. The fragment runs the debug
 inspector and every plugin the node accepts whatever the launch selects,
 so the viewer is on from the first launch of every launcher deploying Waldo,
 and the debug inspector answers the scene commander's `scene_manipulation`
@@ -369,8 +383,8 @@ machine.
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --join openarm:bravo --with bravo.v1,bravo.xr_commander
-peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander --join openarm_sim:bravo --with bravo.xr_commander
+peppy stack resolve physical --join openarm:bravo --with xr_commander,bravo.v1,bravo.robot_commander=none
+peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander,xr_commander --join openarm_sim:bravo --with bravo.robot_commander=none
 peppy stack resolve simulation_mcp --join openarm_sim:alpha --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/robot_initializer -sb
 ```
@@ -398,11 +412,20 @@ The simulation keeps loading after `Launch complete`, and Isaac can take a minut
 **The Isaac stream is a black screen**
 Stop the stack, clear the shader cache with `rm -rf ~/.cache/isaac-sim`, and launch again.
 
-**The headset shows the page but "Enter VR" is missing**
+**The headset shows the page but "Start" and "Start Passthrough" are missing**
 WebXR needs a secure context, so the node self-generates a per-machine TLS certificate and always serves HTTPS; click through the browser's self-signed warning once. Over the network, open one of the https URLs the launch printed under `Web pages:` (`peppy stack list` shows them again). Over USB, `adb reverse tcp:4443 tcp:4443` and open `https://localhost:4443`.
 
 **The KER is plugged in but neither arm moves**
 Squeeze a trigger down to a fifth open, near shut: engagement is per arm, and the node publishes nothing for an arm that has never been squeezed, so the arms hold. Watch the node's log. "KER connected: fw .. hw .." means the link is up; if no "KER left arm engaged, tracking the leader" line follows a squeeze, the squeeze never reached `engage_trigger_opening`. A "KER connection lost (open: ...)" line names the cause, and repeats when the cause changes or after the link streams again: an attached-but-unopenable device needs the udev rule, and on a host reached over SSH its group matchers as well, since uaccess grants only a local seat; and no device at all means the KER is unplugged, switched off, or running a firmware that streams over its serial device; `lsusb -d 303a:` shows `303a:1001` for the last and nothing for the first two. A trigger held from before the node started, or across a stall or reconnect, stays disengaged by design: release it and squeeze again.
 
-**The headset is connected but neither arm moves**
-Hold a grip button: it is the deadman, per hand, and with it released the node publishes nothing at all so the arms hold. If holding it does nothing, check the backbone's startup log line for which upstream mode it is following: a `"joints"` backbone reads only the panel's joint slots and a `"pose"` backbone only the headset's pose slots. A leader wired to the off-mode slots never reaches launch, so what remains is a leader that is publishing nothing: check the headset link and the grip in the node's status panel.
+**The headset is connected but neither arm moves** Hold a grip button: it is
+the deadman, per hand, and with it released the node publishes nothing at
+all so the arms hold. If holding it does nothing, check the backbone's
+startup log line for which upstream mode it is following: a `"joints"`
+backbone reads only the panel's joint slots and a `"pose"` backbone only the
+headset's pose slots. A leader wired to the off-mode slots never reaches
+launch, so what remains is a leader that is publishing nothing: check the
+headset link and the grip in the node's status panel, which `physical.json5`
+turns on. The headset drives one robot at a time: a paired robot moves only
+while it is the robot chosen on the headset's page (or, until one is chosen,
+the first robot that paired, which it keeps until that robot leaves).

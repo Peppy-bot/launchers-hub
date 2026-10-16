@@ -22,7 +22,7 @@
           // hardware version, set below per hardware version, and the startup
           // EE-speed cap; the web panel streams live caps.
           arguments: {
-            // Joint-led command pairings; the XR adjustment selects pose mode.
+            // Joint-led command pairings; the headset adjustment selects pose mode.
             upstream_mode: "joints",
             control_rate_hz: 100,
             // Match the limbs' measured-state cadence.
@@ -46,7 +46,8 @@
             // keeps its launch-time band, enable and EE-speed caps. The
             // adjustments below release the sockets the selected leader
             // drives, and the leader pairs into them from its own fragment;
-            // the headset block switches to pose mode.
+            // under the stack's headset the backbone pairs its pose and
+            // gripper sockets into the headset in pose mode.
             collision_ctrl: { vacant: "no leader produces governor_control: the launch-time band, enable and EE-speed caps stand" },
             leader_left_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
             leader_right_arm: { vacant: "no leader streams joint commands: arm moves arrive as limb_motion actions" },
@@ -105,8 +106,7 @@
       name: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
-        xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
+        none: "../../common/fragments/none.json5",
         ker_commander: "ker_commander.json5",
       },
     },
@@ -140,13 +140,14 @@
     { when: { camera_rig: "cameras_sim" },
       requires: [
         { recorder: "lerobot_recorder" },
-        { robot_commander: ["xr_commander", "mcp_commander"] },
+        { robot_control: "robot_control" },
+        { teleop: "xr_commander", robot_commander: "none" },
         { brain: "ai_brain_vla" },
       ],
-      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander, mcp_commander or ai_brain_vla" },
+      reason: "the camera rig needs a consumer: select lerobot_recorder or ai_brain_vla, or launch with robot_control (the MCP endpoint lists the cameras), or select robot_commander=none and launch with xr_commander (the headset shows them)" },
     { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: ["web_commander", "xr_commander"] }, { robot_control: "robot_control" }],
-      reason: "an episode starts from the record button of web_commander or xr_commander, or from recorder.record_episode on the MCP endpoint; select one of those commanders or launch with robot_control" },
+      requires: [{ robot_commander: "web_commander" }, { teleop: "xr_commander", robot_commander: "none" }, { robot_control: "robot_control" }],
+      reason: "the recorder needs a trigger: select web_commander (its record button), or select robot_commander=none and launch with xr_commander (the headset's record button), or launch with robot_control (recorder.record_episode on the MCP endpoint)" },
     { when: { robot_commander: "ker_commander" },
       requires: [{ hardware_version: "v2" }],
       reason: "ker_commander is offered on a v2 alone; select v2, or another commander" },
@@ -174,14 +175,20 @@
     // produces no governor_control, so that slot keeps its vacancy.
     { target: "backbone_inst", when: { robot_commander: "ker_commander" },
       unset_links: ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"] },
-    // The headset streams poses: the backbone follows the pose sockets,
-    // released here for the headset to pair into; the joint sockets stay
+    // A robot with no commander of its own is led by the stack's headset:
+    // the backbone follows the pose sockets, paired with the gripper
+    // sockets into the headset's slots by side; the joint sockets stay
     // vacant.
     {
       target: "backbone_inst",
-      when: { robot_commander: "xr_commander" },
+      when: { teleop: "xr_commander", robot_commander: "none" },
       set_arguments: { upstream_mode: "pose" },
-      unset_links: ["leader_left_arm_pose", "leader_right_arm_pose"],
+      set_links: {
+        leader_left_arm_pose: "headset_inst/left_arm",
+        leader_right_arm_pose: "headset_inst/right_arm",
+        leader_left_gripper: "headset_inst/left_gripper",
+        leader_right_gripper: "headset_inst/right_gripper",
+      },
     },
   ],
 }

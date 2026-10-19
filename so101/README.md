@@ -199,8 +199,9 @@ option needs the leader's share of them.
    or symlink both under `/var/lib/so101/calibration/`, which is the host
    path this fragment bind-mounts and where the nodes look for `<id>.json`.
 3. **Postures**: `move_to_home` targets the collapsed park pose the arm
-   rests in, and `move_to_ready` the calibration midpoint where work starts;
-   both are `so101_description` constants, validated at startup against the
+   rests in, and `move_to_ready` the working posture where work starts, the
+   arm out level with the wrist camera above the jaws; both are
+   `so101_description` constants, validated at startup against the
    kinematics URDF that same description embeds (no host URDF to fetch).
 
 ## Safety model

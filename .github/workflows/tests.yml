@@ -476,7 +476,7 @@ jobs:
       # the environment, so every node image it builds pulls its base layers
       # through (and into) the cache.
       #
-      # So is the directory openarm_ai_brain_vla keeps its model weights in.
+      # So is the directory ai_brain_vla keeps its model weights in.
       # The simulated brain runs the sam3_siglip perception backend, whose
       # first load on a machine downloads 7 GB of weights, each file pinned
       # by its hash, and continues a download that a stopped node left.

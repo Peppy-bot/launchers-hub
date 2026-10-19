@@ -1,0 +1,56 @@
+// The AI brain whose models are hosted vision-language models, reached over
+// the network: the node that serves item_perception, item_manipulation and
+// brain_model, the environment aware layer above limb_motion. It needs no
+// GPU, and it needs a key in its environment: GEMINI_API_KEY for its
+// starting model, exported in the shell that launches (a local launch
+// passes that shell's environment to the nodes it starts on the machine).
+// switch_model changes the model to another of its catalog, with that
+// model's key, OPENROUTER_API_KEY for the OpenRouter ones.
+// It leads no pairing and reaches the arms only through the backbone's
+// discrete moves, so it composes with the selected commander: the operator
+// and the brain send the same kind of goal to the same producer, and the
+// governor sizes both on the way down. The brain's
+// tools are listed on the stack's endpoint as this robot's, so a model
+// drives it by the robot's name beside the direct moves.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "vlm_router_brain", tag: "v1" },
+      instances: [
+        {
+          instance_id: "brain_inst",
+          arguments: {
+            // Each arm with the gripper it carries, in the order get_state
+            // reports the grippers, under the names limb_motion addresses
+            // them by.
+            limbs: "left_arm:left_gripper,right_arm:right_gripper",
+            // The camera the brain looks through: the chest camera, fixed
+            // to the torso, as the backbone's camera_mounts names it.
+            camera_name: "chest",
+            // perception_model: the node's own default applies (see the node's peppy.json5, parameter perception_model).
+          },
+          links: {
+            // The governed producer of limb_motion. Required: a launch with
+            // no producer bound is refused.
+            limb_motion: "backbone_inst",
+            // The camera the brain looks through, optional on the node: the
+            // rig that renders it binds the chest camera here
+            // (cameras_sim.json5); without a rig the brain refuses both
+            // searches with "no perception source" and serves the rest.
+            camera: { vacant: "select a camera rig, cameras or cameras_sim, to give the brain the chest camera" },
+            // Where that camera's pixels point, from the same camera: the
+            // rig binds it beside `camera`. Vacant, no pixel can become a
+            // position and both searches are refused naming the slot.
+            geometry: { vacant: "select a camera rig, cameras or cameras_sim, to give the brain the chest camera's geometry" },
+            // Where that camera stands on the robot, in the robot frame:
+            // the backbone answers it for every camera the robot's design
+            // carries, and the brain reads the chest camera's.
+            camera_mounts: "backbone_inst",
+          },
+        },
+      ],
+    },
+  ],
+}

@@ -179,25 +179,32 @@ peppy stack launch physical --with robot_control
 peppy stack join openarm:charlie@jetson-2 --with v1,cameras
 ```
 
-A copy's `brain` axis adds `ai_brain_vla`, the environment aware action
-layer serving `item_perception` and `item_manipulation` over the backbone's
-`limb_motion`. It composes with the selected commander: the operator and
-the brain send the same kind of goal to the same producer, and it reads
-where the chest camera stands from the backbone's `camera_mounts`. Every
-launcher gives it the SAM 3 and SigLIP pipeline and its rig's chest camera,
-so it names what it sees by words from the node's general vocabulary; under
-Waldo the simulation launchers also enrol the catalogue's table objects
-from the prototypes the node ships, so a rendered mesh is reported under
-the catalogue's name, a condition of the simulation and not of the robot,
-which enrols nothing. The brain's tools are listed under the robot's name
-on the `robot_control` endpoint, beside the direct moves and the recorder's
+A copy's `brain` axis adds a brain, the environment aware action layer
+serving `item_perception`, `item_manipulation` and `brain_model` over the
+backbone's `limb_motion`: `ai_brain_vla`, whose models run on the GPU of its
+machine, or `vlm_router_brain`, whose models are hosted vision-language
+models it reaches over the network. Either composes with the selected
+commander: the operator and the brain send the same kind of goal to the
+same producer, and it reads where the chest camera stands from the
+backbone's `camera_mounts`. Every launcher gives either brain its rig's
+chest camera. `ai_brain_vla` runs the SAM 3 and SigLIP pipeline, so it names
+what it sees by words from the node's general vocabulary; under Waldo the
+simulation launchers also enrol the catalogue's table objects from the
+prototypes the node ships, so a rendered mesh is reported under the
+catalogue's name, a condition of the simulation and not of the robot, which
+enrols nothing. `vlm_router_brain` starts on Gemini Robotics-ER and needs
+its key, `GEMINI_API_KEY`, exported in the shell that launches; it needs no
+GPU. The brain's tools are listed under the robot's name on the
+`robot_control` endpoint, beside the direct moves and the recorder's
 episodes. The brain runs on the copy's machine, or on the machine its word
 names: `--with
 ai_brain_vla@cn-gpu-box` runs it on `cn-gpu-box`, a machine with an NVIDIA
 GPU for its perception models, and the rest of the robot on its own
-machine. `simulation_mcp` offers the brain of `openarm_sim` on its
-framework's endpoint as the feature `ai_brain`, which a client adds on the
-machine it names.
+machine. `simulation_mcp` offers `ai_brain_vla` as the brain of `openarm_sim`
+on its framework's endpoint, the feature `ai_brain`, which a client adds on
+the machine it names; a feature names one option of an axis, so
+`vlm_router_brain` is selected on the command line, `--with
+alpha.vlm_router_brain`.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras

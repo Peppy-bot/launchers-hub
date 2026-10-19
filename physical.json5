@@ -82,18 +82,19 @@
             { target: "recorder_inst", when: { hardware_version: "v2" },
               set_arguments: { robot_type: "openarm_v2", storage_root: "/tmp/lerobot_openarm_v2" } },
             // The brain's tools, listed beside the moves.
-            { target: "robot_control_inst", when: { brain: "ai_brain_vla" },
+            { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
             // The robot's brain sees through the hardware rig's chest camera,
             // colour and depth from the ZED with the intrinsics it serves
-            // (camera_geometry:v1), and names what it finds by words alone
-            // from the node's general vocabulary: no enrolment on the robot,
-            // real objects are what SigLIP's words were trained on. The
-            // weights, about 7 GB, are downloaded at the first load on the
-            // machine the brain is placed on, which needs a GPU.
-            { target: "brain_inst", when: { brain: "ai_brain_vla" },
-              set_arguments: { perception_backend: "sam3_siglip" } },
-            { target: "brain_inst", when: { brain: "ai_brain_vla", camera_rig: "cameras" },
+            // (camera_geometry:v1). ai_brain_vla names what it finds by words
+            // alone from the node's general vocabulary: no enrolment on the
+            // robot, real objects are what SigLIP's words were trained on.
+            // Its weights, about 7 GB, are downloaded at the first load on
+            // the machine the brain is placed on, which needs a GPU.
+            // vlm_router_brain asks a hosted model instead, with the key the
+            // launching shell exports, and needs no GPU.
+            // perception_model: the node's own default applies (see the node's peppy.json5, parameter perception_model).
+            { target: "brain_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"], camera_rig: "cameras" },
               set_links: { camera: "chest", geometry: "chest" } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.

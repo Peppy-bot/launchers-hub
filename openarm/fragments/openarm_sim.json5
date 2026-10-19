@@ -126,7 +126,7 @@
     },
     {
       name: "brain", cardinality: "zero_or_one", provides: ["brain_inst"],
-      options: { ai_brain_vla: "ai_brain_vla.json5" },
+      options: { ai_brain_vla: "ai_brain_vla.json5", vlm_router_brain: "vlm_router_brain.json5" },
     },
   ],
 
@@ -135,16 +135,16 @@
     { when: { camera_rig: "cameras_sim" },
       requires: [{ hardware_version: "v2" }],
       reason: "the simulations render a rig on a v2 only; select v2, or camera_rig=none" },
-    // The rig's streams need a consumer; the brain is one, looking through
+    // The rig's streams need a consumer; a brain is one, looking through
     // the chest camera the launcher binds to it.
     { when: { camera_rig: "cameras_sim" },
       requires: [
         { recorder: "lerobot_recorder" },
         { robot_control: "robot_control" },
         { teleop: "xr_commander", robot_commander: "none" },
-        { brain: "ai_brain_vla" },
+        { brain: ["ai_brain_vla", "vlm_router_brain"] },
       ],
-      reason: "the camera rig needs a consumer: select lerobot_recorder or ai_brain_vla, or launch with robot_control (the MCP endpoint lists the cameras), or select robot_commander=none and launch with xr_commander (the headset shows them)" },
+      reason: "the camera rig needs a consumer: select lerobot_recorder, ai_brain_vla or vlm_router_brain, or launch with robot_control (the MCP endpoint lists the cameras), or select robot_commander=none and launch with xr_commander (the headset shows them)" },
     { when: { recorder: "lerobot_recorder" },
       requires: [{ robot_commander: "web_commander" }, { teleop: "xr_commander", robot_commander: "none" }, { robot_control: "robot_control" }],
       reason: "the recorder needs a trigger: select web_commander (its record button), or select robot_commander=none and launch with xr_commander (the headset's record button), or launch with robot_control (recorder.record_episode on the MCP endpoint)" },

@@ -477,7 +477,7 @@ jobs:
       # through (and into) the cache.
       #
       # So is the directory ai_brain_vla keeps its model weights in.
-      # The simulated brain runs the sam3_siglip perception backend, whose
+      # The simulated brain runs the sam3_siglip perception model, whose
       # first load on a machine downloads 7 GB of weights, each file pinned
       # by its hash, and continues a download that a stopped node left.
       # `peppy stack launch` forwards its environment to the nodes it starts,
@@ -499,7 +499,7 @@ jobs:
         run: |
           echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci" >> "$GITHUB_ENV"
           echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci/apptainer-cache" >> "$GITHUB_ENV"
-          echo "OPENARM_AI_BRAIN_VLA_WEIGHTS=$HOME/.cache/launchers-hub-ci/openarm_ai_brain_vla_weights" >> "$GITHUB_ENV"
+          echo "AI_BRAIN_VLA_WEIGHTS=$HOME/.cache/launchers-hub-ci/openarm_ai_brain_vla_weights" >> "$GITHUB_ENV"
 
       # Every node image bootstraps from a base on Docker Hub, and an
       # anonymous pull is charged against a quota tied to the address it comes

@@ -83,7 +83,7 @@
               set_arguments: { robot_type: "openarm_v2", storage_root: "/tmp/lerobot_openarm_v2" } },
             // The brain's tools, listed beside the moves.
             { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
-              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
+              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
             // The robot's brain sees through the hardware rig's chest camera,
             // colour and depth from the ZED with the intrinsics it serves
             // (camera_geometry:v1). ai_brain_vla names what it finds by words

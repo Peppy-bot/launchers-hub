@@ -1039,7 +1039,7 @@ class CombinationsTests(unittest.TestCase):
                     thinking, = [a for a in entries
                                  if a["target"] == SERVER and a.get("when") == {"brain": BRAINS}]
                     self.assertEqual(thinking["add_links"], {
-                        "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]})
+                        "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"], "brain_model": ["brain_inst"]})
 
     def test_both_brains_stand_in_the_same_place_with_the_same_arguments(self):
         root = Path(__file__).resolve().parents[2]

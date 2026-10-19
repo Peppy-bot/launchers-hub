@@ -170,7 +170,7 @@
               set_arguments: { robot_type: "openarm_v2_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
             // The brain's tools, listed beside the moves.
             { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
-              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
+              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
             // The simulated robot's brain sees through the chest camera the
             // rendered rig binds, color and depth from one producer; a brain
             // on another machine than the simulation's reads it over the

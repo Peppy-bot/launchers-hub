@@ -16,7 +16,7 @@ def fleet_axes():
     """A simulation axis the file deploys, a scene commander it leaves off,
     and a robot axis running as copies whose fragment declares a robot
     commander and a recorder."""
-    commander = combinations.Axis("robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+    commander = combinations.Axis("robot_commander", "one", ["web_commander", "ker_commander"], deployed="web_commander")
     recorder = combinations.Axis("recorder", "zero_or_one", ["lerobot_recorder"])
     return [
         combinations.Axis("simulation", "one", ["mujoco", "isaac_sim"], deployed="mujoco"),
@@ -165,6 +165,18 @@ SIMULATION_LAUNCHERS = [path for path in ROBOT_LAUNCHERS if path != "physical.js
 #: clock. The MCP launcher turns rendering on as well.
 SERVER_CLOCK = {"target": SERVER, "set_framework": {"clock": "simulation"}}
 RENDERING_ON = {"target": "simulation_inst", "set_arguments": {"cameras_enabled": True}}
+#: The stack's headset, one instance per launcher with robots.
+HEADSET = "headset_inst"
+#: The guard under which the headset leads a robot: the stack runs one, and
+#: the robot runs no commander of its own.
+HEADSET_LEADS = {"teleop": "xr_commander", "robot_commander": "none"}
+#: What every simulation launcher writes at its top level for the headset:
+#: its clock, and Waldo's panel showing it.
+HEADSET_WIRING = [
+    {"target": HEADSET, "set_framework": {"clock": "simulation"}},
+    {"target": "simulation_inst", "when": {"simulation": "waldo", "teleop": "xr_commander"},
+     "add_links": {"headsets": [HEADSET]}},
+]
 
 
 def family_of(option):
@@ -228,7 +240,7 @@ class FragmentInventoryTests(unittest.TestCase):
                                    "openarm.json5", "openarm_sim.json5", "web_commander.json5"}),
             ("so101/fragments", {"cameras.json5", "cameras_sim.json5", "lerobot_recorder.json5",
                                  "so101.json5", "so101_leader.json5", "so101_sim.json5"}),
-            ("robot_commanders/fragments", {"mcp_commander.json5", "xr_commander.json5"}),
+            ("teleop/fragments", {"xr_commander.json5"}),
             ("simulation/fragments", {"isaac_sim.json5", "mujoco.json5", "waldo.json5",
                                       "web_scene_commander.json5"}),
             ("mcp/fragments", {"framework_controls.json5", "robot_control.json5", "world_control.json5"}),
@@ -241,7 +253,7 @@ class FragmentInventoryTests(unittest.TestCase):
             sorted(path.relative_to(root).as_posix()
                    for path in root.glob("*/fragments") if path.is_dir()),
             ["common/fragments", "mcp/fragments", "openarm/fragments",
-             "robot_commanders/fragments", "simulation/fragments", "so101/fragments"],
+             "simulation/fragments", "so101/fragments", "teleop/fragments"],
         )
 
 
@@ -339,7 +351,7 @@ class SharedRobotBlockTests(unittest.TestCase):
             for option in ROBOT_LAUNCHERS[path]:
                 entries = robot_option(document, option).get("adjustments", [])
                 # The simulation is the launcher's own instance: only the MCP
-                # launcher turns its rendering on.
+                # launcher turns its rendering on at the top level.
                 blocks[option][path] = [
                     entry for entry in entries if entry["target"] != "simulation_inst"
                 ]
@@ -354,11 +366,11 @@ class SharedRobotBlockTests(unittest.TestCase):
             document = combinations.load_json5(root / path, path)
             for option in ROBOT_LAUNCHERS[path]:
                 with self.subTest(option=option, launcher=path):
-                    rendering = [entry for entry in robot_option(document, option)["adjustments"]
-                                 if entry["target"] == "simulation_inst"]
+                    simulation = [entry for entry in robot_option(document, option)["adjustments"]
+                                  if entry["target"] == "simulation_inst"]
                     expected = [] if path == "mcp/simulation_mcp.json5" else [
                         RENDERING_ON | {"when": {"camera_rig": "cameras_sim"}}]
-                    self.assertEqual(rendering, expected)
+                    self.assertEqual(simulation, expected)
 
 
 class OptionShapeTests(unittest.TestCase):
@@ -480,7 +492,7 @@ class CombinationsTests(unittest.TestCase):
         self.assertIn([("simulation", "mujoco"), ("scene_commander", None)], [c.words for c in bare])
         joined = [c for c in combinations_found if c.join_option == "openarm_v2"]
         self.assertIn(
-            [("robot_commander", "xr_commander"), ("recorder", None)], [c.join_words for c in joined]
+            [("robot_commander", "ker_commander"), ("recorder", None)], [c.join_words for c in joined]
         )
         # The plain join writes no word and comes first, so where it runs the
         # same instances as a join that spells them out, it is the one launched.
@@ -491,11 +503,11 @@ class CombinationsTests(unittest.TestCase):
 
     def test_the_plain_join_comes_first_and_is_enumerated_once(self):
         recorder = combinations.Axis("recorder", "zero_or_one", ["lerobot_recorder"])
-        commander = combinations.Axis("robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+        commander = combinations.Axis("robot_commander", "one", ["web_commander", "ker_commander"], deployed="web_commander")
         # Every selection writes a word: the plain join is one more.
         self.assertEqual(
             [combinations.render_words(selection) for selection in combinations.join_selections([commander])],
-            ["", "robot_commander=web_commander", "robot_commander=xr_commander"],
+            ["", "robot_commander=web_commander", "robot_commander=ker_commander"],
         )
         # The selection leaving every axis unfilled writes no word: it is the
         # plain join, moved first and not repeated.
@@ -515,11 +527,11 @@ class CombinationsTests(unittest.TestCase):
 
     def test_a_one_axis_with_a_single_option_is_no_choice(self):
         control = combinations.Axis("control", "one", ["shared"], deployed="shared")
-        commander = combinations.Axis("robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+        commander = combinations.Axis("robot_commander", "one", ["web_commander", "ker_commander"], deployed="web_commander")
         found = combinations.selections_of([control, commander])
         self.assertEqual(
             found,
-            [[("robot_commander", "web_commander")], [("robot_commander", "xr_commander")]],
+            [[("robot_commander", "web_commander")], [("robot_commander", "ker_commander")]],
         )
         # A single option nothing deploys is a choice the launch has to
         # write out.
@@ -529,14 +541,14 @@ class CombinationsTests(unittest.TestCase):
         )
 
     def test_a_one_axis_selected_by_the_file_brings_its_options_axes_in_reach(self):
-        commander = combinations.Axis("robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+        commander = combinations.Axis("robot_commander", "one", ["web_commander", "ker_commander"], deployed="web_commander")
         axes = [combinations.Axis("robot", "one", ["openarm_v2"], deployed="openarm_v2", nested={"openarm_v2": [commander]})]
         found = combinations.launcher_selections(axes)
         # The robot is the launcher's single deployed option, so the words
         # are its commander's alone.
         self.assertEqual(
             [c.words for c in found],
-            [[("robot_commander", "web_commander")], [("robot_commander", "xr_commander")]],
+            [[("robot_commander", "web_commander")], [("robot_commander", "ker_commander")]],
         )
 
     def test_hub_inventory_covers_every_launcher_and_its_copies(self):
@@ -550,43 +562,42 @@ class CombinationsTests(unittest.TestCase):
             return [line.split("\t") for line in lines if line.startswith(f"combo\t{launcher}\t")]
 
         # A join is plain (1) or under any selection of the robot's axes: an
-        # OpenArm has two hardware versions, four commanders, a recorder, a rig
-        # (off or on, `none` being the simulated rig's off) and a brain; an
-        # SO-101 four commanders, a recorder and a rig. A selection its
-        # constraints refuse is still enumerated, and reported refused when
-        # it resolves. The physical OpenArm has no plain join: its hardware
-        # version has no default, so every join names one.
-        openarm, so101 = 2 * 4 * 2 * 2 * 2, 1 + 4 * 2 * 2
-        # The simulated SO-101's commander axis is zero_or_one: its unfilled
-        # state is the plain join, so no selection is counted twice.
-        openarm_sim, so101_sim = 1 + openarm, 4 * 2 * 2
-        # The physical launcher: the endpoint unfilled or on, each bare and
-        # joined by any physical robot. It lists no robot, so no launch names
-        # one.
+        # OpenArm has two hardware versions, three commanders (`none` among
+        # them), a recorder, a rig (off or on, `none` being the simulated
+        # rig's off) and a brain; an SO-101 two commanders, a recorder and a
+        # rig. A selection its constraints refuse is still enumerated, and
+        # reported refused when it resolves. The physical OpenArm has no plain
+        # join: its hardware version has no default, so every join names one.
+        openarm, so101 = 2 * 3 * 2 * 2 * 2, 1 + 2 * 2 * 2
+        openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2
+        # The physical launcher: the endpoint and the headset each unfilled
+        # or on, each bare and joined by any physical robot. It lists no
+        # robot, so no launch names one.
         physical = combos("physical")
-        self.assertEqual(len(physical), 2 * (1 + openarm + so101))
+        self.assertEqual(len(physical), 2 * 2 * (1 + openarm + so101))
         self.assertIn(["combo", "physical", "robot_control=robot_control", "", "", "", "-"], physical)
         self.assertIn(["combo", "physical", "", "", "", "", "-"], physical)
         self.assertIn(
-            ["combo", "physical", "", "", "so101", "robot_commander=xr_commander,recorder=lerobot_recorder,camera_rig=cameras", "-"],
+            ["combo", "physical", "teleop=xr_commander", "", "so101", "robot_commander=none,recorder=lerobot_recorder,camera_rig=cameras", "-"],
             physical,
         )
         self.assertIn(
-            ["combo", "physical", "robot_control=robot_control", "", "openarm", "hardware_version=v2,robot_commander=mcp_commander,camera_rig=cameras,brain=ai_brain_vla", "-"],
+            ["combo", "physical", "robot_control=robot_control,teleop=xr_commander", "", "openarm", "hardware_version=v2,robot_commander=none,camera_rig=cameras,brain=ai_brain_vla", "-"],
             physical,
         )
         self.assertEqual([c for c in physical if c[3]], [])
         # A simulation launcher's stack: MuJoCo, Isaac Sim and Waldo with and
-        # without their scene commander (5), the robots' endpoint unfilled or
-        # on; each launched with alpha under every selection of its axes (the
-        # v2's, or the SO-101's) and joined by any simulated robot.
-        stacks = (1 + 2 + 2) * 2
-        alpha_openarm, alpha_so101 = 2 * 4 * 2 * 2 * 2, 4 * 2 * 2
+        # without their scene commander (5), the robots' endpoint and the
+        # headset each unfilled or on; each launched with alpha under every
+        # selection of its axes (the v2's, or the SO-101's) and joined by any
+        # simulated robot.
+        stacks = (1 + 2 + 2) * 2 * 2
+        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 2, 2 * 2 * 2
         sim = combos("openarm_simulation")
         self.assertEqual(len(sim), stacks * (alpha_openarm + openarm_sim + so101_sim))
         self.assertIn(["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "", "", "-"], sim)
         self.assertIn(
-            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control,alpha.hardware_version=v2,alpha.robot_commander=mcp_commander,alpha.camera_rig=cameras_sim", "", "", "", "-"],
+            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control,alpha.hardware_version=v2,alpha.robot_commander=none,alpha.camera_rig=cameras_sim", "", "", "", "-"],
             sim,
         )
         self.assertIn(["combo", "openarm_simulation", "simulation=waldo,robot_control=robot_control", "", "so101_sim", "", "-"], sim)
@@ -595,19 +606,18 @@ class CombinationsTests(unittest.TestCase):
             sim,
         )
         self.assertIn(
-            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "openarm_sim", "hardware_version=v2,robot_commander=mcp_commander,camera_rig=cameras_sim", "-"],
+            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "openarm_sim", "hardware_version=v2,robot_commander=none,camera_rig=cameras_sim", "-"],
             sim,
         )
         self.assertIn(
-            ["combo", "openarm_simulation", "simulation=isaac_sim", "", "openarm_sim", "hardware_version=v2,robot_commander=xr_commander,recorder=lerobot_recorder,camera_rig=cameras_sim", "-"],
+            ["combo", "openarm_simulation", "simulation=isaac_sim,teleop=xr_commander", "", "openarm_sim", "hardware_version=v2,robot_commander=none,recorder=lerobot_recorder,camera_rig=cameras_sim", "-"],
             sim,
         )
         references = next(line for line in lines if line.startswith("launcher\topenarm_simulation\t"))
         for reference in [
             "mcp/fragments/robot_control.json5",
             "openarm/fragments/openarm_sim.json5",
-            "robot_commanders/fragments/mcp_commander.json5",
-            "robot_commanders/fragments/xr_commander.json5",
+            "teleop/fragments/xr_commander.json5",
             "so101/fragments/so101_sim.json5",
             "simulation/fragments/waldo.json5",
         ]:
@@ -625,11 +635,11 @@ class CombinationsTests(unittest.TestCase):
         )
         self.assertIn(["combo", "so101_simulation", "simulation=mujoco,robot_control=robot_control", "", "so101_sim", "", "-"], so101_launcher)
         self.assertIn(
-            ["combo", "so101_simulation", "simulation=waldo,robot_control=robot_control", "", "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim", "-"],
+            ["combo", "so101_simulation", "simulation=waldo,robot_control=robot_control", "", "so101_sim", "robot_commander=none,camera_rig=cameras_sim", "-"],
             so101_launcher,
         )
         self.assertIn(
-            ["combo", "so101_simulation", "simulation=isaac_sim,robot_control=robot_control", "", "openarm_sim", "hardware_version=v2,robot_commander=xr_commander,camera_rig=none", "-"],
+            ["combo", "so101_simulation", "simulation=isaac_sim,robot_control=robot_control,teleop=xr_commander", "", "openarm_sim", "hardware_version=v2,robot_commander=none,camera_rig=none", "-"],
             so101_launcher,
         )
         # The simulation_mcp launcher: the same stacks with the world's
@@ -638,37 +648,38 @@ class CombinationsTests(unittest.TestCase):
         # option, so it adds no combination), each launched bare, with no
         # robot, naming either robot at launch, and joined by any robot,
         # plain and under every selection of its axes. The file lists no
-        # copy, so no launch word names one. The entries state the MCP
-        # commander and the rendered rig for every copy of their option, so
-        # the copy a launch names and the plain join are MCP robots, and the
-        # planner picks all of it up from the index and the fragments alone.
+        # copy, so no launch word names one. The entries state no commander
+        # of its own and the rendered rig for every copy of their option, so
+        # the copy a launch names and the plain join are robots the headset
+        # leads, and the planner picks all of it up from the index and the
+        # fragments alone.
         robot_control = combos("simulation_mcp")
         self.assertEqual(len(robot_control), stacks * 2 * (1 + 2 + openarm_sim + so101_sim))
-        stack = "simulation=waldo,robot_control=robot_control,world_control=world_control"
+        stack = "simulation=waldo,robot_control=robot_control,world_control=world_control,teleop=xr_commander"
         self.assertIn(["combo", "simulation_mcp", stack, "", "", "", "-"], robot_control)
         self.assertIn(["combo", "simulation_mcp", stack, "openarm_sim", "", "", "-"], robot_control)
         self.assertIn(["combo", "simulation_mcp", stack, "so101_sim", "", "", "-"], robot_control)
         self.assertIn(["combo", "simulation_mcp", stack, "", "openarm_sim", "", "-"], robot_control)
         self.assertEqual([c for c in robot_control if "alpha." in c[2]], [])
         self.assertIn(
-            ["combo", "simulation_mcp", stack, "", "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim", "-"],
+            ["combo", "simulation_mcp", stack, "", "so101_sim", "robot_commander=none,camera_rig=cameras_sim", "-"],
             robot_control,
         )
         self.assertIn(
-            ["combo", "simulation_mcp", stack, "", "openarm_sim", "hardware_version=v2,robot_commander=mcp_commander,camera_rig=cameras_sim,brain=ai_brain_vla", "-"],
+            ["combo", "simulation_mcp", stack, "", "openarm_sim", "hardware_version=v2,robot_commander=none,camera_rig=cameras_sim,brain=ai_brain_vla", "-"],
             robot_control,
         )
         self.assertIn(
-            ["combo", "simulation_mcp", "simulation=waldo,scene_commander=web_scene_commander,robot_control=robot_control,world_control=world_control", "", "", "", "-"],
+            ["combo", "simulation_mcp", "simulation=waldo,scene_commander=web_scene_commander,robot_control=robot_control,world_control=world_control,teleop=xr_commander", "", "", "", "-"],
             robot_control,
         )
-        self.assertIn(["combo", "simulation_mcp", "simulation=mujoco,robot_control=none,world_control=none", "", "", "", "-"], robot_control)
-        self.assertIn(["combo", "simulation_mcp", "simulation=mujoco,robot_control=robot_control,world_control=none", "so101_sim", "", "", "-"], robot_control)
+        self.assertIn(["combo", "simulation_mcp", "simulation=mujoco,robot_control=none,world_control=none,teleop=none", "", "", "", "-"], robot_control)
+        self.assertIn(["combo", "simulation_mcp", "simulation=mujoco,robot_control=robot_control,world_control=none,teleop=xr_commander", "so101_sim", "", "", "-"], robot_control)
         references = next(line for line in lines if line.startswith("launcher\tsimulation_mcp\t"))
         for reference in [
             "mcp/fragments/robot_control.json5",
             "openarm/fragments/openarm_sim.json5",
-            "robot_commanders/fragments/mcp_commander.json5",
+            "teleop/fragments/xr_commander.json5",
             "so101/fragments/so101_sim.json5",
             "simulation/fragments/waldo.json5",
             "mcp/fragments/world_control.json5",
@@ -742,41 +753,38 @@ class CombinationsTests(unittest.TestCase):
 
     def test_both_robots_share_capabilities_and_own_their_tuning(self):
         root = Path(__file__).resolve().parents[2]
-        # The headset is one fragment every robot shares; the recorder is one
-        # per family, shared by the physical and the simulated robot. What a
-        # robot needs of the headset, its rate and gripper travel, the
-        # launcher writes under the robot; the recorder's rate and limb links
-        # are the family's, written where the family deploys it.
-        for robot, launcher, command_rate in [
-            ("openarm", "physical.json5", 100),
-            ("openarm_sim", "openarm_simulation.json5", 100),
-            ("so101", "physical.json5", 60),
-            ("so101_sim", "so101_simulation.json5", 60),
+        # The headset is one instance per stack, from one fragment every
+        # launcher with robots shares, with one rate and one gripper travel
+        # for every robot it leads; the recorder is one per family, shared by
+        # the physical and the simulated robot, its rate and limb links the
+        # family's, written where the family deploys it.
+        for robot, launcher in [
+            ("openarm", "physical.json5"),
+            ("openarm_sim", "openarm_simulation.json5"),
+            ("so101", "physical.json5"),
+            ("so101_sim", "so101_simulation.json5"),
         ]:
             with self.subTest(robot=robot):
                 references = combinations.read_launcher(root, launcher).references
-                self.assertIn("robot_commanders/fragments/xr_commander.json5", references)
+                self.assertIn("teleop/fragments/xr_commander.json5", references)
                 robot_file = combinations.load_json5(root / ROBOT_FILES[robot], robot)
                 axes = {axis["name"]: axis for axis in robot_file["components"]}
                 self.assertEqual({"robot_commander", "recorder", "camera_rig"} - set(axes), set())
                 self.assertEqual(axes["recorder"]["options"], {"lerobot_recorder": "lerobot_recorder.json5"})
                 document = combinations.load_json5(root / launcher, launcher)
-                commander = next(a for a in robot_option(document, robot)["adjustments"]
-                                 if a["target"] == "commander_inst"
-                                 and a.get("when") == {"robot_commander": "xr_commander"})
-                self.assertEqual(commander["set_arguments"]["command_rate_hz"], command_rate)
-                self.assertEqual(commander["set_arguments"]["gripper_open_fraction"], 0.5)
+                self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
+                                  if a["target"] == HEADSET and "set_arguments" in a], [])
         for path, fps in [("openarm/fragments/lerobot_recorder.json5", 15),
                           ("so101/fragments/lerobot_recorder.json5", 30)]:
             with self.subTest(path=path):
                 recorder = combinations.load_json5(root / path, path)
                 self.assertEqual(instance_of(recorder, "recorder_inst")["arguments"], {"fps": fps})
-        # The shared commander carries no robot's tuning of its own; the one
-        # write it makes is on its own instance, the record button.
         document = combinations.load_json5(
-            root / "robot_commanders/fragments/xr_commander.json5", "xr_commander")
-        self.assertNotIn("arguments", instance_of(document, "commander_inst"))
-        self.assertEqual([a["target"] for a in document["adjustments"]], ["commander_inst"])
+            root / "teleop/fragments/xr_commander.json5", "xr_commander")
+        self.assertEqual(instance_of(document, HEADSET)["arguments"],
+                         {"command_rate_hz": 100, "gripper_open_fraction": 0.5})
+        self.assertNotIn("adjustments", document)
+
 
 
     def test_a_deployed_copy_selects_its_own_axes_with_copy_scoped_launch_words(self):
@@ -784,7 +792,7 @@ class CombinationsTests(unittest.TestCase):
             Path(directory, "fleet.json5").write_text(json.dumps({"components": [
                 {"name": "robot", "cardinality": "zero_or_more", "options": {"openarm_v2": {
                     "components": [
-                        {"name": "robot_commander", "options": {"web_commander": {}, "xr_commander": {}}},
+                        {"name": "robot_commander", "options": {"web_commander": {}, "ker_commander": {}}},
                         {"name": "recorder", "cardinality": "zero_or_one", "options": {"lerobot_recorder": {}}},
                     ],
                     "deployments": [{"robot_commander": "web_commander"}],
@@ -802,17 +810,17 @@ class CombinationsTests(unittest.TestCase):
                 [
                     "",
                     "alpha.robot_commander=web_commander,alpha.recorder=lerobot_recorder",
-                    "alpha.robot_commander=xr_commander,alpha.recorder=lerobot_recorder",
-                    "alpha.robot_commander=xr_commander",
+                    "alpha.robot_commander=ker_commander,alpha.recorder=lerobot_recorder",
+                    "alpha.robot_commander=ker_commander",
                 ],
             )
 
     def test_a_copys_with_names_the_selection_the_bare_launch_covers(self):
         commander = combinations.Axis(
-            "robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+            "robot_commander", "one", ["web_commander", "ker_commander"], deployed="web_commander")
         axes = [combinations.Axis(
             "robot", "zero_or_more", ["openarm_v2"], nested={"openarm_v2": [commander]})]
-        copy = combinations.Copy("alpha", "robot", "openarm_v2", {"robot_commander": "xr_commander"})
+        copy = combinations.Copy("alpha", "robot", "openarm_v2", {"robot_commander": "ker_commander"})
         self.assertEqual(
             [combinations.render_words(words) for words in combinations.copy_selections(axes, copy)],
             ["alpha.robot_commander=web_commander"],
@@ -820,7 +828,7 @@ class CombinationsTests(unittest.TestCase):
 
 
     def test_a_one_or_more_axis_the_file_fills_enumerates_as_zero_or_more_does(self):
-        commander = combinations.Axis("robot_commander", "one", ["web_commander", "xr_commander"], deployed="web_commander")
+        commander = combinations.Axis("robot_commander", "one", ["web_commander", "ker_commander"], deployed="web_commander")
         alpha = combinations.Copy("alpha", "robot", "openarm_v2")
         found = {
             cardinality: combinations.launcher_selections(
@@ -953,15 +961,15 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # Every target of the server is a set the robots fill, and the
         # server is the launcher's: the launcher lists a robot with its
-        # identity and how it stands, adds the moves under the MCP
-        # commander, the cameras under the rig, and the brain and the
-        # recorder whenever they run. None of it is guarded on the server:
-        # an entry naming an instance the launch does not run is skipped.
-        # Every robot's backbone answers where its design lets it work; only
-        # the OpenArm's says how close its arms stand and where its cameras
-        # are mounted.
+        # identity, how it stands and the moves a model drives it by, the
+        # cameras under the rig, and the brain and the recorder whenever they
+        # run. None of it is guarded on the server: an entry naming an
+        # instance the launch does not run is skipped. Every robot's backbone
+        # answers where its design lets it work; only the OpenArm's says how
+        # close its arms stand and where its cameras are mounted.
         readouts_of_every_robot = {
-            "identity": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"]}
+            "identity": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"],
+            "postures": ["backbone_inst"], "limb_motion": ["backbone_inst"]}
         readouts = {
             "openarm": {**readouts_of_every_robot,
                         "collision": ["backbone_inst"], "camera_mounts": ["backbone_inst"]},
@@ -974,26 +982,45 @@ class CombinationsTests(unittest.TestCase):
                     entries = robot_option(document, robot)["adjustments"]
                     listing, = [a for a in entries if a["target"] == SERVER and "when" not in a]
                     self.assertEqual(listing, {"target": SERVER, "add_links": readouts[family_of(robot)]})
-                    moves, = [a for a in entries
-                              if a["target"] == SERVER and a.get("when") == {"robot_commander": "mcp_commander"}]
-                    self.assertEqual(moves["add_links"], {
-                        "postures": ["backbone_inst"], "limb_motion": ["backbone_inst"]})
                     episodes, = [a for a in entries
                                  if a["target"] == SERVER and a.get("when") == {"recorder": "lerobot_recorder"}]
                     self.assertEqual(episodes["add_links"], {"recorder": ["recorder_inst"]})
+                    self.assertFalse(any("robot_commander" in a.get("when", {})
+                                         for a in entries if a["target"] == SERVER))
 
-    def test_the_shared_mcp_commander_deploys_nothing_and_requires_the_endpoint(self):
+    def test_every_robot_with_no_commander_of_its_own_pairs_into_the_stacks_headset(self):
         root = Path(__file__).resolve().parents[2]
-        # What it needs of a robot the launcher writes.
-        commander = combinations.load_json5(
-            root / "robot_commanders/fragments/mcp_commander.json5", "mcp_commander")
-        self.assertEqual(commander["deployments"], [])
-        self.assertNotIn("adjustments", commander)
-        rule, = commander["constraints"]
-        self.assertEqual(rule["requires"], [{"robot_control": "robot_control"}])
-        self.assertIn("launch with robot_control", rule["reason"])
+        # The robot's own fragment declares the pairs, by side, under the
+        # headset and robot_commander=none; the headset leads in pose mode.
+        pairs = {
+            "openarm": {"leader_left_arm_pose": "headset_inst/left_arm",
+                        "leader_right_arm_pose": "headset_inst/right_arm",
+                        "leader_left_gripper": "headset_inst/left_gripper",
+                        "leader_right_gripper": "headset_inst/right_gripper"},
+            "so101": {"leader_pose": "headset_inst/right_arm",
+                      "leader_gripper": "headset_inst/right_gripper"},
+        }
+        for robot, path in ROBOT_FILES.items():
+            with self.subTest(robot=robot):
+                document = combinations.load_json5(root / path, path)
+                led, = [a for a in document["adjustments"] if a.get("when") == HEADSET_LEADS]
+                self.assertEqual(led, {"target": "backbone_inst", "when": HEADSET_LEADS,
+                                       "set_arguments": {"upstream_mode": "pose"},
+                                       "set_links": pairs[family_of(robot)]})
+        # The launcher binds the robot's postures and recorder into the
+        # headset under the same guard, so its buttons reach the robot it
+        # drives.
+        for path, robots in ROBOT_LAUNCHERS.items():
+            document = combinations.load_json5(root / path, path)
+            for robot in robots:
+                with self.subTest(path=path, robot=robot):
+                    entries = robot_option(document, robot)["adjustments"]
+                    self.assertIn({"target": HEADSET, "when": HEADSET_LEADS,
+                                   "add_links": {"postures": ["backbone_inst"]}}, entries)
+                    self.assertIn({"target": HEADSET, "when": {**HEADSET_LEADS, "recorder": "lerobot_recorder"},
+                                   "add_links": {"recorder": ["recorder_inst"]}}, entries)
 
-    def test_the_brains_tools_are_listed_under_the_mcp_commander(self):
+    def test_the_brains_tools_are_listed(self):
         root = Path(__file__).resolve().parents[2]
         brain = combinations.load_json5(root / "openarm/fragments/ai_brain_vla.json5", "ai_brain_vla")
         self.assertNotIn("adjustments", brain)
@@ -1003,10 +1030,9 @@ class CombinationsTests(unittest.TestCase):
                 if family_of(robot) != "openarm":
                     continue
                 with self.subTest(path=path, robot=robot):
-                    thinking, = [a for a in robot_option(document, robot)["adjustments"]
-                                 if a["target"] == SERVER
-                                 and a.get("when") == {"brain": "ai_brain_vla",
-                                                       "robot_commander": "mcp_commander"}]
+                    entries = robot_option(document, robot)["adjustments"]
+                    thinking, = [a for a in entries
+                                 if a["target"] == SERVER and a.get("when") == {"brain": "ai_brain_vla"}]
                     self.assertEqual(thinking["add_links"], {
                         "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]})
 
@@ -1085,13 +1111,12 @@ class CombinationsTests(unittest.TestCase):
 
     def test_the_record_button_binds_on_the_commander_that_carries_one(self):
         root = Path(__file__).resolve().parents[2]
-        # The panel and the headset bind the recorder on their own instance;
-        # the KER and the SO-101 leader carry no button and record over the
-        # endpoint alone.
+        # The panel binds the recorder on its own instance, and the launcher
+        # binds a robot's recorder on the stack's headset; the KER and the
+        # SO-101 leader carry no button and record over the endpoint alone.
         button = {"target": "commander_inst", "when": {"recorder": "lerobot_recorder"},
                   "add_links": {"recorder": ["recorder_inst"]}}
         for path, carries in [("openarm/fragments/web_commander.json5", True),
-                              ("robot_commanders/fragments/xr_commander.json5", True),
                               ("openarm/fragments/ker_commander.json5", False),
                               ("so101/fragments/so101_leader.json5", False)]:
             with self.subTest(path=path):
@@ -1136,20 +1161,22 @@ class CombinationsTests(unittest.TestCase):
     def test_the_launcher_binds_the_leaders_telemetry_and_the_simulated_panels_cap(self):
         root = Path(__file__).resolve().parents[2]
         # Real drivers report per-motor health and operator alerts, and the
-        # panel and the headset show them; a simulated robot has no motors,
-        # and its panel streams the cap the simulated backbone starts on.
+        # panel and the stack's headset show them; a simulated robot has no
+        # motors, and its panel streams the cap the simulated backbone starts
+        # on.
         openarm_limbs = ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"]
         physical = combinations.load_json5(root / "physical.json5", "physical")
-        for robot, commanders, sources in [
-            ("openarm", ["web_commander", "xr_commander"], openarm_limbs),
-            ("so101", "xr_commander", ["follower_inst"]),
+        for robot, readers, sources in [
+            ("openarm", [("commander_inst", {"robot_commander": "web_commander"}), (HEADSET, HEADSET_LEADS)],
+             openarm_limbs),
+            ("so101", [(HEADSET, HEADSET_LEADS)], ["follower_inst"]),
         ]:
             with self.subTest(robot=robot):
-                telemetry, = [a for a in robot_option(physical, robot)["adjustments"]
-                              if "motor_health" in a.get("add_links", {})]
-                self.assertEqual(telemetry, {
-                    "target": "commander_inst", "when": {"robot_commander": commanders},
-                    "add_links": {"motor_health": sources, "alerts": sources}})
+                telemetry = [a for a in robot_option(physical, robot)["adjustments"]
+                             if "motor_health" in a.get("add_links", {})]
+                self.assertEqual(telemetry, [
+                    {"target": target, "when": when, "add_links": {"motor_health": sources, "alerts": sources}}
+                    for target, when in readers])
         cap = instance_of(combinations.load_json5(root / ROBOT_FILES["openarm_sim"], "openarm_sim"),
                           "backbone_inst")["arguments"]["max_ee_velocity_m_s"]
         for path in SIMULATION_LAUNCHERS:
@@ -1210,6 +1237,16 @@ class CombinationsTests(unittest.TestCase):
                     }
                 self.assertEqual(axes["robot_control"]["options"], options)
                 self.assertEqual(combinations.option_entries(document, path).get("robot_control"), "robot_control" if deployed else None)
+                # The stack's headset beside it: deployed by simulation_mcp,
+                # with `none` to switch it off, and `--with xr_commander` on
+                # the others.
+                self.assertEqual(axes["teleop"]["cardinality"], "one" if deployed else "zero_or_one")
+                teleop = {"xr_commander": f"{prefix}teleop/fragments/xr_commander.json5"}
+                if deployed:
+                    teleop["none"] = f"{prefix}common/fragments/none.json5"
+                self.assertEqual(axes["teleop"]["options"], teleop)
+                self.assertEqual(combinations.option_entries(document, path).get("teleop"),
+                                 "xr_commander" if deployed else None)
                 self.assertEqual(axes["robot"]["cardinality"], "zero_or_more")
                 self.assertEqual(set(axes["robot"]["options"]), set(robots))
                 # A robot option names the file the robot is written in and
@@ -1221,25 +1258,26 @@ class CombinationsTests(unittest.TestCase):
                     self.assertEqual(
                         option["fragments"],
                         [f"fragments/{robot}.json5" if own else f"{prefix}{family}/fragments/{robot}.json5"])
-        # The server reads one clock: a simulation launcher binds it to the
-        # simulation's, each simulated robot binding the instances it
-        # deploys; the physical launcher adjusts nothing at the top level
-        # and its robots read wall time. The MCP launcher turns rendering on
-        # itself, so a robot joined onto it gets its cameras, and scopes its
-        # framework's endpoint, which
+        # The server and the headset read one clock: a simulation launcher
+        # binds both to the simulation's, each simulated robot binding the
+        # instances it deploys, and binds the headset into Waldo's panel; the
+        # physical launcher's robots read wall time and it writes nothing at
+        # the top level. The MCP launcher turns
+        # rendering on itself, so a robot joined onto it gets its cameras,
+        # and scopes its framework's endpoint, which
         # `test_the_framework_endpoint_adds_the_mcp_launchers_robots` holds.
         for path in SIMULATION_LAUNCHERS:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
-                expected = [RENDERING_ON, SERVER_CLOCK] if path == "mcp/simulation_mcp.json5" else [SERVER_CLOCK]
+                expected = ([RENDERING_ON] if path == "mcp/simulation_mcp.json5" else []) + [SERVER_CLOCK] + HEADSET_WIRING
                 self.assertEqual(
                     [a for a in document["adjustments"] if "set_daemon_scopes" not in a], expected)
         physical = combinations.load_json5(root / "physical.json5", "physical")
         self.assertNotIn("adjustments", physical)
         self.assertEqual(physical["deployments"], [])
-        # Every rig is listed under the MCP commander: color and depth on
-        # hardware, where neither node describes a profile and the launcher
-        # lists no geometry, and all four targets in simulation.
+        # Every rig is listed: color and depth on hardware, where neither
+        # node describes a profile and the launcher lists no geometry, and
+        # all four targets in simulation.
         for path, robot, links in [
             ("physical.json5", "openarm", {
                 "camera": ["wrist_left", "wrist_right"], "depth_camera": ["chest"]}),
@@ -1255,8 +1293,7 @@ class CombinationsTests(unittest.TestCase):
                 document = combinations.load_json5(root / path, path)
                 rig = "cameras" if path == "physical.json5" else "cameras_sim"
                 listing, = [a for a in robot_option(document, robot)["adjustments"]
-                            if a["target"] == SERVER
-                            and a.get("when") == {"camera_rig": rig, "robot_commander": "mcp_commander"}]
+                            if a["target"] == SERVER and a.get("when") == {"camera_rig": rig}]
                 self.assertEqual(listing["add_links"], links)
 
 
@@ -1372,46 +1409,42 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual([(model, description) for description in descriptions
                                   for model in ROBOT_MODELS
                                   if re.search(rf"\b{model}\b", description, re.IGNORECASE)], [])
-                # Every robot it adds runs the MCP commander, which requires
-                # the robots' endpoint, so the framework's endpoint comes
-                # with that endpoint alone and needs no constraint.
-                self.assertEqual(entries[entry["option"]]["with"]["robot_commander"], "mcp_commander")
+                # Every robot it adds runs no commander of its own: the
+                # endpoint lists its moves, and the stack's headset leads it.
+                self.assertEqual(entries[entry["option"]]["with"]["robot_commander"], "none")
 
-    def test_every_robot_offers_the_shared_mcp_commander_and_a_rig_with_a_consumer_rule(self):
+    def test_every_robot_offers_none_and_a_rig_with_a_consumer_rule(self):
         root = Path(__file__).resolve().parents[2]
-        shared = "../../robot_commanders/fragments/mcp_commander.json5"
-        for path, cardinality, commanders, rig, rigs in [
-            ("openarm/fragments/openarm.json5", None,
-             ["web_commander", "xr_commander", "mcp_commander", "ker_commander"], "cameras", ["cameras"]),
-            ("openarm/fragments/openarm_sim.json5", None,
-             ["web_commander", "xr_commander", "mcp_commander", "ker_commander"], "cameras_sim", ["none", "cameras_sim"]),
-            ("so101/fragments/so101.json5", None,
-             ["so101_leader", "xr_commander", "mcp_commander", "none"], "cameras", ["cameras"]),
-            ("so101/fragments/so101_sim.json5", "zero_or_one",
-             ["so101_leader", "xr_commander", "mcp_commander"], "cameras_sim", ["cameras_sim"]),
+        none = "../../common/fragments/none.json5"
+        for path, commanders, rig, rigs in [
+            ("openarm/fragments/openarm.json5",
+             ["web_commander", "ker_commander", "none"], "cameras", ["cameras"]),
+            ("openarm/fragments/openarm_sim.json5",
+             ["web_commander", "ker_commander", "none"], "cameras_sim", ["none", "cameras_sim"]),
+            ("so101/fragments/so101.json5", ["so101_leader", "none"], "cameras", ["cameras"]),
+            ("so101/fragments/so101_sim.json5", ["so101_leader", "none"], "cameras_sim", ["cameras_sim"]),
         ]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
                 axes = {axis["name"]: axis for axis in robot["components"]}
                 self.assertCountEqual(axes["robot_commander"]["options"], commanders)
-                self.assertEqual(axes["robot_commander"]["options"]["mcp_commander"], shared)
-                self.assertEqual(axes["robot_commander"].get("cardinality"), cardinality)
+                self.assertEqual(axes["robot_commander"]["options"]["none"], none)
+                # `one`: the headset's guard names `none`, and an unfilled
+                # axis matches no guard.
+                self.assertIsNone(axes["robot_commander"].get("cardinality"))
                 self.assertCountEqual(axes["camera_rig"]["options"], rigs)
-                # The rig's streams need a consumer: the recorder, the
-                # headset, or the model behind the MCP commander.
+                # The rig's streams need a consumer: the recorder, the robots'
+                # endpoint, or the stack's headset leading the robot.
                 consumer, = [c for c in robot["constraints"]
                              if c.get("when") == {"camera_rig": rig} and "hardware_version" not in str(c["requires"])]
-                requires = [{"recorder": "lerobot_recorder"}, {"robot_commander": ["xr_commander", "mcp_commander"]}]
-                consumers = "lerobot_recorder, xr_commander or mcp_commander"
+                requires = [{"recorder": "lerobot_recorder"}, {"robot_control": "robot_control"}, HEADSET_LEADS]
                 if path == "openarm/fragments/openarm_sim.json5":
                     # The rendered OpenArm rig also feeds the brain's camera
                     # slot, so there the brain is a consumer too.
                     requires.append({"brain": "ai_brain_vla"})
-                    consumers = "lerobot_recorder, xr_commander, mcp_commander or ai_brain_vla"
                 self.assertEqual(consumer["requires"], requires)
-                self.assertIn(f"select {consumers}", consumer["reason"])
-        shared_document = combinations.load_json5(root / shared[6:], "mcp_commander")
-        self.assertNotIn("adjustments", shared_document)
+                self.assertIn("launch with robot_control", consumer["reason"])
+                self.assertIn("robot_commander=none and launch with xr_commander", consumer["reason"])
 
     def test_the_rendered_rig_is_refused_on_a_v1_first(self):
         root = Path(__file__).resolve().parents[2]
@@ -1485,54 +1518,57 @@ class CombinationsTests(unittest.TestCase):
             self.assertIn({"target": "backbone_inst", "when": {"simulation": "isaac_sim"},
                            "set_arguments": {"follower_state_rate_hz": 60}}, document["adjustments"])
 
-    def test_the_so101_runs_on_actions_alone_under_none_or_an_unfilled_axis(self):
+    def test_the_so101_runs_on_actions_alone_under_none(self):
         root = Path(__file__).resolve().parents[2]
-        # The physical SO-101 runs actions-only under the empty option; the
-        # simulated one under its unfilled axis, which its fragment leaves
-        # unfilled.
-        physical = combinations.load_json5(root / "so101/fragments/so101.json5", "so101")
-        self.assertEqual(
-            {axis["name"]: axis for axis in physical["components"]}["robot_commander"]["options"]["none"],
-            "../../common/fragments/none.json5")
-        simulated = combinations.load_json5(root / "so101/fragments/so101_sim.json5", "so101_sim")
-        self.assertNotIn("robot_commander", combinations.option_entries(simulated, "so101_sim"))
+        # Both SO-101s run actions-only under the empty option, which the
+        # simulated one deploys, and the stack's headset leads either there.
+        for path, name, deployed in [("so101/fragments/so101.json5", "so101", "so101_leader"),
+                                     ("so101/fragments/so101_sim.json5", "so101_sim", "none")]:
+            with self.subTest(path=path):
+                document = combinations.load_json5(root / path, name)
+                self.assertEqual(
+                    {axis["name"]: axis for axis in document["components"]}["robot_commander"]["options"]["none"],
+                    "../../common/fragments/none.json5")
+                self.assertEqual(combinations.option_entries(document, name)["robot_commander"], deployed)
 
     def test_an_episode_needs_a_trigger(self):
         root = Path(__file__).resolve().parents[2]
         # The KER and SO-101 leaders lack one: the record button of the panel
-        # or the headset, or the endpoint's recorder tool, which the launcher
-        # lists whenever the endpoint runs.
-        for path, commanders in [
-            ("openarm/fragments/openarm.json5", ["web_commander", "xr_commander"]),
-            ("so101/fragments/so101.json5", "xr_commander"),
+        # or the stack's headset, or the endpoint's recorder tool, which the
+        # launcher lists whenever the endpoint runs.
+        for path, buttons in [
+            ("openarm/fragments/openarm.json5", [{"robot_commander": "web_commander"}, HEADSET_LEADS]),
+            ("openarm/fragments/openarm_sim.json5", [{"robot_commander": "web_commander"}, HEADSET_LEADS]),
+            ("so101/fragments/so101.json5", [HEADSET_LEADS]),
+            ("so101/fragments/so101_sim.json5", [HEADSET_LEADS]),
         ]:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
                 trigger, = [c for c in document["constraints"] if c.get("when") == {"recorder": "lerobot_recorder"}]
-                self.assertEqual(trigger["requires"],
-                                 [{"robot_commander": commanders}, {"robot_control": "robot_control"}])
+                self.assertEqual(trigger["requires"], buttons + [{"robot_control": "robot_control"}])
                 self.assertIn("launch with robot_control", trigger["reason"])
 
     def test_the_robot_file_releases_the_sockets_the_selected_leader_drives(self):
         root = Path(__file__).resolve().parents[2]
         # No leader streams by default: the backbone comes up with every
         # upstream socket vacant, and the robot releases the sockets the
-        # selected leader drives. The headset also switches it to pose mode,
-        # and the panel supplies the operator's governor toggle.
+        # selected leader drives, the panel and the KER the joint and gripper
+        # sockets, and the panel supplies the operator's governor toggle. The
+        # stack's headset leads a robot with no commander of its own, whose
+        # backbone pairs its pose and gripper sockets into it in pose mode
+        # (`test_every_robot_with_no_commander_of_its_own_pairs_into_the_stacks_headset`).
         openarm_sockets = ["leader_left_arm", "leader_right_arm", "leader_left_gripper", "leader_right_gripper"]
-        for path, vacant, pose, releases in [
+        for path, vacant, releases in [
             ("openarm/fragments/openarm.json5",
              openarm_sockets + ["collision_ctrl", "leader_left_arm_pose", "leader_right_arm_pose"],
-             ["leader_left_arm_pose", "leader_right_arm_pose"],
              {"web_commander": openarm_sockets, "ker_commander": openarm_sockets}),
             ("openarm/fragments/openarm_sim.json5",
              openarm_sockets + ["collision_ctrl", "leader_left_arm_pose", "leader_right_arm_pose"],
-             ["leader_left_arm_pose", "leader_right_arm_pose"],
              {"web_commander": openarm_sockets, "ker_commander": openarm_sockets}),
             ("so101/fragments/so101.json5", ["leader_arm", "leader_gripper", "leader_pose"],
-             ["leader_pose", "leader_gripper"], {"so101_leader": ["leader_arm", "leader_gripper"]}),
+             {"so101_leader": ["leader_arm", "leader_gripper"]}),
             ("so101/fragments/so101_sim.json5", ["leader_arm", "leader_gripper", "leader_pose"],
-             ["leader_pose", "leader_gripper"], {"so101_leader": ["leader_arm", "leader_gripper"]}),
+             {"so101_leader": ["leader_arm", "leader_gripper"]}),
         ]:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1540,11 +1576,6 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(backbone["arguments"]["upstream_mode"], "joints")
                 for slot in vacant:
                     self.assertEqual(set(backbone["links"][slot]), {"vacant"}, slot)
-                headset, = [a for a in document["adjustments"]
-                            if a["target"] == "backbone_inst"
-                            and a.get("when") == {"robot_commander": "xr_commander"}]
-                self.assertEqual(headset["set_arguments"], {"upstream_mode": "pose"})
-                self.assertEqual(headset["unset_links"], pose)
                 for leader, sockets in releases.items():
                     released, = [a for a in document["adjustments"]
                                  if a["target"] == "backbone_inst"
@@ -1759,17 +1790,15 @@ class CombinationsTests(unittest.TestCase):
             [d["source"]["name"] for d in simulated["deployments"] if "source" in d],
             ["robot_initializer", "so101_backbone"])
         # The leader arm leads the real robot; the simulated one comes up
-        # with no commander, so it needs no SO-101 hardware.
+        # with no commander of its own, so it needs no SO-101 hardware.
         self.assertEqual(combinations.option_entries(real, "so101")["robot_commander"], "so101_leader")
-        self.assertNotIn("robot_commander", combinations.option_entries(simulated, "so101_sim"))
+        self.assertEqual(combinations.option_entries(simulated, "so101_sim")["robot_commander"], "none")
         # Per-motor health and alerts come from a real driver, so the
         # launcher binds the headset's only where the robot is physical.
         telemetry = {"motor_health": ["follower_inst"], "alerts": ["follower_inst"]}
         physical = combinations.load_json5(root / "physical.json5", "physical")
         option = next(axis for axis in physical["components"] if axis["name"] == "robot")["options"]["so101"]
-        self.assertIn(
-            {"target": "commander_inst", "when": {"robot_commander": "xr_commander"}, "add_links": telemetry},
-            option["adjustments"])
+        self.assertIn({"target": HEADSET, "when": HEADSET_LEADS, "add_links": telemetry}, option["adjustments"])
         for launcher in ["openarm_simulation.json5", "so101_simulation.json5",
                          "mcp/simulation_mcp.json5"]:
             document = combinations.load_json5(root / launcher, launcher)
@@ -1827,20 +1856,23 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(axes["simulation"]["cardinality"], "one")
         self.assertEqual(list(axes["simulation"]["options"]), ["mujoco", "isaac_sim", "waldo"])
         # The order is the planner's: it renders launch words axis by axis.
-        self.assertEqual(list(axes), ["simulation", "robot_control", "world_control", "robot"])
+        self.assertEqual(list(axes), ["simulation", "robot_control", "world_control", "teleop", "robot"])
+        self.assertEqual(axes["teleop"]["cardinality"], "one")
+        self.assertEqual(list(axes["teleop"]["options"]), ["xr_commander", "none"])
         entries = combinations.option_entries(document, path)
         self.assertEqual(
             {axis: option for axis, option in entries.items() if axis != "robot"},
-            {"simulation": "waldo", "robot_control": "robot_control", "world_control": "world_control"})
-        # Each robot's entry states, for every copy of the option, the MCP
-        # commander and the rendered rig: the ones `--join OPTION:NAME`
-        # starts with the launch and the ones joined later without it, a v1
-        # being one the simulations render no rig for. No entry lists a
-        # copy, so the bare launch is the simulation and the two endpoints
-        # with no robot.
+            {"simulation": "waldo", "robot_control": "robot_control", "world_control": "world_control",
+             "teleop": "xr_commander"})
+        # Each robot's entry states, for every copy of the option, no
+        # commander of its own and the rendered rig: the ones `--join
+        # OPTION:NAME` starts with the launch and the ones joined later
+        # without it, a v1 being one the simulations render no rig for. No
+        # entry lists a copy, so the bare launch is the simulation, the two
+        # endpoints and the headset with no robot.
         self.assertEqual([entry for entry in document["deployments"] if "robot" in entry], [
-            {"robot": "openarm_sim", "with": {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"}},
-            {"robot": "so101_sim", "with": {"robot_commander": "mcp_commander", "camera_rig": "cameras_sim"}},
+            {"robot": "openarm_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim"}},
+            {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim"}},
         ])
         launcher = combinations.read_launcher(root, path)
         self.assertEqual(launcher.copies, [])
@@ -1851,8 +1883,8 @@ class CombinationsTests(unittest.TestCase):
         found = combinations.launcher_selections(launcher.axes, launcher.copies, launcher.unlisted)
         waldo = [c for c in found if c.join_option is None and c.words[0] == ("simulation", "waldo")]
         launched = [(combinations.render_words(c.words), c.launch_joins) for c in waldo]
-        for stack in ["simulation=waldo,robot_control=robot_control,world_control=world_control",
-                      "simulation=waldo,robot_control=none,world_control=none"]:
+        for stack in ["simulation=waldo,robot_control=robot_control,world_control=world_control,teleop=xr_commander",
+                      "simulation=waldo,robot_control=none,world_control=none,teleop=none"]:
             with self.subTest(stack=stack):
                 self.assertIn((stack, ()), launched)
                 self.assertIn((stack, ("openarm_sim",)), launched)
@@ -1863,11 +1895,11 @@ class CombinationsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "fleet.json5").write_text(json.dumps({"components": [
                 {"name": "robot", "cardinality": "zero_or_more", "options": {"openarm_v2": {
-                    "components": [{"name": "robot_commander", "options": {"web_commander": {}, "xr_commander": {}}}],
+                    "components": [{"name": "robot_commander", "options": {"web_commander": {}, "ker_commander": {}}}],
                     "deployments": [{"robot_commander": "web_commander"}],
                 }}},
             ], "deployments": [
-                {"robot": "openarm_v2", "with": {"robot_commander": "xr_commander"},
+                {"robot": "openarm_v2", "with": {"robot_commander": "ker_commander"},
                  "arguments": {"commander_inst": {"https_port": 4444}},
                  "adjustments": [{"target": "commander_inst", "set_arguments": {"command_rate_hz": 60}}],
                  "instances": [
@@ -1880,7 +1912,7 @@ class CombinationsTests(unittest.TestCase):
             # Both copies run the entry's selection.
             self.assertEqual(
                 launcher.copies,
-                [combinations.Copy(name, "robot", "openarm_v2", {"robot_commander": "xr_commander"})
+                [combinations.Copy(name, "robot", "openarm_v2", {"robot_commander": "ker_commander"})
                  for name in ["alpha", "bravo"]],
             )
 
@@ -2294,6 +2326,9 @@ SO101_SIM = "so101/fragments/so101_sim.json5"
 #: endpoint selected.
 WALDO = "simulation=waldo"
 WALDO_MCP = "simulation=waldo,robot_control=robot_control"
+WALDO_TELEOP = "simulation=waldo,teleop=xr_commander"
+#: The stack's headset, as its fragment deploys it.
+HEADSET_FRAGMENT = "teleop/fragments/xr_commander.json5"
 
 
 def fragment_deployments(path, copy=None):
@@ -2370,17 +2405,18 @@ class SimulatedSo101Tests(unittest.TestCase):
 
 
     def test_a_launch_of_the_mcp_stack_names_the_so101_it_starts(self):
-        # simulation_mcp sets every robot up with no copy, as an MCP robot
-        # with its rendered rig, so a launch names the one it starts and
-        # nothing stands beside it.
+        # simulation_mcp sets every robot up with no copy, with no commander
+        # of its own and its rendered rig, so a launch names the one it
+        # starts and nothing stands beside it.
         inventory = combinations.read_launcher_inventory(
             ROOT, "simulation_mcp", "mcp/simulation_mcp.json5")
         self.assertEqual(inventory.candidates[0].file_copies, ())
-        stack = "simulation=waldo,robot_control=robot_control,world_control=world_control"
+        stack = "simulation=waldo,robot_control=robot_control,world_control=world_control,teleop=xr_commander"
         candidate, = [c for c in inventory.candidates
                       if (c.words, c.launch_joins, c.join_option) == (stack, ("so101_sim",), "")]
-        robot_control = so101_copy("bravo", robot_commander="mcp_commander", camera_rig="cameras_sim")
-        with patch.object(combinations.subprocess, "run", return_value=so101_stack("waldo", robot_control)):
+        led = so101_copy("bravo", robot_commander="none", camera_rig="cameras_sim")
+        answer = so101_stack("waldo", fragment_deployments(HEADSET_FRAGMENT), led)
+        with patch.object(combinations.subprocess, "run", return_value=answer):
             resolution = combinations.resolve_candidate(ROOT, candidate, self.skips)
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         launch = combinations.Launch.of(candidate, resolution)
@@ -2401,29 +2437,31 @@ class SimulatedSo101Tests(unittest.TestCase):
                 launch = combinations.Launch.of(candidate, resolution)
                 self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst"])
 
+    def test_a_leader_arm_is_skipped_as_hardware_the_runner_lacks_and_a_headset_launches(self):
+        answer = so101_stack("waldo", so101_copy("bravo", robot_commander="so101_leader"))
+        _, resolution = self.resolved(answer, WALDO, "so101_sim", "robot_commander=so101_leader")
+        self.assertIs(resolution.verdict, combinations.Verdict.SKIPPED)
+        self.assertEqual(resolution.detail, f"deploys so101_leader: {self.skips['so101_leader']}")
+        # The stack's headset serves its page and streams nothing until a
+        # headset holds a grip, so the runner launches it like any node.
+        answer = so101_stack("waldo", fragment_deployments(HEADSET_FRAGMENT), so101_copy("bravo"))
+        _, resolution = self.resolved(answer, WALDO_TELEOP, "so101_sim")
+        self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
 
-    def test_a_leader_arm_or_a_headset_is_skipped_as_hardware_the_runner_lacks(self):
-        for commander in ["so101_leader", "xr_commander"]:
-            with self.subTest(commander=commander):
-                answer = so101_stack("waldo", so101_copy("bravo", robot_commander=commander))
-                _, resolution = self.resolved(answer, WALDO, "so101_sim", f"robot_commander={commander}")
-                self.assertIs(resolution.verdict, combinations.Verdict.SKIPPED)
-                self.assertEqual(resolution.detail, f"deploys {commander}: {self.skips[commander]}")
-
-    def test_the_action_only_and_the_mcp_robots_launch(self):
+    def test_the_action_only_and_the_endpoint_robots_launch(self):
         answer = so101_stack("waldo", so101_copy("bravo"))
         _, resolution = self.resolved(answer, WALDO, "so101_sim")
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
-        # The MCP robot is the arm and the rendered relay listed on the
-        # stack's server, and none of that is hardware.
-        robot_control = so101_copy("bravo", robot_commander="mcp_commander", camera_rig="cameras_sim")
+        # The robot on the endpoint is the arm and the rendered relay listed
+        # on the stack's server, and none of that is hardware.
+        robot_control = so101_copy("bravo", camera_rig="cameras_sim")
         self.assertEqual(
             [(d["source"], d["instances"][0]["instance_id"]) for d in robot_control],
             [({"name": "robot_initializer", "tag": "v1"}, "bravo_init_inst"),
              ({"name": "so101_backbone", "tag": "v1"}, "bravo_backbone_inst"),
              ({"name": "sim_rgb_camera", "tag": "v1"}, "bravo_wrist")])
         _, resolution = self.resolved(
-            so101_stack("waldo", robot_control), WALDO_MCP, "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim")
+            so101_stack("waldo", robot_control), WALDO_MCP, "so101_sim", "robot_commander=none,camera_rig=cameras_sim")
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         self.assertEqual(
             combinations.copy_instances(resolution.plan, "bravo"),
@@ -2432,7 +2470,7 @@ class SimulatedSo101Tests(unittest.TestCase):
         # it as a change to the running simulation, and the planner reports
         # the copy as one only a launcher file deploys.
         _, resolution = self.resolved(
-            JOIN_REFUSAL, WALDO_MCP, "so101_sim", "robot_commander=mcp_commander,camera_rig=cameras_sim")
+            JOIN_REFUSAL, WALDO_MCP, "so101_sim", "robot_commander=none,camera_rig=cameras_sim")
         self.assertIs(resolution.verdict, combinations.Verdict.FILE_ONLY)
 
 

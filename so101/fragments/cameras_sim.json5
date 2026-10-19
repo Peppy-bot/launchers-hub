@@ -15,8 +15,8 @@
 // model, so the slot is written vacant and every camera control refuses on
 // them.
 //
-// The launcher binds the rig to the recorder, the headset and, under the
-// MCP commander, the stack's MCP endpoint, the rendered relay listed with
+// The launcher binds the rig to the recorder, the stack's headset when it
+// leads the robot, and the stack's MCP endpoint, the rendered relay listed with
 // its profile and geometry. The browser scene
 // commander's camera panel reads the cameras from the simulation, which
 // lists every robot's, so the rig links nothing else into the stack.

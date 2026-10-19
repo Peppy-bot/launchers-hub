@@ -7,7 +7,8 @@
 //
 //   peppy stack launch openarm_simulation   # Waldo and alpha
 //   peppy stack launch openarm_simulation --with mujoco,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim
-//   peppy stack launch openarm_simulation --with robot_control,alpha.mcp_commander,alpha.cameras_sim   # alpha driven over MCP
+//   peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim   # alpha driven over MCP too, its cameras served
+//   peppy stack launch openarm_simulation --with xr_commander,alpha.robot_commander=none   # alpha led by the stack's headset
 //   peppy stack join so101_sim:charlo       # an SO-101 beside alpha
 //   peppy stack remove alpha                # the simulation keeps running
 //
@@ -20,10 +21,12 @@
 // joined to a launch without one has no `wrist` camera, and `--with
 // cameras_sim` on its join is refused. `--with robot_control` serves the
 // robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where
-// every robot is listed and its mcp_commander option adds its moves.
-// mcp/simulation_mcp.json5 is this file with the endpoint deployed, no
-// robot listed, every robot driven over MCP by default, and rendering on
-// from the launch.
+// every robot is listed with its moves. `--with xr_commander` runs the
+// stack's headset, which leads every robot that runs no commander of its
+// own, one at a time, chosen on the headset's page.
+// mcp/simulation_mcp.json5 is this file with the endpoint and the headset
+// deployed, no robot listed, every robot led by the headset by default, and
+// rendering on from the launch.
 {
   peppy_schema: "launcher/v1",
 
@@ -38,14 +41,23 @@
         waldo: "simulation/fragments/waldo.json5",
       },
     },
-    // The robots' MCP endpoint, selected with `--with robot_control`. Every robot is
-    // listed on it, and a robot's mcp_commander option adds its moves and
-    // requires it.
+    // The robots' MCP endpoint, selected with `--with robot_control`. Every
+    // robot is listed on it with its moves.
     {
       name: "robot_control",
       cardinality: "zero_or_one",
       options: {
         robot_control: "mcp/fragments/robot_control.json5",
+      },
+    },
+    // The stack's teleoperation headset, selected with `--with
+    // xr_commander`: a robot running no commander of its own pairs into it,
+    // and the headset drives the one chosen on its page.
+    {
+      name: "teleop",
+      cardinality: "zero_or_one",
+      options: {
+        xr_commander: "teleop/fragments/xr_commander.json5",
       },
     },
     // Every simulated robot, an option of the same name in every simulation
@@ -58,22 +70,19 @@
           fragments: ["openarm/fragments/openarm_sim.json5"],
           adjustments: [
             // Listed on the MCP endpoint: who it is, what its limbs measure,
-            // how close its arms stand, where its cameras are mounted and
-            // where its design lets it work.
+            // how close its arms stand, where its cameras are mounted, where
+            // its design lets it work, and the moves a model drives it by.
             { target: "robot_control_inst",
               add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
-                           camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"] } },
-            // The headset leads from the pose sockets; a released trigger rests
-            // at half travel, since fully open splays the fingers nearly flat.
-            { target: "commander_inst", when: { robot_commander: "xr_commander" },
-              set_arguments: { command_rate_hz: 100, gripper_open_fraction: 0.5 },
-              set_links: {
-                left_arm: "backbone_inst/leader_left_arm_pose",
-                right_arm: "backbone_inst/leader_right_arm_pose",
-                left_gripper: "backbone_inst/leader_left_gripper",
-                right_gripper: "backbone_inst/leader_right_gripper",
-                postures: ["backbone_inst"],
-              } },
+                           camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"],
+                           postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+            // The stack's headset leads a robot with no commander of its own:
+            // the backbone pairs into it (the robot's fragment), and the
+            // headset's buttons reach the robot's postures and recorder.
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
+              add_links: { postures: ["backbone_inst"] } },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
+              add_links: { recorder: ["recorder_inst"] } },
             // The panel streams the live cap the simulated backbone starts on.
             { target: "commander_inst", when: { robot_commander: "web_commander" },
               set_arguments: { max_ee_velocity_m_s: 0.5 } },
@@ -93,11 +102,8 @@
               set_arguments: { robot_type: "openarm_v2_isaac", storage_root: "/tmp/lerobot_openarm_isaac" } },
             { target: "recorder_inst", when: { hardware_version: "v2", simulation: "waldo" },
               set_arguments: { robot_type: "openarm_v2_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
-            // Under the MCP commander, the moves a model drives it by.
-            { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
-              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
-            // The brain's tools, under the same commander as the moves.
-            { target: "robot_control_inst", when: { brain: "ai_brain_vla", robot_commander: "mcp_commander" },
+            // The brain's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { brain: "ai_brain_vla" },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
             // The simulated robot's brain sees: it finds and names items with
             // the SAM 3 and SigLIP pipeline, by words from the node's general
@@ -124,11 +130,12 @@
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
               add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
-            // The headset shows the rig in its panels.
-            { target: "commander_inst", when: { camera_rig: "cameras_sim", robot_commander: "xr_commander" },
+            // The stack's headset shows the rig in its panels while it leads
+            // this robot.
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
               add_links: { color_cameras: ["wrist_left", "wrist_right"], rgbd_cameras: ["chest"] } },
             // Listed on the MCP endpoint with profile and geometry.
-            { target: "robot_control_inst", when: { camera_rig: "cameras_sim", robot_commander: "mcp_commander" },
+            { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
               add_links: { camera: ["wrist_left", "wrist_right"], depth_camera: ["chest"],
                            camera_profile: ["wrist_left", "wrist_right", "chest"],
                            camera_geometry: ["wrist_left", "wrist_right", "chest"] } },
@@ -144,21 +151,19 @@
         so101_sim: {
           fragments: ["so101/fragments/so101_sim.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is, what its limbs measure and
-            // where its design lets it work.
+            // Listed on the MCP endpoint: who it is, what its limbs measure,
+            // where its design lets it work, and the moves a model drives it by.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"] } },
-            // The headset leads from the pose socket; only the right hand drives
-            // a single-arm robot.
-            { target: "commander_inst", when: { robot_commander: "xr_commander" },
-              set_arguments: { command_rate_hz: 60, gripper_open_fraction: 0.5 },
-              set_links: {
-                right_arm: "backbone_inst/leader_pose",
-                right_gripper: "backbone_inst/leader_gripper",
-                left_arm: { vacant: "single-arm robot: only the right hand drives" },
-                left_gripper: { vacant: "single-arm robot: only the right hand drives" },
-                postures: ["backbone_inst"],
-              } },
+              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"],
+                           postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+            // The stack's headset leads a robot with no commander of its own:
+            // the backbone pairs into its right hand (the robot's fragment),
+            // and the headset's buttons reach the robot's postures and
+            // recorder.
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
+              add_links: { postures: ["backbone_inst"] } },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
+              add_links: { recorder: ["recorder_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
@@ -169,18 +174,16 @@
               set_arguments: { robot_type: "so101_isaac", storage_root: "/tmp/lerobot_so101_isaac" } },
             { target: "recorder_inst", when: { simulation: "waldo" },
               set_arguments: { robot_type: "so101_waldo", storage_root: "/tmp/lerobot_so101_waldo" } },
-            // Under the MCP commander, the moves a model drives it by.
-            { target: "robot_control_inst", when: { robot_commander: "mcp_commander" },
-              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
               add_links: { color_cameras: ["wrist"] } },
-            // The headset shows the rig in its panels.
-            { target: "commander_inst", when: { camera_rig: "cameras_sim", robot_commander: "xr_commander" },
+            // The stack's headset shows the rig in its panel while it leads
+            // this robot.
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
               add_links: { color_cameras: ["wrist"] } },
             // Listed on the MCP endpoint with profile and geometry.
-            { target: "robot_control_inst", when: { camera_rig: "cameras_sim", robot_commander: "mcp_commander" },
+            { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
               add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
             // The commander and recorder are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
@@ -206,5 +209,11 @@
     // The server reads the simulation's clock, as every instance a robot
     // copy runs does; each simulated robot's fragment binds its own.
     { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+    // The stack's headset reads the simulation's clock like every instance
+    // a robot copy runs, and Waldo's headset panel shows it: the link that
+    // opens its page in the headset.
+    { target: "headset_inst", set_framework: { clock: "simulation" } },
+    { target: "simulation_inst", when: { simulation: "waldo", teleop: "xr_commander" },
+      add_links: { headsets: ["headset_inst"] } },
   ],
 }

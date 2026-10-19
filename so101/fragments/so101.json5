@@ -59,7 +59,7 @@
           instance_id: "backbone_inst",
           arguments: {
             // Joint-led by default: the leader_arm pairing is the followed
-            // upstream command (the headset block below selects "pose").
+            // upstream command (the headset adjustment below selects "pose").
             upstream_mode: "joints",
             control_rate_hz: 60,
             // The stream's only limiter: max end-effector speed. Generous
@@ -77,8 +77,9 @@
             // No leader streams by default: both sockets and the pose slot
             // stand vacant, and actions drive the arm. The adjustments below
             // release the sockets the selected leader drives, and the leader
-            // pairs into them from its own fragment; the headset block
-            // switches to pose mode.
+            // pairs into them from its own fragment; under the stack's
+            // headset the backbone pairs its pose and gripper sockets into
+            // the headset in pose mode.
             leader_arm: { vacant: "no leader streams joint commands: actions drive the arm" },
             leader_gripper: { vacant: "no leader streams joint commands: actions drive the gripper" },
             leader_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slot" },
@@ -98,9 +99,8 @@
       name: "robot_commander",
       options: {
         so101_leader: "so101_leader.json5",
-        xr_commander: "../../robot_commanders/fragments/xr_commander.json5",
-        mcp_commander: "../../robot_commanders/fragments/mcp_commander.json5",
-        // An action-only session: no teleop surface, actions still drive it.
+        // No commander of its own: the stack's headset leads the arm when
+        // the stack runs one, and actions alone drive it otherwise.
         none: "../../common/fragments/none.json5",
       },
     },
@@ -115,23 +115,24 @@
   ],
 
   constraints: [
-    // The camera stream needs a consumer: the recorder films it, the XR
-    // headset shows it in its panel, and the MCP commander publishes it as
-    // a resource and tools, the model its consumer. The rig must feed at
-    // least one of them.
+    // The camera stream needs a consumer: the recorder films it, the
+    // stack's headset shows it in its panel, and the robots' MCP endpoint
+    // publishes it as a resource and tools, the model its consumer. The rig
+    // must feed at least one of them.
     { when: { camera_rig: "cameras" },
       requires: [
         { recorder: "lerobot_recorder" },
-        { robot_commander: ["xr_commander", "mcp_commander"] },
+        { robot_control: "robot_control" },
+        { teleop: "xr_commander", robot_commander: "none" },
       ],
-      reason: "camera streams need a consumer; select lerobot_recorder, xr_commander or mcp_commander" },
+      reason: "the camera needs a consumer: select lerobot_recorder, or launch with robot_control (the MCP endpoint lists the camera), or select robot_commander=none and launch with xr_commander (the headset shows it)" },
     // An episode starts via the recorder's record_episode action: from the
     // headset's button, or from the recorder.record_episode tool of the
     // stack's MCP endpoint, where the recorder is listed whenever the
     // endpoint runs.
     { when: { recorder: "lerobot_recorder" },
-      requires: [{ robot_commander: "xr_commander" }, { robot_control: "robot_control" }],
-      reason: "an episode starts from the XR commander's button or from recorder.record_episode on the MCP endpoint; select xr_commander or launch with robot_control" },
+      requires: [{ teleop: "xr_commander", robot_commander: "none" }, { robot_control: "robot_control" }],
+      reason: "the recorder needs a trigger: select robot_commander=none and launch with xr_commander (the headset's record button), or launch with robot_control (recorder.record_episode on the MCP endpoint)" },
   ],
 
   adjustments: [
@@ -139,14 +140,15 @@
     // here for it to pair into.
     { target: "backbone_inst", when: { robot_commander: "so101_leader" },
       unset_links: ["leader_arm", "leader_gripper"] },
-    // The headset streams a pose and the gripper: the backbone follows the
-    // pose slot, released here with the gripper socket for the headset to
-    // pair into; the joint socket stays vacant.
+    // A robot with no commander of its own is led by the stack's headset's
+    // right hand: the backbone follows the pose slot, paired with the
+    // gripper socket into the headset's right slots; the joint socket stays
+    // vacant.
     {
       target: "backbone_inst",
-      when: { robot_commander: "xr_commander" },
+      when: { teleop: "xr_commander", robot_commander: "none" },
       set_arguments: { upstream_mode: "pose" },
-      unset_links: ["leader_pose", "leader_gripper"],
+      set_links: { leader_pose: "headset_inst/right_arm", leader_gripper: "headset_inst/right_gripper" },
     },
   ],
 }

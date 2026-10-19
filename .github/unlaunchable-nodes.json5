@@ -36,10 +36,6 @@
     reason: "opens a real RealSense depth camera over USB; the runner has none",
   },
   {
-    node: "xr_commander",
-    reason: "pairs with an XR headset at runtime; the runner has none",
-  },
-  {
     node: "openarm_ker",
     reason: "reads the real KER leader arm over USB (M5Stack CoreS3); the runner has none",
   },

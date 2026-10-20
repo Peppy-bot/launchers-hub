@@ -103,28 +103,29 @@
             { target: "recorder_inst", when: { hardware_version: "v2", simulation: "waldo" },
               set_arguments: { robot_type: "openarm_v2_waldo", storage_root: "/tmp/lerobot_openarm_waldo" } },
             // The brain's tools, listed beside the moves.
-            { target: "robot_control_inst", when: { brain: "ai_brain_vla" },
-              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"] } },
-            // The simulated robot's brain sees: it finds and names items with
-            // the SAM 3 and SigLIP pipeline, by words from the node's general
-            // vocabulary, looking through the chest camera the rendered rig
-            // binds, color and depth from one producer. The pipeline runs in
-            // the brain's node, on the machine the brain runs on: the
-            // robot's, or the one its word names (`ai_brain_vla@cn-gpu-box`).
-            // It computes on that machine's NVIDIA GPU, or slowly on its CPU
-            // when the machine has none, and its first load on a machine
-            // downloads its weights there. A brain on another machine than
-            // the simulation's reads the chest camera over the network. Under
+            { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
+              add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
+            // The simulated robot's brain sees through the chest camera the
+            // rendered rig binds, color and depth from one producer; a brain
+            // on another machine than the simulation's reads it over the
+            // network. ai_brain_vla finds and names items with the SAM 3 and
+            // SigLIP pipeline, by words from the node's general vocabulary.
+            // The pipeline runs in the brain's node, on the machine the
+            // brain runs on: the robot's, or the one its word names
+            // (`ai_brain_vla@cn-gpu-box`). It computes on that machine's
+            // NVIDIA GPU, or slowly on its CPU when the machine has none, and
+            // its first load on a machine downloads its weights there. Under
             // Waldo it also enrols the catalogue's table objects, the
             // prototypes the node ships, so a rendered mesh whose look the
             // words miss is still reported under the catalogue's name; this
             // is a condition of the simulation, not of the robot, whose brain
-            // names by words alone.
-            { target: "brain_inst", when: { brain: "ai_brain_vla" },
-              set_arguments: { perception_backend: "sam3_siglip" } },
+            // names by words alone. vlm_router_brain asks a hosted model
+            // instead, with the key the launching shell exports, and needs
+            // no GPU.
+            // perception_model: the node's own default applies (see the node's peppy.json5, parameter perception_model).
             { target: "brain_inst", when: { brain: "ai_brain_vla", simulation: "waldo" },
               set_arguments: { perception_gallery: "waldo_catalogue" } },
-            { target: "brain_inst", when: { brain: "ai_brain_vla", camera_rig: "cameras_sim" },
+            { target: "brain_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"], camera_rig: "cameras_sim" },
               set_links: { camera: "chest", geometry: "chest" } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.

@@ -151,6 +151,8 @@ def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base
 
 #: The stack's one server, every robot is listed on.
 SERVER = "robot_control_inst"
+# The brains an OpenArm's brain axis offers, in the order its rules list them.
+BRAINS = ["ai_brain_vla", "vlm_router_brain"]
 
 #: The launchers running robots as copies, and the robot options of each.
 ROBOT_LAUNCHERS = {
@@ -237,7 +239,8 @@ class FragmentInventoryTests(unittest.TestCase):
         for directory, expected in [
             ("openarm/fragments", {"ai_brain_vla.json5", "cameras.json5", "cameras_sim.json5",
                                    "ker_commander.json5", "lerobot_recorder.json5",
-                                   "openarm.json5", "openarm_sim.json5", "web_commander.json5"}),
+                                   "openarm.json5", "openarm_sim.json5", "vlm_router_brain.json5",
+                                   "web_commander.json5"}),
             ("so101/fragments", {"cameras.json5", "cameras_sim.json5", "lerobot_recorder.json5",
                                  "so101.json5", "so101_leader.json5", "so101_sim.json5"}),
             ("teleop/fragments", {"xr_commander.json5"}),
@@ -564,11 +567,12 @@ class CombinationsTests(unittest.TestCase):
         # A join is plain (1) or under any selection of the robot's axes: an
         # OpenArm has two hardware versions, three commanders (`none` among
         # them), a recorder, a rig (off or on, `none` being the simulated
-        # rig's off) and a brain; an SO-101 two commanders, a recorder and a
-        # rig. A selection its constraints refuse is still enumerated, and
-        # reported refused when it resolves. The physical OpenArm has no plain
-        # join: its hardware version has no default, so every join names one.
-        openarm, so101 = 2 * 3 * 2 * 2 * 2, 1 + 2 * 2 * 2
+        # rig's off) and a brain (off, ai_brain_vla or vlm_router_brain); an
+        # SO-101 two commanders, a recorder and a rig. A selection its
+        # constraints refuse is still enumerated, and reported refused when it
+        # resolves. The physical OpenArm has no plain join: its hardware
+        # version has no default, so every join names one.
+        openarm, so101 = 2 * 3 * 2 * 2 * 3, 1 + 2 * 2 * 2
         openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2
         # The physical launcher: the endpoint and the headset each unfilled
         # or on, each bare and joined by any physical robot. It lists no
@@ -592,7 +596,7 @@ class CombinationsTests(unittest.TestCase):
         # selection of its axes (the v2's, or the SO-101's) and joined by any
         # simulated robot.
         stacks = (1 + 2 + 2) * 2 * 2
-        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 2, 2 * 2 * 2
+        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 3, 2 * 2 * 2
         sim = combos("openarm_simulation")
         self.assertEqual(len(sim), stacks * (alpha_openarm + openarm_sim + so101_sim))
         self.assertIn(["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "", "", "-"], sim)
@@ -1022,8 +1026,9 @@ class CombinationsTests(unittest.TestCase):
 
     def test_the_brains_tools_are_listed(self):
         root = Path(__file__).resolve().parents[2]
-        brain = combinations.load_json5(root / "openarm/fragments/ai_brain_vla.json5", "ai_brain_vla")
-        self.assertNotIn("adjustments", brain)
+        for option in BRAINS:
+            brain = combinations.load_json5(root / f"openarm/fragments/{option}.json5", option)
+            self.assertNotIn("adjustments", brain)
         for path in ROBOT_LAUNCHERS:
             document = combinations.load_json5(root / path, path)
             for robot in ROBOT_LAUNCHERS[path]:
@@ -1032,29 +1037,40 @@ class CombinationsTests(unittest.TestCase):
                 with self.subTest(path=path, robot=robot):
                     entries = robot_option(document, robot)["adjustments"]
                     thinking, = [a for a in entries
-                                 if a["target"] == SERVER and a.get("when") == {"brain": "ai_brain_vla"}]
+                                 if a["target"] == SERVER and a.get("when") == {"brain": BRAINS}]
                     self.assertEqual(thinking["add_links"], {
-                        "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"]})
+                        "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"], "brain_model": ["brain_inst"]})
+
+    def test_both_brains_stand_in_the_same_place_with_the_same_arguments(self):
+        root = Path(__file__).resolve().parents[2]
+        # Either brain is brain_inst on the same links with the same limbs
+        # and camera, so every rule that names brain_inst holds for both;
+        # each starts on its node's default perception model.
+        local, router = (
+            combinations.load_json5(root / f"openarm/fragments/{option}.json5", option)["deployments"] for option in BRAINS
+        )
+        [[local_instance]], [[router_instance]] = [d["instances"] for d in local], [d["instances"] for d in router]
+        self.assertEqual([d["source"] for d in local + router], [{"name": "ai_brain_vla", "tag": "v1"}, {"name": "vlm_router_brain", "tag": "v1"}])
+        self.assertEqual(local_instance["instance_id"], router_instance["instance_id"])
+        self.assertEqual(local_instance["links"], router_instance["links"])
+        self.assertEqual(local_instance["arguments"], {"limbs": "left_arm:left_gripper,right_arm:right_gripper", "camera_name": "chest"})
+        self.assertEqual(router_instance["arguments"], local_instance["arguments"])
 
     def test_the_brain_sees_through_its_rigs_chest_camera_and_names_by_words(self):
         root = Path(__file__).resolve().parents[2]
-        # Every launcher gives a brain the local perception pipeline and the
-        # chest camera its rig binds, colour and depth with the intrinsics
-        # the camera serves: the rendered relay in a simulation, the ZED on
-        # hardware. A simulation under Waldo also enrols the catalogue's
-        # table objects, the prototypes the node ships, so a rendered mesh
-        # whose look the words miss keeps the catalogue's name; that is a
-        # condition of the simulation, and the robot's brain names by words
-        # alone, with no gallery.
+        # Every launcher gives either brain the chest camera its rig binds,
+        # colour and depth with the intrinsics the camera serves: the
+        # rendered relay in a simulation, the ZED on hardware. A simulation under
+        # Waldo also enrols the catalogue's table objects, the prototypes
+        # ai_brain_vla ships, so a rendered mesh whose look the words miss
+        # keeps the catalogue's name; that is a condition of the simulation,
+        # and the robot's brain names by words alone, with no gallery.
         def sees(rig, enrols):
-            writes = [
-                {"target": "brain_inst", "when": {"brain": "ai_brain_vla"},
-                 "set_arguments": {"perception_backend": "sam3_siglip"}},
-            ]
+            writes = []
             if enrols:
                 writes.append({"target": "brain_inst", "when": {"brain": "ai_brain_vla", "simulation": "waldo"},
                                "set_arguments": {"perception_gallery": "waldo_catalogue"}})
-            writes.append({"target": "brain_inst", "when": {"brain": "ai_brain_vla", "camera_rig": rig},
+            writes.append({"target": "brain_inst", "when": {"brain": BRAINS, "camera_rig": rig},
                            "set_links": {"camera": "chest", "geometry": "chest"}})
             return writes
 
@@ -1441,7 +1457,7 @@ class CombinationsTests(unittest.TestCase):
                 if path == "openarm/fragments/openarm_sim.json5":
                     # The rendered OpenArm rig also feeds the brain's camera
                     # slot, so there the brain is a consumer too.
-                    requires.append({"brain": "ai_brain_vla"})
+                    requires.append({"brain": BRAINS})
                 self.assertEqual(consumer["requires"], requires)
                 self.assertIn("launch with robot_control", consumer["reason"])
                 self.assertIn("robot_commander=none and launch with xr_commander", consumer["reason"])

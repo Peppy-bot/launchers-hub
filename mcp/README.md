@@ -54,9 +54,10 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   moves it, under any commander; its
   recorder ([openarm](../openarm/fragments/lerobot_recorder.json5),
   [so101](../so101/fragments/lerobot_recorder.json5)) whenever it runs,
-  so an episode starts over the endpoint under any commander; the
-  [brain](../openarm/fragments/ai_brain_vla.json5)'s actions whenever it
-  runs; and the cameras of the rig
+  so an episode starts over the endpoint under any commander; the brain's
+  actions ([ai_brain_vla](../openarm/fragments/ai_brain_vla.json5) or
+  [vlm_router_brain](../openarm/fragments/vlm_router_brain.json5)) whenever
+  it runs; and the cameras of the rig
   ([cameras](../openarm/fragments/cameras.json5),
   [cameras_sim](../openarm/fragments/cameras_sim.json5)) whenever it runs,
   so a robot without a rig is listed with no camera. An OpenArm backbone's
@@ -86,7 +87,9 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   the stack, four. A feature selects one option of one of the robot's own
   axes that brings a node, with one line that says what it adds:
   `openarm_sim` offers `ai_brain`, its brain `ai_brain_vla`, and
-  `so101_sim`, which has no brain axis, offers none. No description in the
+  `so101_sim`, which has no brain axis, offers none. A feature names one
+  option of an axis, so the OpenArm's other brain, `vlm_router_brain`, is
+  selected on the command line (`--with alpha.vlm_router_brain`). No description in the
   scope names a model id: only the `model` of an option does. The CI fails a
   scope whose `model` is not the model that a plain join of the option adds.
   Every robot it adds is listed on the robots' endpoint, so the
@@ -223,7 +226,7 @@ The launch of `simulation_mcp` builds on its machine the nodes of each
 robot option of the scope with each set of its features before it starts
 the stack: `openarm_backbone`, `robot_initializer`, `sim_rgb_camera`,
 `sim_rgbd_camera`, `so101_backbone` and the OpenArm's brain
-`openarm_ai_brain_vla`. It starts none of them, and `peppy stack list`
+`ai_brain_vla`. It starts none of them, and `peppy stack list`
 shows them `Ready` with no instance. So the first launch after a peppy
 upgrade, after a hub change of a robot node or on a new machine takes
 longer, and each addition on that machine then adds and starts the robot's

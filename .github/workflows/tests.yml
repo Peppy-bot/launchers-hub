@@ -476,8 +476,8 @@ jobs:
       # the environment, so every node image it builds pulls its base layers
       # through (and into) the cache.
       #
-      # So is the directory openarm_ai_brain_vla keeps its model weights in.
-      # The simulated brain runs the sam3_siglip perception backend, whose
+      # So is the directory ai_brain_vla keeps its model weights in.
+      # The simulated brain runs the sam3_siglip perception model, whose
       # first load on a machine downloads 7 GB of weights, each file pinned
       # by its hash, and continues a download that a stopped node left.
       # `peppy stack launch` forwards its environment to the nodes it starts,
@@ -499,7 +499,7 @@ jobs:
         run: |
           echo "CI_CACHE_DIR=$HOME/.cache/launchers-hub-ci" >> "$GITHUB_ENV"
           echo "APPTAINER_CACHEDIR=$HOME/.cache/launchers-hub-ci/apptainer-cache" >> "$GITHUB_ENV"
-          echo "OPENARM_AI_BRAIN_VLA_WEIGHTS=$HOME/.cache/launchers-hub-ci/openarm_ai_brain_vla_weights" >> "$GITHUB_ENV"
+          echo "AI_BRAIN_VLA_WEIGHTS=$HOME/.cache/launchers-hub-ci/openarm_ai_brain_vla_weights" >> "$GITHUB_ENV"
 
       # Every node image bootstraps from a base on Docker Hub, and an
       # anonymous pull is charged against a quota tied to the address it comes
@@ -681,9 +681,19 @@ jobs:
       # The plan reaches the shell through the environment rather than a
       # `${{ }}` expansion: its labels and launch words are data the shell
       # reads instead of source the shell parses.
+      #
+      # vlm_router_brain stops at its start when no key reaches its starting
+      # model, Gemini Robotics-ER, whose key is GEMINI_API_KEY. A launch and
+      # a join forward their environment to the nodes they start, so the key
+      # is set here. Its value is a placeholder: the brain's start only
+      # checks that the key is set, its first search is its first call to
+      # the provider, and no launch here runs a search. So no real key is
+      # needed, and a pull request from a fork, which is given no secrets,
+      # launches the brain as well.
       - name: Launch every planned combination start to end
         env:
           PLAN: ${{ needs.discover.outputs.plan }}
+          GEMINI_API_KEY: launchers-hub-ci-no-provider-call
         run: |
           set -euo pipefail
           printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"

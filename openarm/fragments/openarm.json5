@@ -155,7 +155,7 @@
     },
     {
       name: "brain", cardinality: "zero_or_one", provides: ["brain_inst"],
-      options: { ai_brain_vla: "ai_brain_vla.json5" },
+      options: { ai_brain_vla: "ai_brain_vla.json5", vlm_router_brain: "vlm_router_brain.json5" },
     },
   ],
 

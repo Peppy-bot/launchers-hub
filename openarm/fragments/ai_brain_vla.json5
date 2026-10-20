@@ -1,8 +1,10 @@
-// The AI brain: the node that serves item_perception and item_manipulation,
-// the environment aware layer above limb_motion. It leads no pairing and reaches the arms only
-// through the backbone's discrete moves, so it composes with the selected
-// commander: the operator and the brain send the same kind of goal to the
-// same producer, and the governor sizes both on the way down. The brain's
+// The AI brain whose models run beside the robot, on its GPU: the node that
+// serves item_perception, item_manipulation and brain_model, the
+// environment aware layer above limb_motion.
+// It leads no pairing and reaches the arms only through the backbone's
+// discrete moves, so it composes with the selected commander: the operator
+// and the brain send the same kind of goal to the same producer, and the
+// governor sizes both on the way down. The brain's
 // tools are listed on the stack's endpoint as this robot's, so a model
 // drives it by the robot's name beside the direct moves.
 {
@@ -10,15 +12,18 @@
 
   deployments: [
     {
-      source: { name: "openarm_ai_brain_vla", tag: "v1" },
+      source: { name: "ai_brain_vla", tag: "v1" },
       instances: [
         {
           instance_id: "brain_inst",
           arguments: {
-            // The grippers this robot has, in the order get_state reports
-            // them: one per side, under the names limb_motion addresses them
-            // by.
-            gripper_names: "left_gripper,right_gripper",
+            // Each arm with the gripper it carries, in the order get_state
+            // reports the grippers, under the names limb_motion addresses
+            // them by.
+            limbs: "left_arm:left_gripper,right_arm:right_gripper",
+            // The camera the brain looks through: the chest camera, fixed
+            // to the torso, as the backbone's camera_mounts names it.
+            camera_name: "chest",
           },
           links: {
             // The governed producer of limb_motion. Required: a launch with

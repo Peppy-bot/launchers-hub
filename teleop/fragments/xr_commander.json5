@@ -8,7 +8,10 @@
 // A robot whose robot_commander is none pairs its backbone's pose and
 // gripper sockets into the four slots (its own fragment declares the
 // pairs), and the launcher binds its postures, recorder, cameras, alerts
-// and motor health here under the option that selects the robot.
+// and motor health here under the option that selects the robot. A
+// launcher with Waldo binds the simulation's sensor streams too, through
+// which the headset holds the cameras of the robot it drives at their own
+// rate.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [
@@ -20,6 +23,10 @@
           // A released trigger rests at half travel, since fully open splays
           // the OpenArm fingers nearly flat.
           arguments: { command_rate_hz: 100, gripper_open_fraction: 0.5 },
+          // Empty until a launcher with Waldo binds it: no other engine
+          // serves sim_sensor_streams, and a physical camera streams at its
+          // own rate all the time.
+          links: { sensor_streams: { vacant: "no simulation of this stack serves sim_sensor_streams" } },
         },
       ],
     },

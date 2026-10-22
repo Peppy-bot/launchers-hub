@@ -3,19 +3,21 @@
 // http://127.0.0.1:8902/simulation/v1/mcp. The exposure covers the scene,
 // the controls of its objects, its light sources and its materials. It also
 // covers a picture of the scene from any viewpoint, the simulation clock,
-// where a robot can work in the scene and the reset of the whole simulation
-// to the world it started as. The server is a process of its own beside the
-// stack's robot_control endpoint on port 8900 and the framework_controls
-// endpoint on port 8903, which simulation_mcp's robot_control option
-// deploys together. It binds the simulation only, so it needs nothing from
+// where a robot can work in the scene, the rate at which the simulation
+// renders the cameras of each robot's rig and the holds that keep a camera
+// at its own rate, and the reset of the whole simulation to the world it
+// started as. The server is a process of its own beside the stack's
+// robot_control endpoint on port 8900 and the framework_controls endpoint
+// on port 8903, which simulation_mcp's robot_control option deploys
+// together. It binds the simulation only, so it needs nothing from
 // any robot copy and keeps running when a copy is removed. Its instance id
 // is its own, so the browser scene panel (web_scene_commander) runs beside
 // it; it reads the simulation's clock, as that panel does. The exposure
 // binds object_controls, scene_lighting, scene_materials, scene_view,
-// simulation_clock, scene_workspace and simulation_reset, which Waldo alone
-// implements, so the simulation_mcp launcher, whose world_control axis
-// deploys it, requires Waldo beside it; `--with world_control=none`
-// switches it off.
+// simulation_clock, scene_workspace, sim_sensor_streams and
+// simulation_reset, which Waldo alone implements, so the simulation_mcp
+// launcher, whose world_control axis deploys it, requires Waldo beside it;
+// `--with world_control=none` switches it off.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -30,7 +32,7 @@
           // /simulation/v1/mcp. A server that finds the port held takes
           // another and announces it.
           arguments: { port: 8902 },
-          // One entry per target of the exposure, all eight the
+          // One entry per target of the exposure, all nine the
           // simulation's.
           links: {
             scene: "simulation_inst",
@@ -40,6 +42,7 @@
             view: "simulation_inst",
             clock: "simulation_inst",
             workspace: "simulation_inst",
+            sensor_streams: "simulation_inst",
             reset: "simulation_inst",
           },
           framework: { clock: "simulation" },

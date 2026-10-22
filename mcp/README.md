@@ -28,7 +28,7 @@ physical robots:
 |---|---|---|---|---|
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one | the peppy daemon that started the server, within the scope the launcher gives | the same functions; `physical.json5` deploys no framework endpoint |
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it | the simulation | no |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams | the simulation | no |
 
 The three URLs are the stack's: the same for one robot or ten, and the same
 before and after any join or removal, so a client registers them once. A
@@ -102,9 +102,9 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   deployed by the file, with a `none` option that switches it off. It binds
   the simulation alone, under an instance id of its own, so the browser
   scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
-  `scene_materials`, `scene_view`, `simulation_clock`, `scene_workspace` and
-  `simulation_reset`, which Waldo alone implements, so the launcher refuses
-  it under MuJoCo or Isaac Sim with that reason.
+  `scene_materials`, `scene_view`, `simulation_clock`, `scene_workspace`,
+  `sim_sensor_streams` and `simulation_reset`, which Waldo alone implements,
+  so the launcher refuses it under MuJoCo or Isaac Sim with that reason.
 
 The robots' and the simulated world's endpoints bind the simulation or
 nothing, and the framework's binds no node, so all three keep running when

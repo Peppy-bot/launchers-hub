@@ -216,5 +216,10 @@
     { target: "headset_inst", set_framework: { clock: "simulation" } },
     { target: "simulation_inst", when: { simulation: "waldo", teleop: "xr_commander" },
       add_links: { headsets: ["headset_inst"] } },
+    // The headset holds the cameras of the robot it drives at their own
+    // rate through Waldo's sensor streams, which render them at 1 Hz while
+    // no client holds them.
+    { target: "headset_inst", when: { simulation: "waldo", teleop: "xr_commander" },
+      set_links: { sensor_streams: "simulation_inst" } },
   ],
 }

@@ -6,7 +6,7 @@
 // its own endpoint:
 //
 //   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it
-//   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it
+//   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams
 //   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
 //
 // The robots' endpoint is the robot_control axis every launcher with robots
@@ -26,8 +26,8 @@
 // builds nothing, and one on another machine builds there when it joins;
 // `--no-prebuild` builds only what the launch starts. The world's endpoint is this file's own
 // world_control axis, deployed with a `none` option: Waldo alone implements
-// the object controls, lighting, materials, view, clock and workspace
-// contracts it binds, so the constraint below refuses it under any other
+// the object controls, lighting, materials, view, clock, workspace, sensor
+// streams and reset contracts it binds, so the constraint below refuses it under any other
 // engine, and `--with mujoco,world_control=none` is the robots' and the
 // framework's endpoints under MuJoCo. The three URLs are the same with no
 // robot, one or ten and before and after any join, so a client registers
@@ -104,8 +104,8 @@
     },
     // The simulated world's MCP endpoint, deployed by this file; `--with
     // world_control=none` switches it off. It binds Waldo's object controls,
-    // lighting, materials, view, clock and workspace contracts, so the
-    // constraint below requires Waldo.
+    // lighting, materials, view, clock, workspace, sensor streams and reset
+    // contracts, so the constraint below requires Waldo.
     {
       name: "world_control",
       cardinality: "one",
@@ -294,6 +294,11 @@
     { target: "headset_inst", set_framework: { clock: "simulation" } },
     { target: "simulation_inst", when: { simulation: "waldo", teleop: "xr_commander" },
       add_links: { headsets: ["headset_inst"] } },
+    // The headset holds the cameras of the robot it drives at their own
+    // rate through Waldo's sensor streams, which render them at 1 Hz while
+    // no client holds them.
+    { target: "headset_inst", when: { simulation: "waldo", teleop: "xr_commander" },
+      set_links: { sensor_streams: "simulation_inst" } },
     // The robots a client of the framework's endpoint can add: each robot
     // option of this file, with the model its robot initializer names, which
     // a client shows a picture of before it adds the robot, and one line for
@@ -330,11 +335,11 @@
 
   constraints: [
     // A property of the world's document: its controls, lighting,
-    // materials, view, clock, workspace and reset targets bind the
-    // simulation, and Waldo is the one simulation implementing those
-    // contracts.
+    // materials, view, clock, workspace, sensor streams and reset targets
+    // bind the simulation, and Waldo is the one simulation implementing
+    // those contracts.
     { when: { world_control: "world_control" },
       requires: [{ simulation: "waldo" }],
-      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_materials, scene_view, simulation_clock, scene_workspace and simulation_reset, which only waldo implements; launch with waldo or with world_control=none" },
+      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_materials, scene_view, simulation_clock, scene_workspace, sim_sensor_streams and simulation_reset, which only waldo implements; launch with waldo or with world_control=none" },
   ],
 }

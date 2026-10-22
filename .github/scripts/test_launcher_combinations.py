@@ -178,6 +178,8 @@ HEADSET_WIRING = [
     {"target": HEADSET, "set_framework": {"clock": "simulation"}},
     {"target": "simulation_inst", "when": {"simulation": "waldo", "teleop": "xr_commander"},
      "add_links": {"headsets": [HEADSET]}},
+    {"target": HEADSET, "when": {"simulation": "waldo", "teleop": "xr_commander"},
+     "set_links": {"sensor_streams": "simulation_inst"}},
 ]
 
 
@@ -787,6 +789,10 @@ class CombinationsTests(unittest.TestCase):
             root / "teleop/fragments/xr_commander.json5", "xr_commander")
         self.assertEqual(instance_of(document, HEADSET)["arguments"],
                          {"command_rate_hz": 100, "gripper_open_fraction": 0.5})
+        # The sensor streams stay empty until a launcher with Waldo binds
+        # them: no other engine serves them.
+        self.assertEqual(list(instance_of(document, HEADSET)["links"]), ["sensor_streams"])
+        self.assertIn("vacant", instance_of(document, HEADSET)["links"]["sensor_streams"])
         self.assertNotIn("adjustments", document)
 
 
@@ -1276,7 +1282,9 @@ class CombinationsTests(unittest.TestCase):
                         [f"fragments/{robot}.json5" if own else f"{prefix}{family}/fragments/{robot}.json5"])
         # The server and the headset read one clock: a simulation launcher
         # binds both to the simulation's, each simulated robot binding the
-        # instances it deploys, and binds the headset into Waldo's panel; the
+        # instances it deploys, binds the headset into Waldo's panel, and
+        # binds Waldo's sensor streams to the headset, which holds the
+        # cameras of the robot it drives at their own rate; the
         # physical launcher's robots read wall time and it writes nothing at
         # the top level. The MCP launcher turns
         # rendering on itself, so a robot joined onto it gets its cameras,
@@ -1328,15 +1336,16 @@ class CombinationsTests(unittest.TestCase):
             "scene": "simulation_inst", "controls": "simulation_inst",
             "lighting": "simulation_inst", "materials": "simulation_inst",
             "view": "simulation_inst", "clock": "simulation_inst",
-            "workspace": "simulation_inst", "reset": "simulation_inst"})
+            "workspace": "simulation_inst", "sensor_streams": "simulation_inst",
+            "reset": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
         # The axis is the MCP launcher's, deployed by the file with `none`
         # to switch it off, and Waldo alone implements the object controls,
-        # lighting, materials, view, clock, workspace and reset contracts it
-        # binds, so the launcher requires Waldo beside it. No fragment
+        # lighting, materials, view, clock, workspace, sensor streams and reset
+        # contracts it binds, so the launcher requires Waldo beside it. No fragment
         # declares the axis.
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)

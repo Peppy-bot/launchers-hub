@@ -192,10 +192,10 @@ show no motor health for it.
 | OpenArm v2 | `wrist_left`, `wrist_right`, `chest` |
 | SO-101 | `wrist` |
 
-Waldo opens a world that stands no robot of its own (`stage`) and Isaac Sim
-an empty stage; every robot brings the model its fragment names. A rendered
-camera rig is one robot's, and every engine renders one per robot that
-selects it.
+Waldo opens on the scene `default`, which stands no robot of its own, and
+Isaac Sim an empty stage; every robot brings the model its fragment names. A
+rendered camera rig is one robot's, and every engine renders one per robot
+that selects it.
 
 Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
 endpoint and a headset for operator control.

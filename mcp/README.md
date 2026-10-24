@@ -250,7 +250,9 @@ connection. `stack.list` lists an added robot under `copies` once its
 addition completed. Call `stack.recent_calls` for the calls of this
 endpoint. A client that closes a call after a time with no response and no
 progress cancels the addition: an addition can stay silent while the
-daemon adds or starts a node that prints nothing.
+daemon adds or starts a node that prints nothing. The endpoint itself
+cancels an addition or a removal that sends no progress for 660 s, its
+progress window, and the call or the task fails.
 
 ### One robot, two, many
 

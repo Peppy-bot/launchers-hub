@@ -35,6 +35,10 @@
             // The governed producer of limb_motion. Required: a launch with
             // no producer bound is refused.
             limb_motion: "backbone_inst",
+            // The robot's measured limbs, from the same backbone: a grab
+            // reads the gripper's opening after the lift from it. Required
+            // like limb_motion.
+            limb_state: "backbone_inst",
             // The camera the brain looks through, optional on the node: the
             // rig that renders it binds the chest camera here
             // (cameras_sim.json5); without a rig the brain refuses both

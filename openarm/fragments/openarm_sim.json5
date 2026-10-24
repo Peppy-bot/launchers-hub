@@ -161,6 +161,12 @@
     // Isaac steps its physics slower than the others.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },
       set_arguments: { follower_state_rate_hz: 60 } },
+    // Waldo renders the robots' cameras beside its physics and delivers
+    // about 75 states a second, and the backbone's control loop runs up to
+    // 80 ms late while it plans: at 25 a limb goes stale after 160 ms of
+    // silence, not 40, so a move sent right after a check is not refused.
+    { target: "backbone_inst", when: { simulation: "waldo" },
+      set_arguments: { follower_state_rate_hz: 25 } },
     // The rendered rig's chest camera serves its geometry, so the workspace
     // answers check what it sees, whatever else the copy selects.
     { target: "backbone_inst", when: { camera_rig: "cameras_sim" },

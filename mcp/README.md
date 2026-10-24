@@ -111,7 +111,7 @@ nothing, and the framework's binds no node, so all three keep running when
 every robot is removed. Only Waldo models the cameras' response, so under
 the other two engines the frame resources, `camera.info` and the geometry
 tools work and the exposure, gain and white balance setters refuse with a
-message, as the document tells a model to expect.
+failure kind and a message, as the document tells a model to expect.
 
 ## simulation_mcp
 
@@ -137,8 +137,9 @@ is chosen, the first robot that paired, which it keeps until that robot
 leaves. Waldo's headset panel shows the page's URL and a **Send to headset**
 button that opens the page in the headset through Meta's Web Launch. An MCP
 client and the headset can drive the same robot: the backbone refuses a
-client's goal on a limb the headset is streaming until the grip is released,
-and a goal already in flight keeps its limb.
+client's goal on a limb the headset is streaming, with the failure kind
+`leader_streaming`, until the grip is released, and a goal already in flight
+keeps its limb.
 
 `peppy stack list` reports, for the bare launch:
 
@@ -205,15 +206,18 @@ endpoint, then stands it at a work surface on the simulated world's:
    addition there builds nothing; a robot or a feature on another machine
    builds its software there, which can take minutes the first time, and so
    can fetching a robot's files into the simulation.
-   The call ends with success only once the simulation stands the robot, on
-   a free spot of the floor that the simulation chooses, a robot clamped on
-   a table edge too. `robot.list` on the robots' endpoint and
+   The call completes only once the simulation stands the robot, on a free
+   spot of the floor that the simulation chooses, a robot clamped on a table
+   edge too. `robot.list` on the robots' endpoint and
    `scene.get_robots_list` on the simulated world's then list it. The call
-   is refused when the stack holds four robots of these options, when a
-   robot of the stack has the name, while another change of the stack runs,
-   for a feature that the option does not offer or that the call names
-   twice, and for a machine that is not live, with the live machines in its
-   message. An addition that fails is undone, and its message says why.
+   is refused, with a failure kind and a message, when the stack holds four
+   robots of these options, when a robot of the stack has the name, while
+   another change of the stack runs, and for a feature that the option does
+   not offer or that the call names twice. It ends with
+   `resource_unavailable` for a machine that is not live, with the live
+   machines in its message. An addition that fails
+   is undone, and the call ends with an error that gives the failure kind
+   and a message that says why.
 3. `workspace.stand_at` on the simulated world's endpoint stands the robot
    at a work surface of the loaded scene, by its stance: a standing robot
    at the surface's joining spot, a mounted robot clamped on the edge of its
@@ -238,13 +242,15 @@ framework endpoint, so it builds no robot either. A `peppy stack join` of
 one of these options on this machine builds nothing too, unless a `--with`
 word selects a part that no feature offers, such as `web_commander`.
 
-A cancel or a lost connection ends the wait of the call, not the addition
-or the removal, which goes on in the stack: `stack.list` lists an added
-robot under `copies` once its addition succeeded. Call
-`stack.recent_calls` for the calls of this endpoint. A client that ends a
-call after a time with no response and no progress ends only its wait: an
-addition can stay silent while the daemon adds or starts a node that
-prints nothing.
+A cancel of a call stops the addition or the removal at the step it
+reached, and the stack ends it as a failure at that step ends it: an
+addition is undone, and a removal leaves the robot listed. A call that
+closes, by a lost connection too, is cancelled, and a task outlives its
+connection. `stack.list` lists an added robot under `copies` once its
+addition completed. Call `stack.recent_calls` for the calls of this
+endpoint. A client that closes a call after a time with no response and no
+progress cancels the addition: an addition can stay silent while the
+daemon adds or starts a node that prints nothing.
 
 ### One robot, two, many
 
@@ -410,11 +416,13 @@ framework's endpoint:
    any other client, the call answers once the move ends. Either way, the
    result gives `arm_names`, `positions` and `orientations`: where the
    grasp point of each arm stood in the robot frame when the move ended.
-   The three arrays are empty, and `message` says why, when the robot has
-   no fresh measured pose of an arm. A result with `success` true does not
-   prove that both arms arrived. An arm can stop short of the working
-   posture, against an obstacle or where the collision guard holds it, so
-   read the reported poses.
+   The three arrays are empty when the robot has no fresh measured pose of
+   an arm. A completed move does not prove that both arms arrived. An arm
+   can stop short of the working posture, against an obstacle or where the
+   collision guard holds it, so read the reported poses. A move that the
+   robot refuses or that fails ends with an error that gives its failure
+   kind, such as `leader_streaming` while the headset streams to an arm,
+   and a message.
    `robot.move_arm` plans from there, naming one of the arms `robot.list`
    gave the robot; the rest posture is not a place to plan Cartesian moves
    from.

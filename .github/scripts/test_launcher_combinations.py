@@ -2983,7 +2983,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_a_joined_copy_with_an_instance_not_running_fails_the_launch(self):
         """The engine took the robot out during the join: its initializer
-        finished while the join reported success."""
+        finished while the join completed."""
         for states, unhealthy, detail in [
             ({"bravo_backbone_inst": "finished"}, (), "bravo_backbone_inst is finished"),
             ({"bravo_commander_inst": "failed"}, (), "bravo_commander_inst is failed"),

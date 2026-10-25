@@ -46,7 +46,7 @@ axes:
 
 | Axis | `so101` | `so101_sim` | Provides |
 |---|---|---|---|
-| `robot_commander` | `so101_leader` (deployed), `none` (actions, and the stack's headset when the stack runs one) | `none` (deployed), `so101_leader` | none declared; the leader arm deploys `commander_inst` |
+| `robot_commander` (`role: "robot_commander"`) | `so101_leader` (deployed), `none` (actions, and the stack's headset when the stack runs one) | `none` (deployed), `so101_leader` | none declared; the leader arm deploys `commander_inst` |
 | `recorder` (`zero_or_one`) | `lerobot_recorder` | `lerobot_recorder` | `recorder_inst` |
 | `camera_rig` (`zero_or_one`) | `cameras` | `cameras_sim` | `wrist` |
 
@@ -57,7 +57,7 @@ peppy stack join so101:alpha --with robot_commander=none                 # actio
 peppy stack launch physical --with xr_commander                          # the stack's headset
 peppy stack join so101:alpha --with robot_commander=none,lerobot_recorder   # headset + recording
 peppy stack join so101:alpha --with robot_commander=none,lerobot_recorder,cameras
-peppy stack launch physical --with robot_control                                   # the robots' MCP endpoint
+peppy stack launch physical --with robot_control                                   # the robots' and the framework's MCP endpoints
 peppy stack join so101:alpha --with robot_commander=none,cameras         # driven over MCP, its camera served
 peppy stack resolve physical --join so101:alpha --with xr_commander,alpha.robot_commander=none   # inspect the flattened stack
 ```
@@ -131,14 +131,7 @@ peppy stack resolve so101_simulation --with mujoco --join so101_sim:charlo   # i
   one does. Waldo models the camera's response after the Innomaker
   U20CAM-1080P's, so its controls work there and refuse under MuJoCo and
   Isaac Sim.
-- `robot_control`, a word of the stack, serves the stack's `robot_control`
-  endpoint, `http://127.0.0.1:8900/robot_control/v1/mcp`, the one every
-  robot of the stack is driven through by name, where the launcher lists
-  the robot with its moves under any commander, as above, and, with
-  `cameras_sim`, its `wrist` relay. `simulation_mcp` deploys the endpoint.
-  Over MCP a model drives the SO-101's `arm` and `gripper`, sees through its
-  camera and, on `simulation_mcp`, moves the robot's base through the
-  `simulation` endpoint.
+- `robot_control`, a word of the stack, serves the stack's `robot_control` endpoint, `http://127.0.0.1:8900/robot_control/v1/mcp`, the one every robot of the stack is driven through by name, where the launcher lists the robot with its moves under any commander, as above, and, with `cameras_sim`, its `wrist` relay, and the framework's endpoint, `http://127.0.0.1:8903/framework_controls/v1/mcp`, where a client halts the stack. `simulation_mcp` deploys the endpoints. Over MCP a model drives the SO-101's `arm` and `gripper`, sees through its camera and, on `simulation_mcp`, moves the robot's base through the `simulation` endpoint.
 - The launcher names the dataset per engine, a robot type and a storage root:
   `so101_mujoco`, `so101_isaac` and `so101_waldo`, in
   `/tmp/lerobot_so101_mujoco`, `/tmp/lerobot_so101_isaac` and

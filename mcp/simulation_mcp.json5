@@ -5,7 +5,7 @@
 // call to the framework, to the simulated world and to a robot each goes to
 // its own endpoint:
 //
-//   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it
+//   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it, and halts the stack
 //   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams
 //   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
 //
@@ -15,12 +15,13 @@
 // its limb state, its moves and where its design lets it work, with its
 // recorder whenever it runs, its rig's cameras and its brain's tools, at
 // launch or by a later join, and a removal takes them out. The framework's
-// endpoint comes with it, on the
-// same option of this file alone: stack.list, stack.join and stack.remove
-// add and remove the robots of the scope the adjustment below gives, the
-// two robot options of this file with the features each offers, up to four
-// robots on the stack, each robot and each feature on the machine of the
-// federation the client names. The launch builds on its machine the nodes
+// endpoint comes with it, on the same option, as in every launcher with
+// robots: stack.list, stack.join and stack.remove add and remove the robots
+// of the scope the adjustment below gives, the two robot options of this
+// file with the features each offers, up to four robots on the stack, each
+// robot and each feature on the machine of the federation the client names,
+// and fleet.list, fleet.halt and fleet.clear_halt read the fleet of the
+// stack, halt the stack and clear the halt. The launch builds on its machine the nodes
 // of each of these robots with each set of its features before it starts
 // anything, so a robot or a feature that a client adds on this machine
 // builds nothing, and one on another machine builds there when it joins;
@@ -90,8 +91,9 @@
       },
     },
     // The robots' MCP endpoint, and the framework's endpoint that adds and
-    // removes the robots it drives; `--with robot_control=none` switches
-    // both off. Every robot is listed on the robots' endpoint with its moves.
+    // removes the robots it drives and halts the stack; `--with
+    // robot_control=none` switches both off. Every robot is listed on the
+    // robots' endpoint with its moves.
     {
       name: "robot_control",
       cardinality: "one",
@@ -316,7 +318,8 @@
     // feature on the machine the client names for that feature. So a brain
     // can run on another machine than its robot, for example one with an
     // NVIDIA GPU. stack.list lists each robot with its features and their
-    // machines, whether the client or the command line added it.
+    // machines, whether the client or the command line added it. The fleet
+    // target keeps the scope that the endpoint's fragment gives it.
     { target: "framework_controls_inst",
       set_daemon_scopes: { stack: {
         max_copies: 4,

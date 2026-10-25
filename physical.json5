@@ -1,5 +1,6 @@
 // The physical robots, each joined by name. A launch starts no robot and,
-// with `--with robot_control`, the robots' MCP endpoint;
+// with `--with robot_control`, the robots' MCP endpoint and the framework's,
+// where a client halts the stack and adds no robot;
 // `peppy stack join openarm:alpha --with v2` adds a robot,
 // `peppy stack remove alpha` takes it away. An OpenArm stands the hardware
 // version its join names, `v1` or `v2`; a join naming neither is refused.
@@ -10,7 +11,7 @@
 //   peppy stack join so101:charlie                              # an SO-101 under its leader arm
 //   peppy stack remove alpha
 //
-//   peppy stack launch physical --with robot_control   # the robots' MCP endpoint, waiting for robots
+//   peppy stack launch physical --with robot_control   # the robots' and the framework's MCP endpoints, waiting for robots
 //   peppy stack join openarm:alpha@jetson-1 --with v2,cameras                 # driven over MCP, listed when the join returns
 //   peppy stack launch physical --with xr_commander                           # the stack's headset, waiting for robots
 //   peppy stack join openarm:alpha@jetson-1 --with v2,robot_commander=none    # led by the headset
@@ -27,13 +28,16 @@
   peppy_schema: "launcher/v1",
 
   components: [
-    // The robots' MCP endpoint, selected with `--with robot_control`. Every
-    // robot is listed on it with its moves.
+    // The robots' MCP endpoint, selected with `--with robot_control`, and
+    // the framework's endpoint beside it, whose fleet tools halt the stack.
+    // Every robot is listed on the robots' endpoint with its moves.
     {
       name: "robot_control",
       cardinality: "zero_or_one",
       options: {
-        robot_control: "mcp/fragments/robot_control.json5",
+        robot_control: {
+          fragments: ["mcp/fragments/framework_controls.json5", "mcp/fragments/robot_control.json5"],
+        },
       },
     },
     // The stack's teleoperation headset, selected with `--with
@@ -155,4 +159,12 @@
   ],
 
   deployments: [],
+
+  adjustments: [
+    // The framework's endpoint serves its fleet target alone: every physical
+    // robot joins from the command line, on the machine its hardware is
+    // wired to, so its stack target stays vacant.
+    { target: "framework_controls_inst",
+      set_daemon_scopes: { stack: { vacant: "physical robots join from the command line, on the machine their hardware is wired to" } } },
+  ],
 }

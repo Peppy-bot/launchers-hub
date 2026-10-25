@@ -102,8 +102,12 @@
         },
       },
     },
+    // The robot commander: the node that drives this robot as its own, the
+    // browser panel or the KER, outside the leases and the halt of the
+    // stack. The role marks the axis, so the fleet listing gives the option
+    // of a copy as the robot commander of that robot; `none` gives none.
     {
-      name: "robot_commander",
+      name: "robot_commander", role: "robot_commander",
       options: {
         web_commander: "web_commander.json5",
         none: "../../common/fragments/none.json5",

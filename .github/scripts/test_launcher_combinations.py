@@ -806,6 +806,10 @@ class CombinationsTests(unittest.TestCase):
         # them: no other engine serves them.
         self.assertEqual(list(instance_of(document, HEADSET)["links"]), ["sensor_streams"])
         self.assertIn("vacant", instance_of(document, HEADSET)["links"]["sensor_streams"])
+        # The headset follows the fleet listing and holds the lease of the
+        # robot a person drives, in every launcher that deploys it.
+        self.assertEqual(instance_of(document, HEADSET)["daemon_scopes"],
+                         {"fleet": {"members": ["changes", "lease"]}})
         self.assertNotIn("adjustments", document)
 
 
@@ -1037,16 +1041,17 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(led, {"target": "backbone_inst", "when": HEADSET_LEADS,
                                        "set_arguments": {"upstream_mode": "pose"},
                                        "set_links": pairs[family_of(robot)]})
-        # The launcher binds the robot's postures and recorder into the
-        # headset under the same guard, so its buttons reach the robot it
-        # drives.
+        # The launcher binds the robot's postures, limb_motion and recorder
+        # into the headset under the same guard, so its buttons reach the
+        # robot it drives and a squeeze stops the moves in flight on it.
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:
                 with self.subTest(path=path, robot=robot):
                     entries = robot_option(document, robot)["adjustments"]
                     self.assertIn({"target": HEADSET, "when": HEADSET_LEADS,
-                                   "add_links": {"postures": ["backbone_inst"]}}, entries)
+                                   "add_links": {"postures": ["backbone_inst"],
+                                                 "limb_motion": ["backbone_inst"]}}, entries)
                     self.assertIn({"target": HEADSET, "when": {**HEADSET_LEADS, "recorder": "lerobot_recorder"},
                                    "add_links": {"recorder": ["recorder_inst"]}}, entries)
 

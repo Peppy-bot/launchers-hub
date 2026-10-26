@@ -102,9 +102,10 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   deployed by the file, with a `none` option that switches it off. It binds
   the simulation alone, under an instance id of its own, so the browser
   scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
-  `scene_materials`, `scene_view`, `simulation_clock`, `scene_workspace`,
-  `sim_sensor_streams` and `simulation_reset`, which Waldo alone implements,
-  so the launcher refuses it under MuJoCo or Isaac Sim with that reason.
+  `scene_daylight`, `scene_materials`, `scene_view`, `simulation_clock`,
+  `scene_workspace`, `sim_sensor_streams` and `simulation_reset`, which Waldo
+  alone implements, so the launcher refuses it under MuJoCo or Isaac Sim
+  with that reason.
 
 The robots' and the simulated world's endpoints bind the simulation or
 nothing, and the framework's binds no node, so all three keep running when
@@ -391,15 +392,20 @@ framework's endpoint:
    robot's.
 2. Discover the lights: call `lighting.get_lighting` on the simulation
    endpoint. It lists every light with its id, kind, the properties it
-   supports and each property's unit, bounds, authored default and current
-   value; every `light_id` the setters take comes from this list.
-3. Dim the key light: call `lighting.set_light_intensity` with the
-   directional light's `light_id` and a lower illuminance in lux. The
-   setter validates the whole request first, refuses out-of-bounds values
-   without changing anything, and answers with the effective value after
-   the call, so read the response rather than assuming the request took.
-   The change shows in every view the simulation renders, the robots'
-   cameras included.
+   supports and each property's unit and current value, and, for the lamps
+   and the environment map, each property's bounds and authored default;
+   every `light_id` the setters take comes from this list. The sun, the
+   moon and the sky follow the scene's daylight, and every setter refuses
+   them.
+3. Dim a lamp: call `lighting.set_light_intensity` with the lamp's
+   `light_id` and a lower luminous flux in lumens. The setter validates the
+   whole request first, refuses out-of-bounds values without changing
+   anything, and answers with the effective value after the call, so read
+   the response rather than assuming the request took. The change shows in
+   every view the simulation renders, the robots' cameras included. To
+   change the sun, the moon and the sky, set the local hour with
+   `daylight.set_daylight_time` or the weather with `daylight.set_weather`;
+   `daylight.get_daylight` reports where the sun and the moon stand.
 4. Look through a wrist camera: read the resource
    `alpha/wrist_left/camera.latest_frame` on the robots' endpoint, the
    latest frame as a JPEG, published at no more than 2 Hz. The chest
@@ -434,8 +440,9 @@ The simulation endpoint sets the rest of the world up the same way:
 and `scene.get_objects_list` before `scene.move_object` or
 `scene.apply_force`. `scene.load_scene` replaces every object, the ones the
 old scene placed included, and `scene.clear_scene` removes them all. Both
-leave every robot where it stands. Both restore the authored lighting and
-materials only when they change the selected scene or its scale.
+leave every robot where it stands. Both restore the authored lighting,
+daylight and materials only when they change the selected scene or its
+scale.
 Once the world is arranged, `workspace.describe` says where on each work
 surface a robot can work and `workspace.check` whether it can work given
 objects where they stand, measured in the world. It is for setting up and
@@ -456,8 +463,8 @@ peppy stack join openarm:alpha --with v2,cameras
 ```
 
 The first is the browser scene commander on Waldo with `alpha` under the
-browser panel: the scene panel, the lighting and materials panels the
-scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's
+browser panel: the scene panel, the lighting, daylight and materials
+panels the scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's
 three endpoints, the headset and `alpha`, named at launch, with no browser
 panel. The third adds the browser scene commander beside them, and with
 the rendered rig running its page carries the camera panel too, listing the

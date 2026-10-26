@@ -93,10 +93,14 @@
   ],
 
   components: [
-    // No `provides`: `none` deploys nothing, and a provided id must be
-    // defined by every option.
+    // The robot commander: the node that drives this robot as its own, the
+    // leader arm, outside the leases and the halt of the stack. The role
+    // marks the axis, so the fleet listing gives the option of a copy as the
+    // robot commander of that robot; `none` gives none. No `provides`:
+    // `none` deploys nothing, and a provided id must be defined by every
+    // option.
     {
-      name: "robot_commander",
+      name: "robot_commander", role: "robot_commander",
       options: {
         so101_leader: "so101_leader.json5",
         // No commander of its own: the stack's headset leads the arm when

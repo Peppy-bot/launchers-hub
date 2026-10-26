@@ -21,12 +21,15 @@
 // joined to a launch without one has no `wrist` camera, and `--with
 // cameras_sim` on its join is refused. `--with robot_control` serves the
 // robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where
-// every robot is listed with its moves. `--with xr_commander` runs the
-// stack's headset, which leads every robot that runs no commander of its
-// own, one at a time, chosen on the headset's page.
-// mcp/simulation_mcp.json5 is this file with the endpoint and the headset
-// deployed, no robot listed, every robot led by the headset by default, and
-// rendering on from the launch.
+// every robot is listed with its moves, and the framework's,
+// http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the
+// stack and adds no robot. `--with xr_commander` runs the stack's headset,
+// which leads every robot that runs no commander of its own, one at a time,
+// chosen on the headset's page.
+// mcp/simulation_mcp.json5 is this file with the endpoints and the headset
+// deployed, the framework's endpoint adding and removing robots, no robot
+// listed, every robot led by the headset by default, and rendering on from
+// the launch.
 {
   peppy_schema: "launcher/v1",
 
@@ -41,13 +44,16 @@
         waldo: "simulation/fragments/waldo.json5",
       },
     },
-    // The robots' MCP endpoint, selected with `--with robot_control`. Every
-    // robot is listed on it with its moves.
+    // The robots' MCP endpoint, selected with `--with robot_control`, and
+    // the framework's endpoint beside it, whose fleet tools halt the stack.
+    // Every robot is listed on the robots' endpoint with its moves.
     {
       name: "robot_control",
       cardinality: "zero_or_one",
       options: {
-        robot_control: "mcp/fragments/robot_control.json5",
+        robot_control: {
+          fragments: ["mcp/fragments/framework_controls.json5", "mcp/fragments/robot_control.json5"],
+        },
       },
     },
     // The stack's teleoperation headset, selected with `--with
@@ -210,6 +216,11 @@
     // The server reads the simulation's clock, as every instance a robot
     // copy runs does; each simulated robot's fragment binds its own.
     { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+    // The framework's endpoint serves its fleet target alone: this file
+    // offers an MCP client no robot to add, so its stack target stays
+    // vacant, and every robot joins from the command line.
+    { target: "framework_controls_inst",
+      set_daemon_scopes: { stack: { vacant: "this launcher offers MCP clients no robot to add: robots join from the command line" } } },
     // The stack's headset reads the simulation's clock like every instance
     // a robot copy runs, and Waldo's headset panel shows it: the link that
     // opens its page in the headset.

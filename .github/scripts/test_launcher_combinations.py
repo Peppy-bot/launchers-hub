@@ -629,7 +629,7 @@ class CombinationsTests(unittest.TestCase):
         ]:
             self.assertIn(reference, references)
         self.assertNotIn("world_control", references)
-        self.assertNotIn("framework_controls", references)
+        self.assertIn("mcp/fragments/framework_controls.json5", references)
         # The so101_simulation launcher: the same selections, joined by any
         # simulated robot, plain and under every selection of its axes.
         so101_launcher = combos("so101_simulation")
@@ -1239,10 +1239,10 @@ class CombinationsTests(unittest.TestCase):
         # of its own.
         self.assertEqual(deployment["instances"], [{"instance_id": SERVER, "arguments": {"port": 8900}}])
         self.assertNotIn("adjustments", fragment)
-        # Every launcher with robots declares the endpoint: simulation_mcp as
-        # a `one` axis it deploys, with the framework's endpoint beside it
-        # and `none` to switch both off, the others as a `zero_or_one` axis
-        # `--with robot_control` turns on.
+        # Every launcher with robots declares the endpoint, with the
+        # framework's endpoint beside it: simulation_mcp as a `one` axis it
+        # deploys, with `none` to switch both off, the others as a
+        # `zero_or_one` axis `--with robot_control` turns on.
         for path, robots in ROBOT_LAUNCHERS.items():
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1251,12 +1251,10 @@ class CombinationsTests(unittest.TestCase):
                 deployed = path == "mcp/simulation_mcp.json5"
                 self.assertNotIn("provides", axes["robot_control"])
                 self.assertEqual(axes["robot_control"]["cardinality"], "one" if deployed else "zero_or_one")
-                options = {"robot_control": f"{prefix}mcp/fragments/robot_control.json5"}
+                own = "fragments/" if deployed else "mcp/fragments/"
+                options = {"robot_control": {"fragments": [f"{own}framework_controls.json5", f"{own}robot_control.json5"]}}
                 if deployed:
-                    options = {
-                        "robot_control": {"fragments": ["fragments/framework_controls.json5", "fragments/robot_control.json5"]},
-                        "none": f"{prefix}common/fragments/none.json5",
-                    }
+                    options["none"] = f"{prefix}common/fragments/none.json5"
                 self.assertEqual(axes["robot_control"]["options"], options)
                 self.assertEqual(combinations.option_entries(document, path).get("robot_control"), "robot_control" if deployed else None)
                 # The stack's headset beside it: deployed by simulation_mcp,
@@ -1286,10 +1284,11 @@ class CombinationsTests(unittest.TestCase):
         # binds Waldo's sensor streams to the headset, which holds the
         # cameras of the robot it drives at their own rate; the
         # physical launcher's robots read wall time and it writes nothing at
-        # the top level. The MCP launcher turns
-        # rendering on itself, so a robot joined onto it gets its cameras,
-        # and scopes its framework's endpoint, which
-        # `test_the_framework_endpoint_adds_the_mcp_launchers_robots` holds.
+        # the top level but the scope of its framework's endpoint. The MCP
+        # launcher turns rendering on itself, so a robot joined onto it gets
+        # its cameras. Each launcher scopes its framework's endpoint, which
+        # `test_every_robot_launcher_serves_the_halt_of_its_stack` and
+        # `test_the_framework_endpoint_adds_the_mcp_launchers_robots` hold.
         for path in SIMULATION_LAUNCHERS:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1297,7 +1296,7 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(
                     [a for a in document["adjustments"] if "set_daemon_scopes" not in a], expected)
         physical = combinations.load_json5(root / "physical.json5", "physical")
-        self.assertNotIn("adjustments", physical)
+        self.assertEqual([a for a in physical["adjustments"] if "set_daemon_scopes" not in a], [])
         self.assertEqual(physical["deployments"], [])
         # Every rig is listed: color and depth on hardware, where neither
         # node describes a profile and the launcher lists no geometry, and
@@ -1370,40 +1369,60 @@ class CombinationsTests(unittest.TestCase):
             combinations.load_json5(root / "common/fragments/none.json5", "none"),
             {"peppy_schema": "launcher_fragment/v1"})
 
-    def test_the_framework_endpoint_adds_the_mcp_launchers_robots(self):
+    def test_every_robot_launcher_serves_the_halt_of_its_stack(self):
         root = Path(__file__).resolve().parents[2]
         fragment = combinations.load_json5(root / "mcp/fragments/framework_controls.json5", "framework_controls")
         deployment, = fragment["deployments"]
         self.assertEqual(deployment["source"], {"exposures": ["framework_controls:v1"]})
         # A port of its own beside the robots' endpoint (8900) and the
-        # world's (8902). Its one target is a daemon target, so it takes no
+        # world's (8902). Its two targets are daemon targets, so it takes no
         # link; it declares no core_node, since an instance serving a daemon
         # target runs on the coordinator, and no clock, since it waits on the
-        # daemon and not on the simulation.
+        # daemon and not on the simulation. The fragment scopes the fleet
+        # target to the fleet listing and the halt: an MCP client clears no
+        # halt, the command line does.
         self.assertEqual(deployment["instances"], [
-            {"instance_id": "framework_controls_inst", "arguments": {"port": 8903}}])
+            {"instance_id": "framework_controls_inst", "arguments": {"port": 8903},
+             "daemon_scopes": {"fleet": {"members": ["list", "halt"]}}}])
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
-        # The MCP launcher's robots' endpoint option composes it, and no
-        # other launcher does: the shared robot_control fragment leaves it
-        # out.
+        # Every launcher with robots composes it on the option of the
+        # robots' endpoint, so a client of every stack with robots can halt
+        # it.
+        for path in ROBOT_LAUNCHERS:
+            with self.subTest(path=path):
+                references = combinations.read_launcher(root, path).references
+                self.assertIn("mcp/fragments/framework_controls.json5", references)
+        # Each launcher gives the stack target its scope with one top-level
+        # write: a scope belongs to the stack, so no robot option of any
+        # launcher writes one, since a copy's composition may not. The
+        # launchers whose robots join from the command line alone leave the
+        # target vacant, with the reason, so their endpoint serves no stack
+        # tool.
+        for path, robots in ROBOT_LAUNCHERS.items():
+            document = combinations.load_json5(root / path, path)
+            with self.subTest(path=path):
+                adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
+                self.assertEqual(adjustment["target"], "framework_controls_inst")
+                self.assertNotIn("when", adjustment)
+                self.assertEqual(list(adjustment["set_daemon_scopes"]), ["stack"])
+                stack = adjustment["set_daemon_scopes"]["stack"]
+                if path == "mcp/simulation_mcp.json5":
+                    self.assertNotIn("vacant", stack)
+                else:
+                    self.assertEqual(list(stack), ["vacant"])
+                    self.assertTrue(stack["vacant"].strip())
+                    self.assertIn("command line", stack["vacant"])
+            for robot in robots:
+                with self.subTest(path=path, robot=robot):
+                    self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
+                                      if "set_daemon_scopes" in a], [])
+
+    def test_the_framework_endpoint_adds_the_mcp_launchers_robots(self):
+        root = Path(__file__).resolve().parents[2]
         path = "mcp/simulation_mcp.json5"
-        for other in ROBOT_LAUNCHERS:
-            with self.subTest(path=other):
-                references = combinations.read_launcher(root, other).references
-                self.assertEqual("mcp/fragments/framework_controls.json5" in references, other == path)
-        # The launcher gives the scope with one top-level write: a scope
-        # belongs to the stack, so no robot option of any launcher writes
-        # one, since a copy's composition may not.
         document = combinations.load_json5(root / path, path)
         adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
-        self.assertEqual(adjustment["target"], "framework_controls_inst")
-        for other, robots in ROBOT_LAUNCHERS.items():
-            other_document = combinations.load_json5(root / other, other)
-            for robot in robots:
-                with self.subTest(path=other, robot=robot):
-                    self.assertEqual([a for a in robot_option(other_document, robot)["adjustments"]
-                                      if "set_daemon_scopes" in a], [])
         # The hub's policy alone: peppy's parse and launch checks hold the
         # shape of the scope and of its descriptions, and every feature's
         # axis and option, in the `peppy stack resolve` step of the same CI.
@@ -1457,6 +1476,12 @@ class CombinationsTests(unittest.TestCase):
                 # `one`: the headset's guard names `none`, and an unfilled
                 # axis matches no guard.
                 self.assertIsNone(axes["robot_commander"].get("cardinality"))
+                # The axis of the robot commander, which drives the robot
+                # outside the leases and the halt, carries the role, so the
+                # fleet listing names it; no other axis carries a role.
+                self.assertEqual(
+                    {name: axis["role"] for name, axis in axes.items() if "role" in axis},
+                    {"robot_commander": "robot_commander"})
                 self.assertCountEqual(axes["camera_rig"]["options"], rigs)
                 # The rig's streams need a consumer: the recorder, the robots'
                 # endpoint, or the stack's headset leading the robot.
@@ -2303,6 +2328,16 @@ class ScopeModelTests(unittest.TestCase):
     def candidate(join_option="", join_words="", launch_joins=()):
         return combinations.Candidate("fleet", "fleet.json5", "", join_option, join_words,
                                       local=False, launch_joins=launch_joins)
+
+    def test_a_fleet_scope_and_a_vacant_scope_give_no_model(self):
+        plan = {"deployments": [
+            {"source": {"exposures": ["framework_controls:v1"]}, "instances": [
+                {"instance_id": "framework_controls_inst", "arguments": {"port": 8903},
+                 "daemon_scopes": {"fleet": {"members": ["list", "halt"]},
+                                   "stack": {"vacant": "robots join from the command line"}}}]},
+        ]}
+        self.assertEqual(combinations.scoped_models(plan), {})
+        self.assertIsNone(combinations.scope_model_drift(plan, self.candidate("arm_sim")))
 
     def test_a_plain_join_adds_the_model_the_scope_gives_its_option(self):
         plan = self.plan([("arm_sim", "arm_v2")], (combinations.COPY_NAME, "arm_v2"), ("alpha", "other"))

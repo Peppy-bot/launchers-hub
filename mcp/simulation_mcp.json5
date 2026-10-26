@@ -20,8 +20,8 @@
 // of the scope the adjustment below gives, the two robot options of this
 // file with the features each offers, up to four robots on the stack, each
 // robot and each feature on the machine of the federation the client names,
-// and fleet.list, fleet.halt and fleet.clear_halt read the fleet of the
-// stack, halt the stack and clear the halt. The launch builds on its machine the nodes
+// and fleet.list and fleet.halt read the fleet of the stack and halt the
+// stack. The launch builds on its machine the nodes
 // of each of these robots with each set of its features before it starts
 // anything, so a robot or a feature that a client adds on this machine
 // builds nothing, and one on another machine builds there when it joins;

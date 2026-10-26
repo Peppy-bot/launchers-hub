@@ -1379,11 +1379,11 @@ class CombinationsTests(unittest.TestCase):
         # link; it declares no core_node, since an instance serving a daemon
         # target runs on the coordinator, and no clock, since it waits on the
         # daemon and not on the simulation. The fragment scopes the fleet
-        # target to the members that the exposure selects: the fleet
-        # listing, the halt and its clearance.
+        # target to the fleet listing and the halt: an MCP client clears no
+        # halt, the command line does.
         self.assertEqual(deployment["instances"], [
             {"instance_id": "framework_controls_inst", "arguments": {"port": 8903},
-             "daemon_scopes": {"fleet": {"members": ["list", "halt", "clear_halt"]}}}])
+             "daemon_scopes": {"fleet": {"members": ["list", "halt"]}}}])
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
         # Every launcher with robots composes it on the option of the
@@ -2333,7 +2333,7 @@ class ScopeModelTests(unittest.TestCase):
         plan = {"deployments": [
             {"source": {"exposures": ["framework_controls:v1"]}, "instances": [
                 {"instance_id": "framework_controls_inst", "arguments": {"port": 8903},
-                 "daemon_scopes": {"fleet": {"members": ["list", "halt", "clear_halt"]},
+                 "daemon_scopes": {"fleet": {"members": ["list", "halt"]},
                                    "stack": {"vacant": "robots join from the command line"}}}]},
         ]}
         self.assertEqual(combinations.scoped_models(plan), {})

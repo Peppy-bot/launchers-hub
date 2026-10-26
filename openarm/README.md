@@ -116,18 +116,7 @@ peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with v2,ker_commander
 ```
 
-The default web commander streams joint setpoints. `robot_commander=none`
-gives the robot no commander of its own. If the stack runs the headset, the
-headset drives the robot, streaming end-effector poses to the backbone in
-pose mode; otherwise only actions move it. The headset drives one robot at a
-time: the one chosen on its page or, until one is chosen, the first robot
-that paired, which it keeps until that robot leaves. MCP drives the robot by
-name, under any commander, on the stack's `robot_control:v1` endpoint, the
-robots' own surface, where every call names its robot: the robot's identity,
-the backbone's discrete motion actions, its limb state and collision
-readout, where its design lets it work, and the cameras of the copy's rig,
-their latest frames and the chest's depth as resources and their stream
-info, exposure, gain and white balance as tools.
+The default web commander streams joint setpoints. `robot_commander=none` gives the robot no commander of its own. If the stack runs the headset, the headset drives the robot, streaming end-effector poses to the backbone in pose mode; otherwise only actions move it. The `robot_commander` axis declares `role: "robot_commander"`, so the fleet listing gives the option of each copy as the robot commander of that robot: the browser panel or the KER drives its robot outside the leases and the halt of the stack. The headset is not a robot commander. The headset drives one robot at a time: the one chosen on its page or, until one is chosen, the first robot that paired, which it keeps until that robot leaves. MCP drives the robot by name, under any commander, on the stack's `robot_control:v1` endpoint, the robots' own surface, where every call names its robot: the robot's identity, the backbone's discrete motion actions, its limb state and collision readout, where its design lets it work, and the cameras of the copy's rig, their latest frames and the chest's depth as resources and their stream info, exposure, gain and white balance as tools.
 
 The endpoint is the launcher's `robot_control` axis, deployed by `simulation_mcp`
 and selected with `--with robot_control` on the other launchers. Every robot beside
@@ -155,22 +144,7 @@ reports them under `Instance endpoints`. Recording starts from the record
 button of the web commander or of the stack's headset, or over MCP through
 `recorder.record_episode`.
 
-What exists only because the world is simulated, the scene's objects, its
-lighting, its daylight and weather, its materials, a view of it from any
-point, the preview of an asset of its catalogue, its clock and where a
-robot can work in it, is an endpoint of its own a model uses to set the world up,
-`http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is
-not the robot's: the `simulation_mcp` launcher deploys it on an axis of
-its own, `world_control`, bound to the simulation alone, under Waldo, the one
-simulation implementing the object controls, lighting, daylight,
-materials, view, clock and workspace contracts. With the robots' endpoint, `simulation_mcp`
-also deploys the framework's,
-`http://127.0.0.1:8903/framework_controls/v1/mcp`
-(`framework_controls:v1`), where a client adds a simulated OpenArm or
-SO-101 to the stack and removes it; `workspace.stand_at` on the world's
-endpoint then stands the robot at a work surface. The endpoints, adding a
-robot over MCP, the client setup and the move from simulation to the real
-robot are in the [MCP guide](../mcp/README.md):
+What exists only because the world is simulated, the scene's objects, its lighting, its daylight and weather, its materials, a view of it from any point, the preview of an asset of its catalogue, its clock and where a robot can work in it, is an endpoint of its own a model uses to set the world up, `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is not the robot's: the `simulation_mcp` launcher deploys it on an axis of its own, `world_control`, bound to the simulation alone, under Waldo, the one simulation implementing the object controls, lighting, daylight, materials, view, clock and workspace contracts. With the robots' endpoint, every launcher also deploys the framework's, `http://127.0.0.1:8903/framework_controls/v1/mcp` (`framework_controls:v1`), where a client halts the stack. On `simulation_mcp` a client also adds a simulated OpenArm or SO-101 to the stack there and removes it; `workspace.stand_at` on the world's endpoint then stands the robot at a work surface. The endpoints, adding a robot over MCP, the client setup and the move from simulation to the real robot are in the [MCP guide](../mcp/README.md):
 
 ```sh
 peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP

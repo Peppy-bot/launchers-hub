@@ -22,7 +22,7 @@ table and the copy semantics.
 |---|---|---|---|---|
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one, the fleet of the stack, and the halt of the stack | the peppy daemon that started the server, within the scope the launcher gives each target | the fleet and the halt; `physical.json5` leaves the `stack` target vacant, so a client adds no robot there |
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams | the simulation | no |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, the record of its setup, the build of a world and the judges that check it | the simulation | no |
 
 The three URLs are the stack's: the same for one robot or ten, and the same before and after any join or removal, so a client registers them once. A model reads three `instructions` blocks. The framework's says it controls the stack of nodes, not the world and not the motion of a robot, and that a halt is not a motion and not a safety function; the robots' says it is the robots' own surface and names no other endpoint, so a client of the physical robots reads it alone; the simulated world's says it sets the world up and is never a way to complete a task.
 
@@ -67,7 +67,7 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   the simulation alone, under an instance id of its own, so the browser
   scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
   `scene_materials`, `scene_view`, `simulation_clock`, `scene_workspace`,
-  `sim_sensor_streams` and `simulation_reset`, which Waldo alone implements,
+  `sim_sensor_streams` and `simulation_world`, which Waldo alone implements,
   so the launcher refuses it under MuJoCo or Isaac Sim with that reason.
 
 The robots' and the simulated world's endpoints bind the simulation or

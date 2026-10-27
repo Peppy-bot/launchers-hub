@@ -23,9 +23,9 @@ table and the copy semantics.
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one, the fleet of the stack, and the halt of the stack | the peppy daemon that started the server, within the scope the launcher gives each target | the fleet and the halt; `physical.json5` leaves the `stack` target vacant, so a client adds no robot there |
 | Workflows | `http://127.0.0.1:8904/workflow_controls/v1/mcp` | `workflow_controls:v1`: the robots a workflow can bind, the check of a workflow, its runs with their confirmations, suspensions, resumes and aborts, and the state and the journal of each run | the workflow director, `workflow_director_inst` | yes, with `--with workflow_control`; a run there calls no `item_manipulation` |
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, the record of its setup, the build of a world and the judges that check it | the simulation | no |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the check and the apply of a world, a workflow run in one and the judges that check it | the simulation, and for its worlds the applier of worlds, `sim_harness_inst` | no |
 
-The four URLs are the stack's: the same for one robot or ten, and the same before and after any join or removal, so a client registers them once. A model reads four `instructions` blocks. The framework's says it controls the stack of nodes, not the world and not the motion of a robot, and that a halt is not a motion and not a safety function; the robots' says it is the robots' own surface and names no other endpoint, so a client of the physical robots reads it alone; the simulated world's says it sets the world up and is never a way to complete a task; the workflows' says it runs workflows on the robots, not the world, and moves a robot only through a run.
+The four URLs are the stack's: the same for one robot or ten, and the same before and after any join or removal, so a client registers them once. A model reads four `instructions` blocks. The framework's says it controls the stack of nodes, not the world and not the motion of a robot, and that a halt is not a motion and not a safety function; the robots' says it is the robots' own surface and names no other endpoint, so a client of the physical robots reads it alone; the simulated world's says it configures a simulated world and, through its world target, applies worlds and runs workflows in it, with no effect on and no counterpart in the physical robot; the workflows' says it runs workflows on the robots, not the world, and moves a robot only through a run.
 
 Each endpoint comes from an axis of the file that owns what it publishes:
 
@@ -65,12 +65,22 @@ Each endpoint comes from an axis of the file that owns what it publishes:
 - **The simulated world's endpoint** is the `world_control` axis of
   `simulation_mcp` ([fragments/world_control.json5](fragments/world_control.json5)),
   deployed by the file, with a `none` option that switches it off. It binds
-  the simulation alone, under an instance id of its own, so the browser
-  scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
-  `scene_daylight`, `scene_materials`, `scene_view`, `simulation_clock`,
-  `scene_workspace`, `sim_sensor_streams` and `simulation_world`, which Waldo
-  alone implements, so the launcher refuses it under MuJoCo or Isaac Sim
-  with that reason.
+  the simulation and the applier of worlds, under an instance id of its own,
+  so the browser scene panel runs beside it. It binds `object_controls`,
+  `scene_lighting`, `scene_daylight`, `scene_materials`, `scene_view`,
+  `simulation_clock`, `scene_workspace` and `sim_sensor_streams`, which
+  Waldo alone implements, so the launcher refuses it under MuJoCo or Isaac
+  Sim with that reason. Its `world` target is the applier of worlds,
+  `sim_harness_inst`, which applies worlds and runs workflows in them on
+  Waldo's `simulation_world`, with the workflow director. The applier homes
+  each simulated robot through its backbone, which the option links into its
+  `limb_state`, `limb_motion` and `postures` slots, and it adds and removes
+  robots under the same `robot_membership` scope as the framework's endpoint: one
+  `set_daemon_scopes` adjustment targets both. With `--with
+  robot_control=none` a robot that joins has no consumer of its cameras, so
+  the applier's `stack` target is vacant and `world.get`, `world.check`,
+  `world.apply` and `world.run` refuse; `world.judge` and the scene tools
+  of the endpoint stay.
 - **The workflows' endpoint** comes with the simulated world's, on the
   `world_control` option of `simulation_mcp`, and on the `workflow_control`
   axis of `so101_simulation` and `physical`

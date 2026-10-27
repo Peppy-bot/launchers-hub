@@ -29,8 +29,9 @@
 // `--no-prebuild` builds only what the launch starts. The world's endpoint is this file's own
 // world_control axis, deployed with a `none` option, with the workflow
 // director and the workflows' endpoint beside it: Waldo alone implements
-// the object controls, lighting, daylight, materials, view, clock, workspace,
-// sensor streams and simulation world contracts it binds, so the constraint below refuses it under any other
+// the object controls, lighting, daylight, materials, view, clock,
+// workspace and sensor streams contracts it binds, and the simulation world
+// contract of its applier of worlds, so the constraint below refuses it under any other
 // engine, and `--with mujoco,world_control=none` is the robots' and the
 // framework's endpoints under MuJoCo. The four URLs are the same with no
 // robot, one or ten and before and after any join, so a client registers
@@ -109,14 +110,21 @@
     // The simulated world's MCP endpoint, deployed by this file with the
     // workflow director and the workflows' endpoint; `--with
     // world_control=none` switches them off. It binds Waldo's object controls,
-    // lighting, daylight, materials, view, clock, workspace, sensor streams
-    // and simulation world contracts, so the constraint below requires Waldo.
+    // lighting, daylight, materials, view, clock, workspace and sensor
+    // streams contracts, and its applier of worlds Waldo's simulation world,
+    // so the constraint below requires Waldo.
     {
       name: "world_control",
       cardinality: "one",
       options: {
         world_control: {
           fragments: ["fragments/workflow_control.json5", "fragments/world_control.json5"],
+          adjustments: [
+            // The applier homes each simulated robot through its backbone:
+            // the robot's limb state, limb motion and postures.
+            { target: "sim_harness_inst", when: { robot: ["openarm_sim", "so101_sim"] },
+              add_links: { limb_state: ["backbone_inst"], limb_motion: ["backbone_inst"], postures: ["backbone_inst"] } },
+          ],
         },
         none: "../common/fragments/none.json5",
       },
@@ -343,8 +351,10 @@
     // can run on another machine than its robot, for example one with an
     // NVIDIA GPU. stack.list lists each robot with its features and their
     // machines, whether the client or the command line added it. The fleet
-    // target keeps the scope that the endpoint's fragment gives it.
-    { target: "framework_controls_inst",
+    // target keeps the scope that the endpoint's fragment gives it. The
+    // applier of worlds adds and removes the same robots beside the same
+    // endpoint, so it takes the same scope.
+    { target: ["framework_controls_inst", "sim_harness_inst"], when: { robot_control: "robot_control" },
       set_daemon_scopes: { stack: {
         max_copies: 4,
         options: [
@@ -358,15 +368,25 @@
             description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
         ],
       } } },
+    // Without the robots' endpoint, a robot of these options that joins has
+    // no consumer of its cameras, so the applier of worlds leaves the stack
+    // as it stands: its stack target is vacant, so world.get, world.check,
+    // world.apply and world.run refuse. world.judge and the scene tools of
+    // the world's endpoint stay.
+    { target: "sim_harness_inst", when: { robot_control: "none" },
+      set_daemon_scopes: { stack: {
+        vacant: "the robots of this launch join and leave beside the robots' endpoint alone: launch with robot_control to apply a world",
+      } } },
   ],
 
   constraints: [
-    // A property of the world's document: its controls, lighting,
-    // daylight, materials, view, clock, workspace, sensor streams and
-    // simulation world targets bind the simulation, and Waldo is the one
-    // simulation implementing those contracts.
+    // A property of the simulated world's endpoint and its applier of
+    // worlds: their object_controls, scene_lighting, scene_daylight,
+    // scene_materials, scene_view, simulation_clock, scene_workspace,
+    // sim_sensor_streams and simulation_world links bind the simulation,
+    // and Waldo is the one simulation implementing those contracts.
     { when: { world_control: "world_control" },
       requires: [{ simulation: "waldo" }],
-      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_daylight, scene_materials, scene_view, simulation_clock, scene_workspace, sim_sensor_streams and simulation_world, which only waldo implements; launch with waldo or with world_control=none" },
+      reason: "the simulated world's endpoint and its applier of worlds bind object_controls, scene_lighting, scene_daylight, scene_materials, scene_view, simulation_clock, scene_workspace, sim_sensor_streams and simulation_world, which only waldo implements; launch with waldo or with world_control=none" },
   ],
 }

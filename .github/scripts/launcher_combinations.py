@@ -469,10 +469,14 @@ def check_adjustments(written, label):
         raise Json5Error(f"{label}: `adjustments` is a list of entries")
     for entry in written:
         if not isinstance(entry, dict) or not entry.get("target"):
-            raise Json5Error(f"{label}: an adjustment names its `target`")
+            raise Json5Error(f"{label}: an adjustment names its `target`: an instance id, or a list of instance ids")
         target = entry["target"]
-        if not isinstance(target, str):
-            raise Json5Error(f"{label}: an adjustment's `target` is an instance id")
+        targets = target if isinstance(target, list) else [target]
+        if not all(isinstance(name, str) and name for name in targets):
+            raise Json5Error(f"{label}: an adjustment's `target` is an instance id, or a list of instance ids")
+        if len(set(targets)) != len(targets):
+            raise Json5Error(f"{label}: an adjustment's `target` list names an instance twice")
+        target = ", ".join(targets)
         for key in entry:
             if key not in ("target", "when") and key not in ADJUSTMENT_OPERATIONS:
                 raise Json5Error(

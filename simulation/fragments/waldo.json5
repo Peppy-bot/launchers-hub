@@ -58,7 +58,7 @@
         // the robot is driven. The pair grace time is also how long a robot
         // whose nodes are gone stays, and how long one paired as another
         // model stays before its stay ends naming both lists.
-        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,physics_budget,robot_names,daylight,hand_teleop,headset_teleop,simulation_clock,contact_markers,dark_mode,viewer_hint", world: "stage", robot_pair_grace_ms: 10000 },
+        arguments: { cameras_enabled: false, state_rate_hz: 100, debug_inspector: true, plugins: "connection_status,frame_rate,physics_budget,robot_names,daylight,hand_teleop,headset_teleop,simulation_clock,contact_markers,dark_mode,viewer_hint", scene: "default", robot_pair_grace_ms: 10000 },
       }],
     },
   ],

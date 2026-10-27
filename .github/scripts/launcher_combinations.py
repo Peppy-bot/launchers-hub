@@ -1162,7 +1162,7 @@ def robot_stands(plan, copies):
 
 def scoped_models(plan):
     """The robot model each daemon scope of a flattened launcher gives the
-    options it lists, option to model: a `stack_copies` scope names the
+    options it lists, option to model: a `robot_membership` scope names the
     model of each robot option a client may add, which the client shows
     before it adds one."""
     models = {}

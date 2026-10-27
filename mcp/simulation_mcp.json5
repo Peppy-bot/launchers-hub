@@ -1,12 +1,13 @@
 // Robots in Waldo, driven over MCP and from the stack's headset. The
 // simulation starts empty; robots are named at launch, joined later or added
 // over MCP, and each comes up with its rendered rig, listed on the MCP
-// endpoint and paired into the headset. Three endpoints, one per family: a
-// call to the framework, to the simulated world and to a robot each goes to
-// its own endpoint:
+// endpoint and paired into the headset. Four endpoints, one per family: a
+// call to the framework, to the workflows, to the simulated world and to a
+// robot each goes to its own endpoint:
 //
 //   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it, and halts the stack
-//   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, the record of its setup, the build of a world and the judges that check it
+//   http://127.0.0.1:8904/workflow_controls/v1/mcp    the workflows: the check of a workflow and its runs on the robots of the stack, under robot leases
+//   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the apply of one, a workflow run in one and the judges that check it
 //   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, guide, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
 //
 // The robots' endpoint is the robot_control axis every launcher with robots
@@ -26,13 +27,14 @@
 // anything, so a robot or a feature that a client adds on this machine
 // builds nothing, and one on another machine builds there when it joins;
 // `--no-prebuild` builds only what the launch starts. The world's endpoint is this file's own
-// world_control axis, deployed with a `none` option: Waldo alone implements
+// world_control axis, deployed with a `none` option, with the workflow
+// director and the workflows' endpoint beside it: Waldo alone implements
 // the object controls, lighting, daylight, materials, view, clock, workspace,
 // sensor streams and simulation world contracts it binds, so the constraint below refuses it under any other
 // engine, and `--with mujoco,world_control=none` is the robots' and the
-// framework's endpoints under MuJoCo. The three URLs are the same with no
+// framework's endpoints under MuJoCo. The four URLs are the same with no
 // robot, one or ten and before and after any join, so a client registers
-// them once, and all three run while no robot stands in the simulation.
+// them once, and all four run while no robot stands in the simulation.
 //
 // The stack's headset is this file's headset axis, deployed with a `none`
 // option: one xr_commander that every robot without a commander of its own
@@ -57,7 +59,7 @@
 // `--with v1,camera_rig=none`. The stacks this file is meant for, and the
 // same client on the real robots, are in mcp/README.md:
 //
-//   peppy stack launch simulation_mcp                                    # Waldo and the three endpoints, no robot
+//   peppy stack launch simulation_mcp                                    # Waldo and the four endpoints, no robot
 //   peppy stack launch simulation_mcp --join openarm_sim:alpha           # an OpenArm v2 over MCP
 //   peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # an OpenArm and an SO-101
 //   peppy stack launch simulation_mcp --with mujoco,world_control=none   # the robots' and the framework's endpoints, under MuJoCo
@@ -104,15 +106,18 @@
         none: "../common/fragments/none.json5",
       },
     },
-    // The simulated world's MCP endpoint, deployed by this file; `--with
-    // world_control=none` switches it off. It binds Waldo's object controls,
+    // The simulated world's MCP endpoint, deployed by this file with the
+    // workflow director and the workflows' endpoint; `--with
+    // world_control=none` switches them off. It binds Waldo's object controls,
     // lighting, daylight, materials, view, clock, workspace, sensor streams
     // and simulation world contracts, so the constraint below requires Waldo.
     {
       name: "world_control",
       cardinality: "one",
       options: {
-        world_control: "fragments/world_control.json5",
+        world_control: {
+          fragments: ["fragments/workflow_control.json5", "fragments/world_control.json5"],
+        },
         none: "../common/fragments/none.json5",
       },
     },
@@ -305,6 +310,10 @@
     // The server reads the simulation's clock, as every instance a robot
     // copy runs does; each simulated robot's fragment binds its own.
     { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+    // The director reads the simulation's clock, which its robots read, so
+    // the bounds of a run count simulated time; its endpoint reads the same
+    // clock as the director it binds.
+    { target: ["workflow_director_inst", "workflow_controls_inst"], set_framework: { clock: "simulation" } },
     // The stack's headset reads the simulation's clock like every instance
     // a robot copy runs, and Waldo's headset panel shows it: the link that
     // opens its page in the headset.

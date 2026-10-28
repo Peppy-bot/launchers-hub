@@ -37,10 +37,10 @@
 // The stack's headset is this file's headset axis, deployed with a `none`
 // option: one xr_commander that every robot without a commander of its own
 // pairs into, its page opened from Waldo's headset panel; the robot it
-// drives is chosen on that page. An MCP client and the headset can drive the
-// same robot: the backbone refuses a client's goal on a limb the headset is
-// streaming until the grip is released, and a goal already in flight keeps its
-// limb.
+// drives is chosen on that page. An MCP client and the headset share the
+// robots through the robot leases: a squeeze takes the lease of the robot and
+// stops the moves in flight on it, and while the headset holds a robot the
+// stack refuses a client's move on it with `leased`, naming the headset.
 //
 // What this file adds to openarm_simulation: the robots' and the
 // framework's endpoints deployed, the world's endpoint on its own axis, the
@@ -145,10 +145,11 @@
                            camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
-            // the backbone pairs into it (the robot's fragment), and the
-            // headset's buttons reach the robot's postures and recorder.
+            // the backbone pairs into it (the robot's fragment), the headset's
+            // buttons reach the robot's postures and recorder, and a squeeze
+            // stops the moves in flight on the robot through its limb_motion.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
-              add_links: { postures: ["backbone_inst"] } },
+              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // The panel streams the live cap the simulated backbone starts on.
@@ -224,10 +225,11 @@
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into its right hand (the robot's fragment),
-            // and the headset's buttons reach the robot's postures and
-            // recorder.
+            // the headset's buttons reach the robot's postures and recorder,
+            // and a squeeze stops the moves in flight on the robot through its
+            // limb_motion.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
-              add_links: { postures: ["backbone_inst"] } },
+              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // An episode also starts from the MCP endpoint.

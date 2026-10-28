@@ -7,11 +7,18 @@
 //
 // A robot whose robot_commander is none pairs its backbone's pose and
 // gripper sockets into the four slots (its own fragment declares the
-// pairs), and the launcher binds its postures, recorder, cameras, alerts
-// and motor health here under the option that selects the robot. A
-// launcher with Waldo binds the simulation's sensor streams too, through
-// which the headset holds the cameras of the robot it drives at their own
-// rate.
+// pairs), and the launcher binds its postures, limb_motion, recorder,
+// cameras, alerts and motor health here under the option that selects the
+// robot. A launcher with Waldo binds the simulation's sensor streams too,
+// through which the headset holds the cameras of the robot it drives at
+// their own rate.
+//
+// The headset holds the robot lease of the robot a person drives: a squeeze
+// takes the lease and stops the moves in flight on the robot, and the
+// headset releases the lease after the release burst of the last hand once no
+// posture move of its own runs. Its fleet target follows the fleet listing
+// (changes) and holds the leases (lease); it drives only the robots of the
+// listing.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [
@@ -27,6 +34,7 @@
           // serves sim_sensor_streams, and a physical camera streams at its
           // own rate all the time.
           links: { sensor_streams: { vacant: "no simulation of this stack serves sim_sensor_streams" } },
+          daemon_scopes: { fleet: { members: ["changes", "lease"] } },
         },
       ],
     },

@@ -101,10 +101,12 @@ off. It drives one robot at a time: the one chosen on its page or, until one
 is chosen, the first robot that paired, which it keeps until that robot
 leaves. Waldo's headset panel shows the page's URL and a **Send to headset**
 button that opens the page in the headset through Meta's Web Launch. An MCP
-client and the headset can drive the same robot: the backbone refuses a
-client's goal on a limb the headset is streaming, with the failure kind
-`leader_streaming`, until the grip is released, and a goal already in flight
-keeps its limb.
+client and the headset share the robots through the robot leases. A squeeze
+takes the lease of the robot and stops the moves in flight on it, so a
+client's move in flight ends cancelled. While the headset holds a robot, the
+stack refuses a client's move on it with the failure kind `leased`, naming
+the headset; the headset releases the lease after the release burst of the
+last hand, once no posture move of its own runs.
 
 `peppy stack list` reports, for the bare launch:
 
@@ -391,8 +393,8 @@ framework's endpoint:
    can stop short of the working posture, against an obstacle or where the
    collision guard holds it, so read the reported poses. A move that the
    robot refuses or that fails ends with an error that gives its failure
-   kind, such as `leader_streaming` while the headset streams to an arm,
-   and a message.
+   kind, such as `leader_streaming` just after the headset let go of an
+   arm, and a message.
    `robot.move_arm` plans from there, naming one of the arms `robot.list`
    gave the robot; the rest posture is not a place to plan Cartesian moves
    from.

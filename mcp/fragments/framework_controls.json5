@@ -44,8 +44,8 @@
           // and the simulated world's on 8902. A server that finds the port
           // held takes another and announces it.
           arguments: { port: 8903 },
-          // The fleet listing and the halt: the members of fleet:v1 that
-          // the exposure selects as fleet.list and fleet.halt.
+          // The fleet listing and the halt: the members of robot_leases:v1
+          // that the exposure selects as fleet.list and fleet.halt.
           daemon_scopes: { fleet: { members: ["list", "halt"] } },
         },
       ],

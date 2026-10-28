@@ -111,8 +111,8 @@ discovery and host setup.
 | `simulation` | `simulation.json5`, `openarm_simulation.json5`, `so101_simulation.json5` and `simulation_mcp.json5` (`one`) | `waldo` (deployed), `mujoco`, `isaac_sim`; `simulation.json5` offers the two that answer scene calls |
 | `robot_control` | `simulation_mcp.json5` (`one`), `physical.json5`, `openarm_simulation.json5` and `so101_simulation.json5` (`zero_or_one`) | `robot_control`: the robots' MCP endpoint on port 8900, one server every robot is listed on with its moves; deployed by `simulation_mcp.json5`, where `none` switches it off, and turned on elsewhere with `--with robot_control`. The server reads the simulation's clock in the simulation launchers and wall time in `physical.json5`. The option also deploys the framework's MCP endpoint on port 8903, where a client reads the fleet of the stack, halts the stack and clears the halt; in `simulation_mcp.json5` a client also adds and removes the file's robots there, up to four, and the other launchers leave its `stack` target vacant |
 | `world_control` | `simulation_mcp.json5` (`one`) | `world_control` (deployed): the simulated world's MCP endpoint on port 8902, bound to the simulation alone; requires `waldo`. `none` switches it off |
-| `teleop` | `simulation_mcp.json5` (`one`), `physical.json5`, `openarm_simulation.json5` and `so101_simulation.json5` (`zero_or_one`) | `xr_commander`: the stack's teleoperation headset, `headset_inst`, its page on HTTPS port 4443; every robot whose `robot_commander` is `none` pairs into it; it drives one at a time, the robot chosen on its page (until one is chosen, the first robot that paired, which it keeps until that robot leaves). Under Waldo it holds the cameras of the robot it drives at their own rate through the simulation's `sim_sensor_streams`, which renders a camera that no client holds at 1 Hz. `simulation_mcp.json5` deploys it and `none` switches it off; the other launchers turn it on with `--with xr_commander`. Its status panel floats above its camera panels and shows the link state, each hand, posture and recorder outcomes, and the drivers' alerts and motor health |
-| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting and materials, and it shows a camera panel when a rendered rig runs |
+| `teleop` | `simulation_mcp.json5` (`one`), `physical.json5`, `openarm_simulation.json5` and `so101_simulation.json5` (`zero_or_one`) | `xr_commander`: the stack's teleoperation headset, `headset_inst`, its page on HTTPS port 4443; every robot whose `robot_commander` is `none` pairs into it; it drives one at a time, the robot chosen on its page (until one is chosen, the first robot that paired, which it keeps until that robot leaves). It holds the robot lease of the robot a person drives, while a hand drives it, through the release burst of the last hand, and while a posture move of its own runs, so a program that asks the stack before it moves never takes that robot from the person. Under Waldo it holds the cameras of the robot it drives at their own rate through the simulation's `sim_sensor_streams`, which renders a camera that no client holds at 1 Hz. `simulation_mcp.json5` deploys it and `none` switches it off; the other launchers turn it on with `--with xr_commander`. Its status panel floats above its camera panels and shows the link state, the chosen robot and who holds it, each hand, posture and recorder outcomes, and the drivers' alerts and motor health |
+| `scene_commander` | Isaac Sim and Waldo | `web_scene_commander`: edits the simulation's scene and lists its spawned objects; on Waldo it also edits the scene's lighting, daylight and materials, and it shows a camera panel when a rendered rig runs |
 | `robot` | the four launchers with robots (`zero_or_more`) | `openarm_sim` and `so101_sim` in the three simulation launchers; `openarm` and `so101` in `physical.json5` |
 | `hardware_version` | an OpenArm | `v1` or `v2`, named by the copy on hardware, `v2` unless named in a simulation: the initializer that names the model, written in place; on a physical robot the file sets a v1's frames and CAN interfaces on its drivers |
 | `robot_commander` | an OpenArm | `web_commander` (deployed), `ker_commander` on a v2 alone, and `none`, no commander of its own: the stack's headset leads the robot when the stack runs one, and actions alone drive it otherwise. The axis declares `role: "robot_commander"`, so the fleet listing gives the option of a copy as the robot commander of that robot, which drives it outside the leases and the halt of the stack |
@@ -192,10 +192,10 @@ show no motor health for it.
 | OpenArm v2 | `wrist_left`, `wrist_right`, `chest` |
 | SO-101 | `wrist` |
 
-Waldo opens a world that stands no robot of its own (`stage`) and Isaac Sim
-an empty stage; every robot brings the model its fragment names. A rendered
-camera rig is one robot's, and every engine renders one per robot that
-selects it.
+Waldo opens on the scene `default`, which stands no robot of its own, and
+Isaac Sim an empty stage; every robot brings the model its fragment names. A
+rendered camera rig is one robot's, and every engine renders one per robot
+that selects it.
 
 Isaac Sim requires a supported NVIDIA GPU. XR requires a reachable HTTPS
 endpoint and a headset for operator control.
@@ -331,10 +331,11 @@ stands the robot. The launch job times each launch and join that stands a
 robot, under Waldo and MuJoCo, and the run summary lists each wall time
 against the stand budget of 174.5 s, `robot_initializer`'s setup budget
 less the time it keeps for its leave report: cold for the first stand of a
-model in an engine in the job, when Waldo fetches the model's files into a
-cache on the runner's own disk, and warm after it. The wall time also holds
-the images the command built and the start of its other instances, so it
-is an upper bound of the stand. The times are a report: they fail nothing.
+model in an engine in the job, when Waldo fetches the files of the model
+that no earlier run fetched into its asset store on the job's sticky disk,
+and warm after it. The wall time also holds the images the command built
+and the start of its other instances, so it is an upper bound of the stand.
+The times are a report: they fail nothing.
 
 ## Configuration ownership
 
@@ -348,7 +349,7 @@ is an upper bound of the stand. The times are a report: they fail nothing.
 | `openarm/fragments/cameras.json5`, `cameras_sim.json5`, `so101/fragments/cameras.json5`, `cameras_sim.json5` | The physical and rendered camera rigs, the headset's tuning of a physical one, and a rendered relay's control link to Waldo |
 | `openarm/fragments/ai_brain_vla.json5` | The environment aware action layer beside a robot commander; the backbone refuses its goals while the headset streams the robot |
 | `openarm/fragments/lerobot_recorder.json5`, `so101/fragments/lerobot_recorder.json5` | The family's recorder: its rate and the limbs it films |
-| `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander, which binds its lighting, materials and camera panels to Waldo |
+| `simulation/fragments/` | The simulations, the Isaac viewer, and the scene commander, which binds its lighting, daylight, materials and camera panels to Waldo |
 | `common/fragments/none.json5` | The empty option, which deploys nothing, so an axis carrying it can be switched off |
 | `mcp/` | The three MCP endpoints, the framework's (`fragments/framework_controls.json5`, with the scope of its `fleet` target), the robots' (`fragments/robot_control.json5`) and the simulated world's (`fragments/world_control.json5`), the launcher whose robots are driven over MCP and from the stack's headset by default, and the guide to the endpoints and clients |
 

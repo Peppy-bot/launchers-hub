@@ -181,6 +181,9 @@ HEADSET_WIRING = [
     {"target": HEADSET, "when": {"simulation": "waldo", "teleop": "xr_commander"},
      "set_links": {"sensor_streams": "simulation_inst"}},
 ]
+#: Waldo's arguments the fragment alone sets: the scene it opens, its debug
+#: inspector and its plugins. No adjustment of a launcher writes them.
+WALDO_PINNED_ARGUMENTS = frozenset({"scene", "debug_inspector", "plugins"})
 
 
 def family_of(option):
@@ -209,6 +212,16 @@ def option_file(declaring, option_path):
 def instance_of(document, instance_id):
     return next(instance for deployment in document["deployments"] if "source" in deployment
                 for instance in deployment["instances"] if instance["instance_id"] == instance_id)
+
+
+def pinned_waldo_arguments_written(document):
+    """The arguments of WALDO_PINNED_ARGUMENTS that the adjustments of a
+    launcher set, at its top level and under its robot options, sorted."""
+    adjustments = list(document.get("adjustments", []))
+    for option in axis_of(document, "robot")["options"].values():
+        adjustments += option.get("adjustments", [])
+    return sorted({argument for adjustment in adjustments
+                   for argument in WALDO_PINNED_ARGUMENTS & set(adjustment.get("set_arguments", {}))})
 
 
 def writes_link(adjustment, slot):
@@ -793,6 +806,10 @@ class CombinationsTests(unittest.TestCase):
         # them: no other engine serves them.
         self.assertEqual(list(instance_of(document, HEADSET)["links"]), ["sensor_streams"])
         self.assertIn("vacant", instance_of(document, HEADSET)["links"]["sensor_streams"])
+        # The headset follows the fleet listing and holds the lease of the
+        # robot a person drives, in every launcher that deploys it.
+        self.assertEqual(instance_of(document, HEADSET)["daemon_scopes"],
+                         {"fleet": {"members": ["changes", "lease"]}})
         self.assertNotIn("adjustments", document)
 
 
@@ -905,25 +922,32 @@ class CombinationsTests(unittest.TestCase):
     def test_waldo_runs_the_debug_inspector_whatever_the_launch_selects(self):
         # The 3D viewer and the scene services are the debug inspector's, so
         # the fragment runs it from the first launch of every launcher
-        # deploying Waldo;
-        # no adjustment of the fragment or of a launcher touches
-        # `debug_inspector` or `plugins`.
-        # Every robot joins Waldo bringing its own model, so the world it
-        # opens, the stage, is the fragment's too, and no launcher sets one.
-        pinned = {"world", "debug_inspector", "plugins"}
+        # deploying Waldo; no adjustment of the fragment or of a launcher
+        # touches `debug_inspector` or `plugins`. Every robot joins Waldo
+        # bringing its own model, so the scene it opens, `default`, is the
+        # fragment's too, and no launcher sets one.
         root = Path(__file__).resolve().parents[2]
         for launcher in ROBOT_LAUNCHERS:
             document = combinations.load_json5(root / launcher, launcher)
-            written = list(document.get("adjustments", []))
-            for option in axis_of(document, "robot")["options"].values():
-                written += option["adjustments"]
-            for adjustment in written:
-                self.assertFalse(pinned & set(adjustment.get("set_arguments", {})), launcher)
+            self.assertEqual(pinned_waldo_arguments_written(document), [], launcher)
         waldo = combinations.load_json5(root / "simulation/fragments/waldo.json5", "waldo")
         arguments = instance_of(waldo, "simulation_inst")["arguments"]
-        self.assertEqual((arguments["world"], arguments["debug_inspector"]), ("stage", True))
+        self.assertEqual((arguments["scene"], arguments["debug_inspector"]), ("default", True))
         self.assertIn("hand_teleop", arguments["plugins"].split(","))
         self.assertNotIn("adjustments", waldo)
+
+    def test_a_launcher_that_sets_a_pinned_waldo_argument_is_caught(self):
+        # The guard reads a launcher's top level and its robot options alike,
+        # for each argument the Waldo fragment pins.
+        for argument in ["debug_inspector", "plugins", "scene"]:
+            with self.subTest(argument=argument):
+                sets = {"target": "simulation_inst", "set_arguments": {argument: "other"}}
+                launcher = fleet_launcher()
+                launcher["adjustments"] = [sets]
+                self.assertEqual(pinned_waldo_arguments_written(launcher), [argument])
+                launcher = fleet_launcher()
+                robot_option(launcher, "openarm_v2")["adjustments"] = [sets]
+                self.assertEqual(pinned_waldo_arguments_written(launcher), [argument])
 
     def test_the_scene_commander_edits_and_observes_the_simulation_that_declares_it(self):
         root = Path(__file__).resolve().parents[2]
@@ -945,21 +969,25 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["links"]["objects"], "simulation_inst")
         self.assertEqual(instance["framework"], {"clock": "simulation"})
 
-    def test_the_scene_commander_binds_lighting_materials_and_cameras_on_waldo_alone(self):
+    def test_the_scene_commander_binds_lighting_daylight_materials_and_cameras_on_waldo_alone(self):
         root = Path(__file__).resolve().parents[2]
         # The page carries a panel for every contract the simulation serves:
-        # the three slots are written vacant, and the panel's own adjustment
+        # the four slots are written vacant, and the panel's own adjustment
         # binds them to the simulation that implements them, Waldo.
         panel = combinations.load_json5(
             root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
         instance = instance_of(panel, "scene_commander_inst")
-        self.assertEqual(set(instance["links"]), {"simulation", "objects", "lighting", "materials", "cameras"})
-        for slot in ["lighting", "materials", "cameras"]:
+        self.assertEqual(
+            set(instance["links"]), {"simulation", "objects", "lighting", "daylight", "materials", "cameras"})
+        for slot in ["lighting", "daylight", "materials", "cameras"]:
             self.assertEqual(set(instance["links"][slot]), {"vacant"})
             self.assertTrue(instance["links"][slot]["vacant"].strip())
         self.assertEqual(panel["adjustments"], [{
             "target": "scene_commander_inst", "when": {"simulation": "waldo"},
-            "set_links": {"lighting": "simulation_inst", "materials": "simulation_inst", "cameras": "simulation_inst"},
+            "set_links": {
+                "lighting": "simulation_inst", "daylight": "simulation_inst", "materials": "simulation_inst",
+                "cameras": "simulation_inst",
+            },
         }])
         for other in ["mujoco"]:
             with self.subTest(simulation=other):
@@ -1017,16 +1045,17 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(led, {"target": "backbone_inst", "when": HEADSET_LEADS,
                                        "set_arguments": {"upstream_mode": "pose"},
                                        "set_links": pairs[family_of(robot)]})
-        # The launcher binds the robot's postures and recorder into the
-        # headset under the same guard, so its buttons reach the robot it
-        # drives.
+        # The launcher binds the robot's postures, limb_motion and recorder
+        # into the headset under the same guard, so its buttons reach the
+        # robot it drives and a squeeze stops the moves in flight on it.
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:
                 with self.subTest(path=path, robot=robot):
                     entries = robot_option(document, robot)["adjustments"]
                     self.assertIn({"target": HEADSET, "when": HEADSET_LEADS,
-                                   "add_links": {"postures": ["backbone_inst"]}}, entries)
+                                   "add_links": {"postures": ["backbone_inst"],
+                                                 "limb_motion": ["backbone_inst"]}}, entries)
                     self.assertIn({"target": HEADSET, "when": {**HEADSET_LEADS, "recorder": "lerobot_recorder"},
                                    "add_links": {"recorder": ["recorder_inst"]}}, entries)
 
@@ -1337,19 +1366,19 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["arguments"], {"port": 8902})
         self.assertEqual(instance["links"], {
             "scene": "simulation_inst", "controls": "simulation_inst",
-            "lighting": "simulation_inst", "materials": "simulation_inst",
+            "lighting": "simulation_inst", "daylight": "simulation_inst", "materials": "simulation_inst",
             "view": "simulation_inst", "clock": "simulation_inst",
             "workspace": "simulation_inst", "sensor_streams": "simulation_inst",
-            "reset": "simulation_inst"})
+            "simulation_world": "simulation_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
         # It binds nothing of a robot copy and adjusts nothing.
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
         # The axis is the MCP launcher's, deployed by the file with `none`
         # to switch it off, and Waldo alone implements the object controls,
-        # lighting, materials, view, clock, workspace, sensor streams and reset
-        # contracts it binds, so the launcher requires Waldo beside it. No fragment
-        # declares the axis.
+        # lighting, daylight, materials, view, clock, workspace, sensor streams
+        # and simulation world contracts it binds, so the launcher requires
+        # Waldo beside it. No fragment declares the axis.
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)
         axes = {axis["name"]: axis for axis in document["components"]}
@@ -1361,6 +1390,9 @@ class CombinationsTests(unittest.TestCase):
         rule, = document["constraints"]
         self.assertEqual((rule["when"], rule["requires"]), ({"world_control": "world_control"}, [{"simulation": "waldo"}]))
         self.assertIn("world_control=none", rule["reason"])
+        for contract in ["object_controls", "scene_lighting", "scene_daylight", "scene_materials", "scene_view",
+                         "simulation_clock", "scene_workspace", "sim_sensor_streams", "simulation_world"]:
+            self.assertIn(contract, rule["reason"])
         for engine in ["waldo", "mujoco", "isaac_sim"]:
             fragment = combinations.load_json5(root / f"simulation/fragments/{engine}.json5", engine)
             self.assertNotIn("world_control", [axis["name"] for axis in fragment.get("components", [])])
@@ -2569,16 +2601,16 @@ class CoverageTests(unittest.TestCase):
             self.assertEqual(labels, ["sim (simulation=a)", "sim (simulation=b)", "sim (simulation=c)"])
 
     def test_the_same_node_configured_differently_is_launched_both_ways(self):
-        def simulation(world):
+        def simulation(scene):
             return completed(json.dumps({"deployments": [{
                 "source": {"name": "waldo", "tag": "v1"},
-                "instances": [{"instance_id": "simulation_inst", "arguments": {"world": world}}],
+                "instances": [{"instance_id": "simulation_inst", "arguments": {"scene": scene}}],
             }]}))
 
         answers = {
-            ("sim.json5", "simulation=a", "", ""): simulation("openarm_v1"),
-            ("sim.json5", "simulation=b", "", ""): simulation("openarm_v2"),
-            ("sim.json5", "simulation=c", "", ""): simulation("openarm_v2"),
+            ("sim.json5", "simulation=a", "", ""): simulation("default"),
+            ("sim.json5", "simulation=b", "", ""): simulation("kitchen"),
+            ("sim.json5", "simulation=c", "", ""): simulation("kitchen"),
         }
         with planned({"sim": simulation_launcher("a", "b", "c")}, answers) as (_, labels, _plan, _summary):
             self.assertEqual(labels, ["sim (simulation=a)", "sim (simulation=b)"])

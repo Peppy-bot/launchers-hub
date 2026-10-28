@@ -1,11 +1,12 @@
 // Runtime scene and object control: a browser panel driving the
 // scene_manipulation contract of the simulation that declares this option
 // and reading the object_state of that same simulation. The page shows a
-// lighting panel and a materials panel only when those slots are bound, and
-// a camera panel while the simulation renders at least one camera: the
-// slots stand vacant under a simulation implementing none of scene_lighting,
-// scene_materials and sim_camera_control, and bind to the simulation that
-// implements them, which the adjustment below names. The camera panel lists
+// lighting panel, a daylight panel and a materials panel only when those
+// slots are bound, and a camera panel while the simulation renders at least
+// one camera: the slots stand vacant under a simulation implementing none of
+// scene_lighting, scene_daylight, scene_materials and sim_camera_control,
+// and bind to the simulation that implements them, which the adjustment
+// below names. The camera panel lists
 // every camera the simulation renders, of every robot standing in it.
 {
   peppy_schema: "launcher_fragment/v1",
@@ -19,6 +20,7 @@
             simulation: "simulation_inst",
             objects: "simulation_inst",
             lighting: { vacant: "this simulation implements no scene_lighting; the page carries no lighting panel" },
+            daylight: { vacant: "this simulation implements no scene_daylight; the page carries no daylight panel" },
             materials: { vacant: "this simulation implements no scene_materials; the page carries no materials panel" },
             cameras: { vacant: "this simulation models no camera response; the page carries no camera panel" },
           },
@@ -28,9 +30,13 @@
   ],
 
   adjustments: [
-    // Waldo serves scene_lighting, scene_materials and sim_camera_control on
-    // the same instance as its scene, so all three panels bind to it.
+    // Waldo serves scene_lighting, scene_daylight, scene_materials and
+    // sim_camera_control on the same instance as its scene, so all four
+    // panels bind to it.
     { target: "scene_commander_inst", when: { simulation: "waldo" },
-      set_links: { lighting: "simulation_inst", materials: "simulation_inst", cameras: "simulation_inst" } },
+      set_links: {
+        lighting: "simulation_inst", daylight: "simulation_inst", materials: "simulation_inst",
+        cameras: "simulation_inst",
+      } },
   ],
 }

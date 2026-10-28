@@ -65,10 +65,11 @@
                            camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
-            // the backbone pairs into it (the robot's fragment), and the
-            // headset's buttons reach the robot's postures and recorder.
+            // the backbone pairs into it (the robot's fragment), the headset's
+            // buttons reach the robot's postures and recorder, and a squeeze
+            // stops the moves in flight on the robot through its limb_motion.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
-              add_links: { postures: ["backbone_inst"] } },
+              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // Real drivers report per-motor health and operator alerts; the
@@ -129,10 +130,11 @@
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into its right hand (the robot's fragment),
-            // and the headset's buttons reach the robot's postures and
-            // recorder.
+            // the headset's buttons reach the robot's postures and recorder,
+            // and a squeeze stops the moves in flight on the robot through its
+            // limb_motion.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
-              add_links: { postures: ["backbone_inst"] } },
+              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // The follower reports per-motor health and operator alerts; the

@@ -22,7 +22,7 @@ table and the copy semantics.
 |---|---|---|---|---|
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one, the fleet of the stack, and the halt of the stack | the peppy daemon that started the server, within the scope the launcher gives each target | the fleet and the halt; `physical.json5` leaves the `stack` target vacant, so a client adds no robot there |
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
-| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams | the simulation | no |
+| Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, the record of its setup, the build of a world and the judges that check it | the simulation | no |
 
 The three URLs are the stack's: the same for one robot or ten, and the same before and after any join or removal, so a client registers them once. A model reads three `instructions` blocks. The framework's says it controls the stack of nodes, not the world and not the motion of a robot, and that a halt is not a motion and not a safety function; the robots' says it is the robots' own surface and names no other endpoint, so a client of the physical robots reads it alone; the simulated world's says it sets the world up and is never a way to complete a task.
 
@@ -66,9 +66,10 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   deployed by the file, with a `none` option that switches it off. It binds
   the simulation alone, under an instance id of its own, so the browser
   scene panel runs beside it. It binds `object_controls`, `scene_lighting`,
-  `scene_materials`, `scene_view`, `simulation_clock`, `scene_workspace`,
-  `sim_sensor_streams` and `simulation_reset`, which Waldo alone implements,
-  so the launcher refuses it under MuJoCo or Isaac Sim with that reason.
+  `scene_daylight`, `scene_materials`, `scene_view`, `simulation_clock`,
+  `scene_workspace`, `sim_sensor_streams` and `simulation_world`, which Waldo
+  alone implements, so the launcher refuses it under MuJoCo or Isaac Sim
+  with that reason.
 
 The robots' and the simulated world's endpoints bind the simulation or
 nothing, and the framework's binds no node, so all three keep running when
@@ -100,10 +101,12 @@ off. It drives one robot at a time: the one chosen on its page or, until one
 is chosen, the first robot that paired, which it keeps until that robot
 leaves. Waldo's headset panel shows the page's URL and a **Send to headset**
 button that opens the page in the headset through Meta's Web Launch. An MCP
-client and the headset can drive the same robot: the backbone refuses a
-client's goal on a limb the headset is streaming, with the failure kind
-`leader_streaming`, until the grip is released, and a goal already in flight
-keeps its limb.
+client and the headset share the robots through the robot leases. A squeeze
+takes the lease of the robot and stops the moves in flight on it, so a
+client's move in flight ends cancelled. While the headset holds a robot, the
+stack refuses a client's move on it with the failure kind `leased`, naming
+the headset; the headset releases the lease after the release burst of the
+last hand, once no posture move of its own runs.
 
 `peppy stack list` reports, for the bare launch:
 
@@ -353,15 +356,20 @@ framework's endpoint:
    robot's.
 2. Discover the lights: call `lighting.get_lighting` on the simulation
    endpoint. It lists every light with its id, kind, the properties it
-   supports and each property's unit, bounds, authored default and current
-   value; every `light_id` the setters take comes from this list.
-3. Dim the key light: call `lighting.set_light_intensity` with the
-   directional light's `light_id` and a lower illuminance in lux. The
-   setter validates the whole request first, refuses out-of-bounds values
-   without changing anything, and answers with the effective value after
-   the call, so read the response rather than assuming the request took.
-   The change shows in every view the simulation renders, the robots'
-   cameras included.
+   supports and each property's unit and current value, and, for the lamps
+   and the environment map, each property's bounds and authored default;
+   every `light_id` the setters take comes from this list. The sun, the
+   moon and the sky follow the scene's daylight, and every setter refuses
+   them.
+3. Dim a lamp: call `lighting.set_light_intensity` with the lamp's
+   `light_id` and a lower luminous flux in lumens. The setter validates the
+   whole request first, refuses out-of-bounds values without changing
+   anything, and answers with the effective value after the call, so read
+   the response rather than assuming the request took. The change shows in
+   every view the simulation renders, the robots' cameras included. To
+   change the sun, the moon and the sky, set the local hour with
+   `daylight.set_daylight_time` or the weather with `daylight.set_weather`;
+   `daylight.get_daylight` reports where the sun and the moon stand.
 4. Look through a wrist camera: read the resource
    `alpha/wrist_left/camera.latest_frame` on the robots' endpoint, the
    latest frame as a JPEG, published at no more than 2 Hz. The chest
@@ -385,8 +393,8 @@ framework's endpoint:
    can stop short of the working posture, against an obstacle or where the
    collision guard holds it, so read the reported poses. A move that the
    robot refuses or that fails ends with an error that gives its failure
-   kind, such as `leader_streaming` while the headset streams to an arm,
-   and a message.
+   kind, such as `leader_streaming` just after the headset let go of an
+   arm, and a message.
    `robot.move_arm` plans from there, naming one of the arms `robot.list`
    gave the robot; the rest posture is not a place to plan Cartesian moves
    from.
@@ -396,8 +404,9 @@ The simulation endpoint sets the rest of the world up the same way:
 and `scene.get_objects_list` before `scene.move_object` or
 `scene.apply_force`. `scene.load_scene` replaces every object, the ones the
 old scene placed included, and `scene.clear_scene` removes them all. Both
-leave every robot where it stands. Both restore the authored lighting and
-materials only when they change the selected scene or its scale.
+leave every robot where it stands. Both restore the authored lighting,
+daylight and materials only when they change the selected scene or its
+scale.
 Once the world is arranged, `workspace.describe` says where on each work
 surface a robot can work and `workspace.check` whether it can work given
 objects where they stand, measured in the world. It is for setting up and
@@ -417,7 +426,7 @@ peppy stack launch physical --with robot_control
 peppy stack join openarm:alpha --with v2,cameras
 ```
 
-The first is the browser scene commander on Waldo with `alpha` under the browser panel: the scene panel, the lighting and materials panels the scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's three endpoints, the headset and `alpha`, named at launch, with no browser panel. The third adds the browser scene commander beside them, and with the rendered rig running its page carries the camera panel too, listing the same three relays the robots' endpoint serves. The fourth is the robots' and the framework's endpoints, under MuJoCo. The fifth is the same robot on the `openarm_simulation` launcher, selected by launch words and under its browser panel: the robots' endpoint and the fleet and the halt of the framework's, since the simulated world's axis, the robots that the framework's endpoint adds and the deployed headset are this launcher's. The sixth is a simulated SO-101 on its own launcher, its arm and wrist camera on the robots' endpoint. The last two are the real robot, the robots' endpoint with the three physical cameras behind it, and the fleet and the halt of the framework's endpoint.
+The first is the browser scene commander on Waldo with `alpha` under the browser panel: the scene panel, the lighting, daylight and materials panels the scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's three endpoints, the headset and `alpha`, named at launch, with no browser panel. The third adds the browser scene commander beside them, and with the rendered rig running its page carries the camera panel too, listing the same three relays the robots' endpoint serves. The fourth is the robots' and the framework's endpoints, under MuJoCo. The fifth is the same robot on the `openarm_simulation` launcher, selected by launch words and under its browser panel: the robots' endpoint and the fleet and the halt of the framework's, since the simulated world's axis, the robots that the framework's endpoint adds and the deployed headset are this launcher's. The sixth is a simulated SO-101 on its own launcher, its arm and wrist camera on the robots' endpoint. The last two are the real robot, the robots' endpoint with the three physical cameras behind it, and the fleet and the halt of the framework's endpoint.
 
 `peppy stack remove alpha` leaves the three endpoints running with the
 simulation. `peppy stack resolve` previews any of these without starting a

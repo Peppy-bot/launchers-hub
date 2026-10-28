@@ -144,7 +144,7 @@ reports them under `Instance endpoints`. Recording starts from the record
 button of the web commander or of the stack's headset, or over MCP through
 `recorder.record_episode`.
 
-What exists only because the world is simulated, the scene's objects, its lighting, its materials, a view of it from any point, the preview of an asset of its catalogue, its clock and where a robot can work in it, is an endpoint of its own a model uses to set the world up, `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is not the robot's: the `simulation_mcp` launcher deploys it on an axis of its own, `world_control`, bound to the simulation alone, under Waldo, the one simulation implementing the object controls, lighting, materials, view, clock and workspace contracts. With the robots' endpoint, every launcher also deploys the framework's, `http://127.0.0.1:8903/framework_controls/v1/mcp` (`framework_controls:v1`), where a client halts the stack. On `simulation_mcp` a client also adds a simulated OpenArm or SO-101 to the stack there and removes it; `workspace.stand_at` on the world's endpoint then stands the robot at a work surface. The endpoints, adding a robot over MCP, the client setup and the move from simulation to the real robot are in the [MCP guide](../mcp/README.md):
+What exists only because the world is simulated, the scene's objects, its lighting, its daylight and weather, its materials, a view of it from any point, the preview of an asset of its catalogue, its clock and where a robot can work in it, is an endpoint of its own a model uses to set the world up, `http://127.0.0.1:8902/simulation/v1/mcp` (`simulation:v1`). It is not the robot's: the `simulation_mcp` launcher deploys it on an axis of its own, `world_control`, bound to the simulation alone, under Waldo, the one simulation implementing the object controls, lighting, daylight, materials, view, clock and workspace contracts. With the robots' endpoint, every launcher also deploys the framework's, `http://127.0.0.1:8903/framework_controls/v1/mcp` (`framework_controls:v1`), where a client halts the stack. On `simulation_mcp` a client also adds a simulated OpenArm or SO-101 to the stack there and removes it; `workspace.stand_at` on the world's endpoint then stands the robot at a work surface. The endpoints, adding a robot over MCP, the client setup and the move from simulation to the real robot are in the [MCP guide](../mcp/README.md):
 
 ```sh
 peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
@@ -316,8 +316,9 @@ a simulation, are in the
 Isaac Sim and Waldo declare a scene commander, selected at launch with
 `--with web_scene_commander`. It drives the simulation's `scene_manipulation`
 contract and reads its `object_state` for the list of spawned objects. On
-Waldo its page also carries a lighting panel and a materials panel, bound
-to the engine's `scene_lighting` and `scene_materials`, and with rendered
+Waldo its page also carries a lighting panel, a daylight panel and a
+materials panel, bound to the engine's `scene_lighting`, `scene_daylight`
+and `scene_materials`, and with rendered
 rigs running (`alpha.camera_rig=cameras_sim`, which needs a consumer such as
 `alpha.recorder=lerobot_recorder`) a camera panel listing every robot's
 rendered cameras with their device profiles, read from Waldo's
@@ -330,7 +331,7 @@ carries the engine's 3D viewer of the running world, served by its debug
 inspector (the `debug_inspector` parameter), and around it every UI element
 of the page, each a Waldo plugin the fragment's `plugins` argument runs: the
 connection badge, the frame rate and its caps, the physics budget, the
-robots' names, the "Start camera" panel, the headset panel, the pause,
+robots' names, the daylight panel, the "Start camera" panel, the headset panel, the pause,
 contact points and dark mode buttons, and the viewer's controls (Waldo's
 `plugins/README.md` says which plugin shows each, and where). With
 `hand_teleop`, webcam hand tracking drives an arm of the robot
@@ -350,8 +351,11 @@ simulation, as the `simulation_clock` contract does, and shows every pause
 and resume, whoever asked for it. With `physics_budget`, a panel shows how
 long Waldo's physics thread works for each step against the 2 ms a step
 simulates: past that budget the simulation runs slower than real time, and
-the panel turns red. Every plugin but `hand_teleop` and `headset_teleop`
-needs the debug inspector. The fragment runs the debug
+the panel turns red. With `daylight`, a panel sets the date, the hour, the
+clock rate and the weather of the scene's sun, moon and sky, as the
+`scene_daylight` contract does, and shows where the sun and the moon stand.
+Every plugin but `hand_teleop` and `headset_teleop` needs the debug
+inspector. The fragment runs the debug
 inspector and every plugin the node accepts whatever the launch selects,
 so the viewer is on from the first launch of every launcher deploying Waldo,
 and the debug inspector answers the scene commander's `scene_manipulation`

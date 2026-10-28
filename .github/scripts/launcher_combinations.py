@@ -1162,7 +1162,7 @@ def robot_stands(plan, copies):
 
 def scoped_models(plan):
     """The robot model each daemon scope of a flattened launcher gives the
-    options it lists, option to model: a `stack_copies` scope names the
+    options it lists, option to model: a `robot_membership` scope names the
     model of each robot option a client may add, which the client shows
     before it adds one."""
     models = {}
@@ -1923,10 +1923,11 @@ class StandTimes:
     """The wall time of each command of the job that stands robots in a
     simulation. A command's stand is cold when no command before it in the
     job tried to stand one of its models in its engine: Waldo keeps the
-    files of each model it stood in a cache on the runner's disk, which
-    every job starts without, so the first stand of a model in a job
-    fetches them. A command that fails records no time, since its robot did
-    not stand. The times are a report: nothing fails on them."""
+    files of each model it stood in its asset store on the job's sticky
+    disk, so the first stand of a model in a job fetches the files of the
+    model that no earlier run fetched. A command that fails records no
+    time, since its robot did not stand. The times are a report: nothing
+    fails on them."""
 
     def __init__(self, clock):
         self.clock = clock

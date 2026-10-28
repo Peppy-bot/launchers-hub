@@ -90,11 +90,13 @@ name: Tests
 # simulation, under Waldo and MuJoCo (Isaac Sim needs a GPU the runner does
 # not have), and the run summary lists each wall time against the stand
 # budget of 174.5 s: cold for the first stand of a model in an engine in the
-# job, warm after it. Waldo keeps the files of each model it stands in a
-# cache on the runner's own disk, which every job starts without, so a cold
-# stand fetches them. The wall time also holds the images the command built
-# and the start of its other instances, so it is an upper bound of the
-# stand. The times are a report: they fail nothing.
+# job, warm after it. Waldo keeps the files of each model it stands in its
+# asset store on the job's sticky disk, so a cold stand fetches the files of
+# the model that no earlier run fetched: all of them on a blank disk, and
+# after a catalogue release the files that the release changed. The wall
+# time also holds the images the command built and the start of its other
+# instances, so it is an upper bound of the stand. The times are a report:
+# they fail nothing.
 #
 # The launches share one job because everything around a launch costs as
 # much as a warm launch itself: the release archive, the hub repositories
@@ -107,23 +109,27 @@ name: Tests
 # job's sticky disk: apptainer's pulled layers, uv's wheels and interpreters,
 # the daemon's container build cache (the crates.io registry and sccache the
 # Rust nodes compile through), the model weights the simulated brain
-# downloads, and the daemon's build artifact cache, where every built node
-# image sits under the fingerprint of the staged sources it was built from
-# (the node's tree, its def, its generated code and the peppy version). A
-# launch reuses an image whose fingerprint it finds and builds the rest, so a
-# run rebuilds exactly the nodes whose sources moved since the launches its
-# snapshot comes from built them. RunsOn restores the disk from
-# the newest snapshot of the same branch, or of main for a branch's first
-# run, and snapshots it after the job. A pull request's run reads main's
-# snapshot but never writes it; every push to main launches every
-# combination, and that run is what keeps main's snapshot current. Nothing
-# kept there may be state one run depends on another having written, only
-# what apptainer, uv, the daemon and the brain rebuild or download again from
-# scratch, all of it keyed by content, so an entry is either a hit for the
-# same bytes or a miss. The fingerprint does not cover a def's floating base
-# image tag, so a moved base image reaches a cached node image when that
-# image's fingerprint next changes: at the next peppy release, or at the next
-# change to the node's sources.
+# downloads, waldo's state directory, which holds its asset store (the
+# catalogue, scene and robot files the simulation downloads, each under a
+# key whose digest pins its bytes) and its viewer certificates, and the
+# daemon's build artifact cache, where every built node image sits under the
+# fingerprint of the staged sources it was built from (the node's tree, its
+# def, its generated code and the peppy version). A launch reuses an image
+# whose fingerprint it finds and builds the rest, so a run rebuilds exactly
+# the nodes whose sources moved since the launches its snapshot comes from
+# built them. RunsOn restores the disk from the newest snapshot of the same
+# branch, or of main for a branch's first run, and snapshots it after the
+# job. A pull request's run reads main's snapshot but never writes it; every
+# push to main launches every combination, and that run is what keeps main's
+# snapshot current. Nothing kept there may be state one run depends on
+# another having written, only what apptainer, uv, the daemon, the brain and
+# waldo rebuild or download again from scratch. All of it but the viewer
+# certificates is keyed by content, so an entry is either a hit for the same
+# bytes or a miss; waldo makes a certificate when it finds none, and
+# replaces one before it expires. The fingerprint does not cover a def's
+# floating base image tag, so a moved base image reaches a cached node image
+# when that image's fingerprint next changes: at the next peppy release, or
+# at the next change to the node's sources.
 #
 # The last job, `test`, is the one status check the org ruleset requires on
 # main. It is green only when every other job of this workflow succeeded or
@@ -463,14 +469,15 @@ jobs:
 
       # The rebuildable caches live in one directory on the job's sticky disk:
       # apptainer's pulled docker layers for every node base image, uv's
-      # wheels and interpreters, and the two caches the daemon keeps under its
-      # data root, handed to it below. runs-on/action bind-mounts the
-      # directory onto the disk, which RunsOn restored before the job and
-      # snapshots after it; RunsOn keeps a sticky disk per architecture, so
-      # the layers and images are always the host's own. Every launcher shares
-      # the one directory: the images the combinations launch are largely the
-      # same images, and whichever launch builds one first serves all the
-      # others.
+      # wheels and interpreters, the two caches the daemon keeps under its
+      # data root, and the state directory of the waldo simulation, with its
+      # asset store, the last three linked in when the daemon starts below.
+      # runs-on/action bind-mounts the directory onto the disk, which RunsOn
+      # restored before the job and snapshots after it; RunsOn keeps a sticky
+      # disk per architecture, so the layers and images are always the host's
+      # own. Every launcher shares the one directory: the images the
+      # combinations launch are largely the same images, and whichever launch
+      # builds one first serves all the others.
       #
       # The apptainer cache is named too: the daemon this job boots inherits
       # the environment, so every node image it builds pulls its base layers
@@ -630,21 +637,31 @@ jobs:
       # of its own. The name carries the run id because core-node names must
       # be unique among daemons that can reach each other.
       #
-      # Two directories of the data root are the sticky disk's, linked in
-      # before the daemon creates them: `built_nodes`, the build artifact
-      # cache where a launch finds the image of a node whose staged sources
-      # it already built, and `cache/container_build`, the crates.io
+      # Three directories are the sticky disk's, linked in before the daemon
+      # creates them. Two are in its data root: `built_nodes`, the build
+      # artifact cache where a launch finds the image of a node whose staged
+      # sources it already built, and `cache/container_build`, the crates.io
       # registry and sccache the daemon bind mounts into every Rust node's
-      # image build. Both are keyed by content (the artifact by the staged
-      # tree's fingerprint, sccache by the compiler invocation), so what
-      # another job left there is always either a hit for the same bytes or
-      # a miss.
+      # image build. The third is `~/.cache/waldo`, the host directory that
+      # the manifest of waldo binds to waldo's state directory; the daemon
+      # binds a link to a directory as an existing source. It holds waldo's
+      # asset store, the catalogue, scene and robot files that waldo
+      # downloads from waldo-assets.peppy.bot as it first uses them, and the
+      # viewer certificates, which waldo makes when it finds none and
+      # replaces before they expire. The caches are keyed by content (the
+      # artifact by the staged tree's fingerprint, sccache by the compiler
+      # invocation, a store file by the digest in its key, which pins its
+      # bytes), and a download enters the store only through an atomic
+      # rename once it is complete, so what another job left there is always
+      # either a hit for the same bytes or a miss. A slow store thus delays
+      # only the files that no earlier run downloaded.
       - name: Start an isolated peppy daemon
         run: |
           set -euo pipefail
-          mkdir -p "$PEPPY_HOME/cache" "$CI_CACHE_DIR/built_nodes" "$CI_CACHE_DIR/container_build"
+          mkdir -p "$PEPPY_HOME/cache" "$CI_CACHE_DIR/built_nodes" "$CI_CACHE_DIR/container_build" "$CI_CACHE_DIR/waldo"
           ln -s "$CI_CACHE_DIR/built_nodes" "$PEPPY_HOME/built_nodes"
           ln -s "$CI_CACHE_DIR/container_build" "$PEPPY_HOME/cache/container_build"
+          ln -s "$CI_CACHE_DIR/waldo" "$HOME/.cache/waldo"
           PEPPY_MESSAGING_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
           echo "PEPPY_MESSAGING_PORT=$PEPPY_MESSAGING_PORT" >> "$GITHUB_ENV"
           export PEPPY_MESSAGING_PORT

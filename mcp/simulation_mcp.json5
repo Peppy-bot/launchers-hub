@@ -27,8 +27,8 @@
 // builds nothing, and one on another machine builds there when it joins;
 // `--no-prebuild` builds only what the launch starts. The world's endpoint is this file's own
 // world_control axis, deployed with a `none` option: Waldo alone implements
-// the object controls, lighting, materials, view, clock, workspace, sensor
-// streams and simulation world contracts it binds, so the constraint below refuses it under any other
+// the object controls, lighting, daylight, materials, view, clock, workspace,
+// sensor streams and simulation world contracts it binds, so the constraint below refuses it under any other
 // engine, and `--with mujoco,world_control=none` is the robots' and the
 // framework's endpoints under MuJoCo. The three URLs are the same with no
 // robot, one or ten and before and after any join, so a client registers
@@ -106,8 +106,8 @@
     },
     // The simulated world's MCP endpoint, deployed by this file; `--with
     // world_control=none` switches it off. It binds Waldo's object controls,
-    // lighting, materials, view, clock, workspace, sensor streams and
-    // simulation world contracts, so the constraint below requires Waldo.
+    // lighting, daylight, materials, view, clock, workspace, sensor streams
+    // and simulation world contracts, so the constraint below requires Waldo.
     {
       name: "world_control",
       cardinality: "one",
@@ -340,11 +340,11 @@
 
   constraints: [
     // A property of the world's document: its controls, lighting,
-    // materials, view, clock, workspace, sensor streams and simulation world
-    // targets bind the simulation, and Waldo is the one simulation implementing
-    // those contracts.
+    // daylight, materials, view, clock, workspace, sensor streams and
+    // simulation world targets bind the simulation, and Waldo is the one
+    // simulation implementing those contracts.
     { when: { world_control: "world_control" },
       requires: [{ simulation: "waldo" }],
-      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_materials, scene_view, simulation_clock, scene_workspace, sim_sensor_streams and simulation_world, which only waldo implements; launch with waldo or with world_control=none" },
+      reason: "the simulated world's endpoint binds object_controls, scene_lighting, scene_daylight, scene_materials, scene_view, simulation_clock, scene_workspace, sim_sensor_streams and simulation_world, which only waldo implements; launch with waldo or with world_control=none" },
   ],
 }

@@ -969,21 +969,25 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["links"]["objects"], "simulation_inst")
         self.assertEqual(instance["framework"], {"clock": "simulation"})
 
-    def test_the_scene_commander_binds_lighting_materials_and_cameras_on_waldo_alone(self):
+    def test_the_scene_commander_binds_lighting_daylight_materials_and_cameras_on_waldo_alone(self):
         root = Path(__file__).resolve().parents[2]
         # The page carries a panel for every contract the simulation serves:
-        # the three slots are written vacant, and the panel's own adjustment
+        # the four slots are written vacant, and the panel's own adjustment
         # binds them to the simulation that implements them, Waldo.
         panel = combinations.load_json5(
             root / "simulation/fragments/web_scene_commander.json5", "web_scene_commander")
         instance = instance_of(panel, "scene_commander_inst")
-        self.assertEqual(set(instance["links"]), {"simulation", "objects", "lighting", "materials", "cameras"})
-        for slot in ["lighting", "materials", "cameras"]:
+        self.assertEqual(
+            set(instance["links"]), {"simulation", "objects", "lighting", "daylight", "materials", "cameras"})
+        for slot in ["lighting", "daylight", "materials", "cameras"]:
             self.assertEqual(set(instance["links"][slot]), {"vacant"})
             self.assertTrue(instance["links"][slot]["vacant"].strip())
         self.assertEqual(panel["adjustments"], [{
             "target": "scene_commander_inst", "when": {"simulation": "waldo"},
-            "set_links": {"lighting": "simulation_inst", "materials": "simulation_inst", "cameras": "simulation_inst"},
+            "set_links": {
+                "lighting": "simulation_inst", "daylight": "simulation_inst", "materials": "simulation_inst",
+                "cameras": "simulation_inst",
+            },
         }])
         for other in ["mujoco"]:
             with self.subTest(simulation=other):
@@ -1358,7 +1362,7 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["arguments"], {"port": 8902})
         self.assertEqual(instance["links"], {
             "scene": "simulation_inst", "controls": "simulation_inst",
-            "lighting": "simulation_inst", "materials": "simulation_inst",
+            "lighting": "simulation_inst", "daylight": "simulation_inst", "materials": "simulation_inst",
             "view": "simulation_inst", "clock": "simulation_inst",
             "workspace": "simulation_inst", "sensor_streams": "simulation_inst",
             "simulation_world": "simulation_inst"})
@@ -1368,9 +1372,9 @@ class CombinationsTests(unittest.TestCase):
         self.assertNotIn("components", fragment)
         # The axis is the MCP launcher's, deployed by the file with `none`
         # to switch it off, and Waldo alone implements the object controls,
-        # lighting, materials, view, clock, workspace, sensor streams and
-        # simulation world contracts it binds, so the launcher requires Waldo
-        # beside it. No fragment declares the axis.
+        # lighting, daylight, materials, view, clock, workspace, sensor streams
+        # and simulation world contracts it binds, so the launcher requires
+        # Waldo beside it. No fragment declares the axis.
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)
         axes = {axis["name"]: axis for axis in document["components"]}
@@ -1382,8 +1386,8 @@ class CombinationsTests(unittest.TestCase):
         rule, = document["constraints"]
         self.assertEqual((rule["when"], rule["requires"]), ({"world_control": "world_control"}, [{"simulation": "waldo"}]))
         self.assertIn("world_control=none", rule["reason"])
-        for contract in ["object_controls", "scene_lighting", "scene_materials", "scene_view", "simulation_clock",
-                         "scene_workspace", "sim_sensor_streams", "simulation_world"]:
+        for contract in ["object_controls", "scene_lighting", "scene_daylight", "scene_materials", "scene_view",
+                         "simulation_clock", "scene_workspace", "sim_sensor_streams", "simulation_world"]:
             self.assertIn(contract, rule["reason"])
         for engine in ["waldo", "mujoco", "isaac_sim"]:
             fragment = combinations.load_json5(root / f"simulation/fragments/{engine}.json5", engine)

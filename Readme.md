@@ -164,10 +164,12 @@ no driver node, and a simulated SO-101 no follower, the engine playing the
 follower role toward the backbone. The initializer, `hardware_version`,
 runs on every robot. Its `model` argument is the model
 id verbatim, `openarm_v1`, `openarm_v2` or `so101`; it answers
-`robot_identity` and `robot_ready`, and joins the simulation through the
-`simulation_robot` contract, naming the copy the robot runs as and the model
-to stand. On hardware its `simulation` slot is vacant and its `limbs` slot
-links the robot's drivers.
+`robot_identity`, `robot_guide` and `robot_ready`, and joins the simulation
+through the `simulation_robot` contract, naming the copy the robot runs as and
+the model to stand. The OpenArm v2 in simulation also gets `park_poses`, the
+park pose of each arm, measured in Waldo, which `robot_guide` answers. On
+hardware its `simulation` slot is vacant and its `limbs` slot links the
+robot's drivers.
 
 A backbone names its downstream links after its limbs: `left_arm`,
 `right_arm`, `left_gripper` and `right_gripper` on an OpenArm, `arm` and

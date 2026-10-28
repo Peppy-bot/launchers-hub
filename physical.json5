@@ -57,11 +57,11 @@
         openarm: {
           fragments: ["openarm/fragments/openarm.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is, what its limbs measure,
-            // how close its arms stand, where its cameras are mounted, where
-            // its design lets it work, and the moves a model drives it by.
+            // Listed on the MCP endpoint: who it is, its guide, what its limbs
+            // measure, how close its arms stand, where its cameras are mounted,
+            // where its design lets it work, and the moves a model drives it by.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
+              add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
                            camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
@@ -118,10 +118,11 @@
         so101: {
           fragments: ["so101/fragments/so101.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is, what its limbs measure,
-            // where its design lets it work, and the moves a model drives it by.
+            // Listed on the MCP endpoint: who it is, its guide, what its limbs
+            // measure, where its design lets it work, and the moves a model
+            // drives it by.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"],
+              add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into its right hand (the robot's fragment),

@@ -7,21 +7,21 @@
 //
 //   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it, and halts the stack
 //   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, the record of its setup, the build of a world and the judges that check it
-//   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
+//   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, guide, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
 //
 // The robots' endpoint is the robot_control axis every launcher with robots
 // carries; this file deploys it, and the other launchers serve it with
 // `--with robot_control`. Every robot beside it is listed with its identity,
-// its limb state, its moves and where its design lets it work, with its
-// recorder whenever it runs, its rig's cameras and its brain's tools, at
-// launch or by a later join, and a removal takes them out. The framework's
-// endpoint comes with it, on the same option, as in every launcher with
-// robots: stack.list, stack.join and stack.remove add and remove the robots
-// of the scope the adjustment below gives, the two robot options of this
-// file with the features each offers, up to four robots on the stack, each
-// robot and each feature on the machine of the federation the client names,
-// and fleet.list and fleet.halt read the fleet of the stack and halt the
-// stack. The launch builds on its machine the nodes
+// its guide, its limb state, its moves and where its design lets it work,
+// with its recorder whenever it runs, its rig's cameras and its brain's
+// tools, at launch or by a later join, and a removal takes them out. The
+// framework's endpoint comes with it, on the same option, as in every
+// launcher with robots: stack.list, stack.join and stack.remove add and
+// remove the robots of the scope the adjustment below gives, the two robot
+// options of this file with the features each offers, up to four robots on
+// the stack, each robot and each feature on the machine of the federation
+// the client names, and fleet.list and fleet.halt read the fleet of the
+// stack and halt the stack. The launch builds on its machine the nodes
 // of each of these robots with each set of its features before it starts
 // anything, so a robot or a feature that a client adds on this machine
 // builds nothing, and one on another machine builds there when it joins;
@@ -137,11 +137,11 @@
         openarm_sim: {
           fragments: ["../openarm/fragments/openarm_sim.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is, what its limbs measure,
-            // how close its arms stand, where its cameras are mounted, where
-            // its design lets it work, and the moves a model drives it by.
+            // Listed on the MCP endpoint: who it is, its guide, what its limbs
+            // measure, how close its arms stand, where its cameras are mounted,
+            // where its design lets it work, and the moves a model drives it by.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
+              add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
                            camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
@@ -218,10 +218,11 @@
         so101_sim: {
           fragments: ["../so101/fragments/so101_sim.json5"],
           adjustments: [
-            // Listed on the MCP endpoint: who it is, what its limbs measure,
-            // where its design lets it work, and the moves a model drives it by.
+            // Listed on the MCP endpoint: who it is, its guide, what its limbs
+            // measure, where its design lets it work, and the moves a model
+            // drives it by.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"],
+              add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into its right hand (the robot's fragment),

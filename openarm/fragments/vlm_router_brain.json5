@@ -1,11 +1,11 @@
 // The AI brain whose models are hosted vision-language models, reached over
 // the network: the node that serves item_perception, item_manipulation and
 // brain_model, the environment aware layer above limb_motion. It needs no
-// GPU, and it needs a key in its environment: GEMINI_API_KEY for its
-// starting model, exported in the shell that launches (a local launch
-// passes that shell's environment to the nodes it starts on the machine).
-// switch_model changes the model to another of its catalog, with that
-// model's key, OPENROUTER_API_KEY for the OpenRouter ones.
+// GPU, and it needs two keys in its environment, exported in the shell
+// that launches (a local launch passes that shell's environment to the
+// nodes it starts on the machine): GEMINI_API_KEY for its perception
+// model and OPENROUTER_API_KEY for its manipulation model. switch_model
+// changes a model to another of its catalog, with that model's key.
 // It leads no pairing and reaches the arms only through the backbone's
 // discrete moves, so it composes with the selected commander: the operator
 // and the brain send the same kind of goal to the same producer, and the
@@ -30,6 +30,9 @@
             // to the torso, as the backbone's camera_mounts names it.
             camera_name: "chest",
             // perception_model: the node's own default applies (see the node's peppy.json5, parameter perception_model).
+            // manipulation_model: each launcher that carries this brain sets it
+            // to a catalog model with an adjustment, so both brains stand here
+            // with the same arguments.
           },
           links: {
             // The governed producer of limb_motion. Required: a launch with

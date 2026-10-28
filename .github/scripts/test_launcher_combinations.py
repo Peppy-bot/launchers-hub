@@ -1101,7 +1101,9 @@ class CombinationsTests(unittest.TestCase):
         # keeps the catalogue's name; that is a condition of the simulation,
         # and the robot's brain names by words alone, with no gallery. The
         # router brain also gets the rig's two wrist cameras, through which
-        # its aligning model looks before a grasp.
+        # its aligning model looks before a grasp, and starts its
+        # manipulation on gpt-6-astra, the catalog model that aligns the grab
+        # and the place.
         def sees(rig, enrols):
             writes = []
             if enrols:
@@ -1111,6 +1113,8 @@ class CombinationsTests(unittest.TestCase):
                            "set_links": {"camera": "chest", "geometry": "chest"}})
             writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain", "camera_rig": rig},
                            "add_links": {"wrist_cameras": ["wrist_left", "wrist_right"]}})
+            writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain"},
+                           "set_arguments": {"manipulation_model": "gpt-6-astra"}})
             return writes
 
         for path, robots in ROBOT_LAUNCHERS.items():

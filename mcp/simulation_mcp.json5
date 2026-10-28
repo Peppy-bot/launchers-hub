@@ -201,6 +201,13 @@
             // each arm's camera by these instance ids.
             { target: "brain_inst", when: { brain: "vlm_router_brain", camera_rig: "cameras_sim" },
               add_links: { wrist_cameras: ["wrist_left", "wrist_right"] } },
+            // The router brain aligns its grab and its place with a catalog
+            // model, which looks through the arm's wrist camera and the chest
+            // camera above the item or the spot before the descent; it needs
+            // OPENROUTER_API_KEY in the launching shell. The node's own
+            // default, "scripted", moves with no model call.
+            { target: "brain_inst", when: { brain: "vlm_router_brain" },
+              set_arguments: { manipulation_model: "gpt-6-astra" } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },

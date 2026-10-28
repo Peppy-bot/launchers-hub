@@ -331,10 +331,11 @@ stands the robot. The launch job times each launch and join that stands a
 robot, under Waldo and MuJoCo, and the run summary lists each wall time
 against the stand budget of 174.5 s, `robot_initializer`'s setup budget
 less the time it keeps for its leave report: cold for the first stand of a
-model in an engine in the job, when Waldo fetches the model's files into a
-cache on the runner's own disk, and warm after it. The wall time also holds
-the images the command built and the start of its other instances, so it
-is an upper bound of the stand. The times are a report: they fail nothing.
+model in an engine in the job, when Waldo fetches the files of the model
+that no earlier run fetched into its asset store on the job's sticky disk,
+and warm after it. The wall time also holds the images the command built
+and the start of its other instances, so it is an upper bound of the stand.
+The times are a report: they fail nothing.
 
 ## Configuration ownership
 

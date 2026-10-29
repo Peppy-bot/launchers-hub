@@ -82,7 +82,8 @@
   components: [
     {
       // Which OpenArm the simulation stands: each option deploys the
-      // initializer that names its model and joins the engine.
+      // initializer that names its model and joins the engine, and a v2
+      // its motion planner.
       name: "hardware_version", provides: ["init_inst"],
       options: {
         v1: {
@@ -96,7 +97,10 @@
             }],
           }],
         },
+        // A v2 carries the chest camera, so it plans its arm paths with the
+        // motion planner.
         v2: {
+          fragments: ["motion_planner.json5"],
           deployments: [{
             source: { name: "robot_initializer", tag: "v1" },
             instances: [{

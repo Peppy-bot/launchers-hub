@@ -96,6 +96,9 @@
             // The brain's tools, listed beside the moves.
             { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
+            // A v2's motion planner: its tools listed beside the moves.
+            { target: "robot_control_inst", when: { hardware_version: "v2" },
+              add_links: { planner: ["planner_inst"] } },
             // The robot's brain sees through the hardware rig's chest camera,
             // colour and depth from the ZED with the intrinsics it serves
             // (camera_geometry:v1). ai_brain_vla names what it finds by words
@@ -120,6 +123,9 @@
             // default, "scripted", moves with no model call.
             { target: "brain_inst", when: { brain: "vlm_router_brain" },
               set_arguments: { manipulation_model: "gpt-6-astra" } },
+            // The planner maps what the rig's chest camera sees.
+            { target: "planner_inst", when: { hardware_version: "v2", camera_rig: "cameras" },
+              set_links: { camera: "chest", geometry: "chest" } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras" },

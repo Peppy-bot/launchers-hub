@@ -1,8 +1,9 @@
 // A physical OpenArm: its four CAN drivers, the backbone that governs them,
 // and the robot's own axes: its hardware version, the commander that leads
 // it, the recorder that films it, its camera rig and its brain. The
-// `hardware_version` axis carries the initializer, which names the model; a v1's frames and
-// interfaces are set on the drivers by this file's own adjustments.
+// `hardware_version` axis carries the initializer, which names the model, and
+// on a v2 the motion planner; a v1's frames and interfaces are set on the
+// drivers by this file's own adjustments.
 //
 // CAN topology: left arm + left gripper share one interface, right arm +
 // right gripper the other: the host's left_arm and right_arm on a v2, can0
@@ -128,7 +129,10 @@
             }],
           }],
         },
+        // A v2 carries the chest camera, so it plans its arm paths with the
+        // motion planner.
         v2: {
+          fragments: ["motion_planner.json5"],
           deployments: [{
             source: { name: "robot_initializer", tag: "v1" },
             instances: [{

@@ -104,6 +104,9 @@
             // The brain's tools, listed beside the moves.
             { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
+            // A v2's motion planner: its tools listed beside the moves.
+            { target: "robot_control_inst", when: { hardware_version: "v2" },
+              add_links: { planner: ["planner_inst"] } },
             // The simulated robot's brain sees through the chest camera the
             // rendered rig binds, color and depth from one producer; a brain
             // on another machine than the simulation's reads it over the
@@ -138,6 +141,9 @@
             // default, "scripted", moves with no model call.
             { target: "brain_inst", when: { brain: "vlm_router_brain" },
               set_arguments: { manipulation_model: "gpt-6-astra" } },
+            // The planner maps what the rig's chest camera sees.
+            { target: "planner_inst", when: { hardware_version: "v2", camera_rig: "cameras_sim" },
+              set_links: { camera: "chest", geometry: "chest" } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
@@ -151,10 +157,11 @@
               add_links: { camera: ["wrist_left", "wrist_right"], depth_camera: ["chest"],
                            camera_profile: ["wrist_left", "wrist_right", "chest"],
                            camera_geometry: ["wrist_left", "wrist_right", "chest"] } },
-            // The commander, recorder and brain are shared with the physical robot.
+            // The commander, recorder, brain and planner are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },
             { target: "brain_inst", set_framework: { clock: "simulation" } },
+            { target: "planner_inst", set_framework: { clock: "simulation" } },
             // Rendering, while this robot films.
             { target: "simulation_inst", when: { camera_rig: "cameras_sim" },
               set_arguments: { cameras_enabled: true } },

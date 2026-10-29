@@ -204,8 +204,11 @@ motion authority, and what it limits depends on how the arm is being driven.
 
 **Action goals** (`move_to_home`, `move_to_ready`, `move_arm_joints`,
 `move_arm`) run minimum-jerk trajectories sized by the per-joint velocity
-caps, and Cartesian moves additionally by the end-effector speed caps. A
-goal outside the URDF joint limits is refused outright.
+caps, and Cartesian moves additionally by the end-effector speed caps;
+`execute_joint_path` times its path within the per-joint velocity and
+acceleration caps, integrating the speed along the path over a grid of at
+least 1000 cells. A goal outside the URDF joint limits is refused
+outright.
 
 **A joints-led stream** (the SO-101 leader arm) passes through under the
 end-effector speed caps alone, matching the reference teleop: streamed

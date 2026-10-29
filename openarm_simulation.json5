@@ -1,37 +1,19 @@
-// An OpenArm in a simulation: the simulation is the stack, Waldo unless a
-// launch word selects another, and the robot is a copy, alpha, a v2 with
-// the browser panel, its ids minted under its name: alpha_backbone_inst,
-// alpha_commander_inst. `stack remove` takes a copy off and `stack join`
-// adds one, the simulation running throughout, and `--join OPTION:NAME`
-// names another copy at launch.
-//
-//   peppy stack launch openarm_simulation   # Waldo and alpha
-//   peppy stack launch openarm_simulation --with mujoco,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim
-//   peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim   # alpha driven over MCP too, its cameras served
-//   peppy stack launch openarm_simulation --with xr_commander,alpha.robot_commander=none   # alpha led by the stack's headset
-//   peppy stack join so101_sim:charlo       # an SO-101 beside alpha
-//   peppy stack remove alpha                # the simulation keeps running
-//
-// The robot axis offers every simulated robot, so an SO-101 joins beside
-// the OpenArm; every simulation stands as many robots as the machines can
-// run, of any model, each joined copy bringing its own. A copy named with
-// `--join` is composed as a join, as `stack join` is, and a join cannot
-// turn rendering on: the simulation renders when the copy listed here
-// selects its rig, as the second and third commands above do, so an SO-101
-// joined to a launch without one has no `wrist` camera, and `--with
-// cameras_sim` on its join is refused. `--with robot_control` serves the
-// robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where
-// every robot is listed with its moves, and the framework's,
-// http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the
-// stack and adds no robot. `--with xr_commander` runs the stack's headset,
-// which leads every robot that runs no commander of its own, one at a time,
-// chosen on the headset's page.
-// mcp/simulation_mcp.json5 is this file with the endpoints and the headset
-// deployed, the framework's endpoint adding and removing robots, no robot
-// listed, every robot led by the headset by default, and rendering on from
-// the launch.
 {
   peppy_schema: "launcher/v1",
+  description: [
+    "An OpenArm in a simulation: Waldo, unless a launch word selects another simulation, and one simulated OpenArm v2 named alpha, with the browser panel. It opens no device, so it launches on a machine with no OpenArm hardware.",
+    "The simulation is the stack, and the robot is a copy, alpha, its ids minted under its name: alpha_backbone_inst, alpha_commander_inst. `stack remove` takes a copy off and `stack join` adds one, the simulation running throughout, and `--join OPTION:NAME` names another copy at launch.",
+    "`peppy stack launch openarm_simulation`: Waldo and alpha.",
+    "`peppy stack launch openarm_simulation --with mujoco,alpha.recorder=lerobot_recorder,alpha.camera_rig=cameras_sim`: alpha in MuJoCo, the recorder filming its rendered cameras.",
+    "`peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim`: alpha driven over MCP too, its cameras served.",
+    "`peppy stack launch openarm_simulation --with xr_commander,alpha.robot_commander=none`: alpha led by the stack's headset.",
+    "`peppy stack join so101_sim:charlo`: an SO-101 beside alpha.",
+    "`peppy stack remove alpha`: the simulation keeps running.",
+    "The robot axis offers every simulated robot, so an SO-101 joins beside the OpenArm; every simulation stands as many robots as the machines can run, of any model, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the second and third commands above do, so an SO-101 joined to a launch without one has no `wrist` camera, and `--with cameras_sim` on its join is refused.",
+    "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed with its moves, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
+    "`--with xr_commander` runs the stack's headset, which leads every robot that runs no commander of its own, one at a time, chosen on the headset's page.",
+    "simulation_mcp is this launcher with the endpoints and the headset deployed, the framework's endpoint adding and removing robots, no robot listed, every robot led by the headset by default, and rendering on from the launch.",
+  ],
 
   components: [
     {

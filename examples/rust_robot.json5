@@ -1,5 +1,11 @@
 {
   peppy_schema: "launcher/v1",
+  description: [
+    "The example robot of nodes-hub, in Rust: a brain that reads a camera and moves two arms through a backbone, a mock camera, and a node that records the camera into a video. It needs no hardware: the arms move in software only, and the mock camera replays a bundled video.",
+    "`peppy stack launch rust_robot` starts it.",
+    "The recorder writes the first 5 seconds of the camera to /tmp/video_reconstruction/reconstructed_video.mp4 on the machine it runs on.",
+    "python_robot is the same stack in Python.",
+  ],
   deployments: [
     {
       // A source references a node from your configured repositories by

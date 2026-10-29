@@ -95,7 +95,14 @@
             instances: [{
               instance_id: "init_inst",
               framework: { clock: "simulation" },
-              arguments: { model: "openarm_v2" },
+              arguments: {
+                model: "openarm_v2",
+                // The robot's park poses (robot_guide:v1), measured in
+                // Waldo. Each holds the arm up and out to its side, the
+                // grasp point at x 0.25, y +-0.35, z 0.65, and a joint move
+                // reaches it from the rest posture.
+                park_poses: "left_arm:0.0584,-0.4923,-1.0367,1.7119,-0.4582,-0.1219,-1.1645;right_arm:-0.4474,0.7605,0.8815,1.6469,0.8363,-0.2129,0.9232",
+              },
               links: { simulation: "simulation_inst" },
             }],
           }],

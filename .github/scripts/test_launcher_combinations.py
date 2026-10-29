@@ -999,14 +999,14 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # Every target of the server is a set the robots fill, and the
         # server is the launcher's: the launcher lists a robot with its
-        # identity, how it stands and the moves a model drives it by, the
+        # identity, its guide, how it stands and the moves a model drives it by, the
         # cameras under the rig, and the brain and the recorder whenever they
         # run. None of it is guarded on the server: an entry naming an
         # instance the launch does not run is skipped. Every robot's backbone
         # answers where its design lets it work; only the OpenArm's says how
         # close its arms stand and where its cameras are mounted.
         readouts_of_every_robot = {
-            "identity": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"],
+            "identity": ["init_inst"], "guide": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"],
             "postures": ["backbone_inst"], "limb_motion": ["backbone_inst"]}
         readouts = {
             "openarm": {**readouts_of_every_robot,
@@ -1754,13 +1754,17 @@ class CombinationsTests(unittest.TestCase):
         # left out.
         def generation_body(path, option):
             return axis_of(combinations.load_json5(root / path, path), "hardware_version")["options"][option]
-        for path, model, links, clock in [
-            ("openarm/fragments/openarm.json5:v1", "openarm_v1", {"simulation": vacancy, "limbs": openarm_limbs}, None),
-            ("openarm/fragments/openarm.json5:v2", "openarm_v2", {"simulation": vacancy, "limbs": openarm_limbs}, None),
-            ("openarm/fragments/openarm_sim.json5:v1", "openarm_v1", {"simulation": "simulation_inst"}, {"clock": "simulation"}),
-            ("openarm/fragments/openarm_sim.json5:v2", "openarm_v2", {"simulation": "simulation_inst"}, {"clock": "simulation"}),
-            ("so101/fragments/so101.json5", "so101", {"simulation": vacancy, "limbs": ["follower_inst"]}, None),
-            ("so101/fragments/so101_sim.json5", "so101", {"simulation": "simulation_inst"}, {"clock": "simulation"}),
+        # The park poses (robot_guide:v1) a launcher writes beside the model,
+        # `<arm>:<joint>,...` with `;` between arms: the OpenArm v2 in Waldo
+        # has one for each arm, measured there; no other robot has any yet.
+        openarm_v2_sim_park = ({"left_arm", "right_arm"}, 7)
+        for path, model, links, clock, park in [
+            ("openarm/fragments/openarm.json5:v1", "openarm_v1", {"simulation": vacancy, "limbs": openarm_limbs}, None, None),
+            ("openarm/fragments/openarm.json5:v2", "openarm_v2", {"simulation": vacancy, "limbs": openarm_limbs}, None, None),
+            ("openarm/fragments/openarm_sim.json5:v1", "openarm_v1", {"simulation": "simulation_inst"}, {"clock": "simulation"}, None),
+            ("openarm/fragments/openarm_sim.json5:v2", "openarm_v2", {"simulation": "simulation_inst"}, {"clock": "simulation"}, openarm_v2_sim_park),
+            ("so101/fragments/so101.json5", "so101", {"simulation": vacancy, "limbs": ["follower_inst"]}, None, None),
+            ("so101/fragments/so101_sim.json5", "so101", {"simulation": "simulation_inst"}, {"clock": "simulation"}, None),
         ]:
             with self.subTest(path=path):
                 file, _, option = path.partition(":")
@@ -1769,7 +1773,14 @@ class CombinationsTests(unittest.TestCase):
                                    if deployment.get("source") == {"name": "robot_initializer", "tag": "v1"})
                 instance, = initializer["instances"]
                 self.assertEqual(instance["instance_id"], "init_inst")
-                self.assertEqual(instance["arguments"], {"model": model})
+                self.assertEqual(set(instance["arguments"]), {"model"} if park is None else {"model", "park_poses"})
+                self.assertEqual(instance["arguments"]["model"], model)
+                if park is not None:
+                    arms, joints = park
+                    entries = [entry.split(":") for entry in instance["arguments"]["park_poses"].split(";")]
+                    self.assertEqual({arm for arm, _ in entries}, arms)
+                    for arm, positions in entries:
+                        self.assertEqual(len([float(position) for position in positions.split(",")]), joints, arm)
                 self.assertEqual(set(instance["links"]), set(links))
                 for slot, target in links.items():
                     if target == vacancy:

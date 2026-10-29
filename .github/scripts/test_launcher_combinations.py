@@ -1099,7 +1099,11 @@ class CombinationsTests(unittest.TestCase):
         # Waldo also enrols the catalogue's table objects, the prototypes
         # ai_brain_vla ships, so a rendered mesh whose look the words miss
         # keeps the catalogue's name; that is a condition of the simulation,
-        # and the robot's brain names by words alone, with no gallery.
+        # and the robot's brain names by words alone, with no gallery. The
+        # router brain also gets the rig's two wrist cameras, through which
+        # its aligning model looks before a grasp, and starts its
+        # manipulation on gpt-6-astra, the catalog model that aligns the grab
+        # and the place.
         def sees(rig, enrols):
             writes = []
             if enrols:
@@ -1107,6 +1111,10 @@ class CombinationsTests(unittest.TestCase):
                                "set_arguments": {"perception_gallery": "waldo_catalogue"}})
             writes.append({"target": "brain_inst", "when": {"brain": BRAINS, "camera_rig": rig},
                            "set_links": {"camera": "chest", "geometry": "chest"}})
+            writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain", "camera_rig": rig},
+                           "add_links": {"wrist_cameras": ["wrist_left", "wrist_right"]}})
+            writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain"},
+                           "set_arguments": {"manipulation_model": "gpt-6-astra"}})
             return writes
 
         for path, robots in ROBOT_LAUNCHERS.items():

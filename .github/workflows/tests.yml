@@ -699,18 +699,20 @@ jobs:
       # `${{ }}` expansion: its labels and launch words are data the shell
       # reads instead of source the shell parses.
       #
-      # vlm_router_brain stops at its start when no key reaches its starting
-      # model, Gemini Robotics-ER, whose key is GEMINI_API_KEY. A launch and
-      # a join forward their environment to the nodes they start, so the key
-      # is set here. Its value is a placeholder: the brain's start only
-      # checks that the key is set, its first search is its first call to
-      # the provider, and no launch here runs a search. So no real key is
-      # needed, and a pull request from a fork, which is given no secrets,
-      # launches the brain as well.
+      # vlm_router_brain stops at its start when no key reaches a model it
+      # starts on: Gemini Robotics-ER for perception, whose key is
+      # GEMINI_API_KEY, and gpt-6-astra for manipulation, whose key is
+      # OPENROUTER_API_KEY. A launch and a join forward their environment to
+      # the nodes they start, so both keys are set here. Their values are
+      # placeholders: the brain's start only checks that each key is set,
+      # its first search or grab is its first call to the provider, and no
+      # launch here runs one. So no real key is needed, and a pull request
+      # from a fork, which is given no secrets, launches the brain as well.
       - name: Launch every planned combination start to end
         env:
           PLAN: ${{ needs.discover.outputs.plan }}
           GEMINI_API_KEY: launchers-hub-ci-no-provider-call
+          OPENROUTER_API_KEY: launchers-hub-ci-no-provider-call
         run: |
           set -euo pipefail
           printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"

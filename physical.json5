@@ -1,31 +1,20 @@
-// The physical robots, each joined by name. A launch starts no robot and,
-// with `--with robot_control`, the robots' MCP endpoint and the framework's,
-// where a client halts the stack and adds no robot;
-// `peppy stack join openarm:alpha --with v2` adds a robot,
-// `peppy stack remove alpha` takes it away. An OpenArm stands the hardware
-// version its join names, `v1` or `v2`; a join naming neither is refused.
-//
-//   peppy stack launch physical                                 # a new stack with no robot
-//   peppy stack join openarm:alpha@jetson-1 --with v2           # a v2 with the browser panel
-//   peppy stack join openarm:bravo@jetson-2 --with v1           # a v1 beside it
-//   peppy stack join so101:charlie                              # an SO-101 under its leader arm
-//   peppy stack remove alpha
-//
-//   peppy stack launch physical --with robot_control   # the robots' and the framework's MCP endpoints, waiting for robots
-//   peppy stack join openarm:alpha@jetson-1 --with v2,cameras                 # driven over MCP, listed when the join returns
-//   peppy stack launch physical --with xr_commander                           # the stack's headset, waiting for robots
-//   peppy stack join openarm:alpha@jetson-1 --with v2,robot_commander=none    # led by the headset
-//   peppy stack launch physical --join openarm:alpha@jetson-1 --join so101:bravo@jetson-2 --with alpha.v2
-//
-// A robot runs on the machine its name is placed on, `OPTION:NAME@CORE_NODE`,
-// else on the coordinator; a word with a machine runs the part of the robot
-// it selects there, such as `--with ai_brain_vla@cn-gpu-box` for the brain.
-//
-// Each robot fragment describes itself. The connections between a robot and
-// the stack, the headset's slots and the MCP endpoint's slots, are the
-// adjustments written here under the option that selects the robot.
 {
   peppy_schema: "launcher/v1",
+  description: [
+    "The physical robots, each joined by name: an OpenArm v1 or v2, an SO-101 under its leader arm. Each robot needs its hardware wired to the machine it runs on.",
+    "A launch starts no robot and, with `--with robot_control`, the robots' MCP endpoint and the framework's, where a client halts the stack and adds no robot; `peppy stack join openarm:alpha --with v2` adds a robot, `peppy stack remove alpha` takes it away. An OpenArm stands the hardware version its join names, `v1` or `v2`; a join naming neither is refused.",
+    "`peppy stack launch physical`: a new stack with no robot.",
+    "`peppy stack join openarm:alpha@jetson-1 --with v2`: a v2 with the browser panel.",
+    "`peppy stack join openarm:bravo@jetson-2 --with v1`: a v1 beside it.",
+    "`peppy stack join so101:charlie`: an SO-101 under its leader arm.",
+    "`peppy stack remove alpha`: alpha leaves the stack.",
+    "`peppy stack launch physical --with robot_control`: the robots' and the framework's MCP endpoints, waiting for robots.",
+    "`peppy stack join openarm:alpha@jetson-1 --with v2,cameras`: driven over MCP, listed when the join returns.",
+    "`peppy stack launch physical --with xr_commander`: the stack's headset, waiting for robots.",
+    "`peppy stack join openarm:alpha@jetson-1 --with v2,robot_commander=none`: led by the headset.",
+    "`peppy stack launch physical --join openarm:alpha@jetson-1 --join so101:bravo@jetson-2 --with alpha.v2`: an OpenArm v2 and an SO-101, both named at launch.",
+    "A robot runs on the machine its name is placed on, `OPTION:NAME@CORE_NODE`, else on the coordinator; a word with a machine runs the part of the robot it selects there, such as `--with ai_brain_vla@cn-gpu-box` for the brain.",
+  ],
 
   components: [
     // The robots' MCP endpoint, selected with `--with robot_control`, and
@@ -50,6 +39,9 @@
         xr_commander: "teleop/fragments/xr_commander.json5",
       },
     },
+    // Each robot fragment describes itself. The connections between a robot
+    // and the stack, the headset's slots and the MCP endpoint's slots, are
+    // the adjustments written here under the option that selects the robot.
     {
       name: "robot",
       cardinality: "zero_or_more",

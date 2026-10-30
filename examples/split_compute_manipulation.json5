@@ -1,16 +1,11 @@
-// Split-compute manipulation: a fast reactive policy on the robot, a large
-// deliberative planner in the cloud, wired as one stack.
-//
-// Launch from the robot:
-//   peppy stack launch --place robot_onboard@self \
-//                      --place cloud_inference@cn-atlas-h100 \
-//                      split_compute_manipulation
-//
-// Or, to run the whole topology on one machine with no cloud account and no
-// uplink, which is how you develop against it:
-//   peppy stack launch --local split_compute_manipulation
 {
   peppy_schema: "launcher/v1",
+  description: [
+    "Split-compute manipulation: a fast reactive policy on the robot, a large deliberative planner in the cloud, wired as one stack. It needs two machines of the federation, or `--local` to run the whole stack on one; its nodes are mocks that run no inference and open no device.",
+    "Launch from the robot: `peppy stack launch --place robot_onboard@self --place cloud_inference@cn-atlas-h100 split_compute_manipulation`.",
+    "Or, to run the whole topology on one machine with no cloud account and no uplink, which is how you develop against it: `peppy stack launch --local split_compute_manipulation`.",
+    "Each `--place <core-node-link>@<core-node>` wires one of the two core node links of this launcher, robot_onboard and cloud_inference, to a machine. Every link must be wired, and every wired core node must be live in the federation, or the launch is refused.",
+  ],
   // Core node links: placeholders this file names, wired to real machines at
   // launch time via `stack launch --place <core-node-link>@<core-node>`.
   // The file describes a topology; the command binds it to today's hardware,

@@ -14,7 +14,8 @@ CI.
 
 scope decides what a change can reach from the files it touches: every
 combination, the combinations whose resolved plan the change moves, or
-nothing.
+nothing. A launcher's description is prose that no launch reads, so the
+resolved plan leaves it out, and a change to it alone moves no plan.
 
 plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
@@ -1275,6 +1276,14 @@ def resolve_command(path, words, join_option, join_words, launch_joins=()):
     return argv
 
 
+def launched_plan(resolved):
+    """The flattened launcher that `stack resolve` prints, less its
+    `description`: that is prose for the people who choose and start the
+    launcher, and no launch reads it. So a change to the description alone
+    moves no combination's plan."""
+    return {key: value for key, value in resolved.items() if key != "description"}
+
+
 def resolve_candidate(root, candidate, skips):
     """Previews one combination through `peppy stack resolve` and says what
     a runner can do with it."""
@@ -1310,7 +1319,7 @@ def resolve_candidate(root, candidate, skips):
     ]
     if unchecked:
         return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
-    plan = _Parser(resolve.stdout, "resolved").parse_document()
+    plan = launched_plan(_Parser(resolve.stdout, "resolved").parse_document())
     nodes = deployed_nodes(plan)
     hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
     if hits:

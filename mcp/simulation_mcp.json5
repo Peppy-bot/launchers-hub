@@ -1,86 +1,27 @@
-// Robots in Waldo, driven over MCP and from the stack's headset. The
-// simulation starts empty; robots are named at launch, joined later or added
-// over MCP, and each comes up with its rendered rig, listed on the MCP
-// endpoint and paired into the headset. Four endpoints, one per family: a
-// call to the framework, to the workflows, to the simulated world and to a
-// robot each goes to its own endpoint:
-//
-//   http://127.0.0.1:8903/framework_controls/v1/mcp   the peppy framework: the stack of nodes, where a client adds a robot of this file's options and removes it, and halts the stack
-//   http://127.0.0.1:8904/workflow_controls/v1/mcp    the workflows: the check of a workflow and its runs on the robots of the stack, under robot leases
-//   http://127.0.0.1:8902/simulation/v1/mcp           the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the apply of one, a workflow run in one and the judges that check it
-//   http://127.0.0.1:8900/robot_control/v1/mcp        every robot of the stack: its identity, guide, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot
-//
-// The robots' endpoint is the robot_control axis every launcher with robots
-// carries; this file deploys it, and the other launchers serve it with
-// `--with robot_control`. Every robot beside it is listed with its identity,
-// its guide, its limb state, its moves and where its design lets it work,
-// with its recorder whenever it runs, its rig's cameras and its brain's
-// tools, at launch or by a later join, and a removal takes them out. The
-// framework's endpoint comes with it, on the same option, as in every
-// launcher with robots: stack.list, stack.join and stack.remove add and
-// remove the robots of the scope the adjustment below gives, the two robot
-// options of this file with the features each offers, up to four robots on
-// the stack, each robot and each feature on the machine of the federation
-// the client names, and fleet.list and fleet.halt read the fleet of the
-// stack and halt the stack. The launch builds on its machine the nodes
-// of each of these robots with each set of its features before it starts
-// anything, so a robot or a feature that a client adds on this machine
-// builds nothing, and one on another machine builds there when it joins;
-// `--no-prebuild` builds only what the launch starts. The world's endpoint is this file's own
-// world_control axis, deployed with a `none` option, with the workflow
-// director and the workflows' endpoint beside it: Waldo alone implements
-// the object controls, lighting, daylight, materials, view, clock,
-// workspace and sensor streams contracts it binds, and the simulation world
-// contract of its applier of worlds, so the constraint below refuses it under any other
-// engine, and `--with mujoco,world_control=none` is the robots' and the
-// framework's endpoints under MuJoCo. The four URLs are the same with no
-// robot, one or ten and before and after any join, so a client registers
-// them once, and all four run while no robot stands in the simulation.
-//
-// The stack's headset is this file's headset axis, deployed with a `none`
-// option: one xr_commander that every robot without a commander of its own
-// pairs into, its page opened from Waldo's headset panel; the robot it
-// drives is chosen on that page. An MCP client and the headset share the
-// robots through the robot leases: a squeeze takes the lease of the robot and
-// stops the moves in flight on it, and while the headset holds a robot the
-// stack refuses a client's move on it with `leased`, naming the headset.
-//
-// What this file adds to openarm_simulation: the robots' and the
-// framework's endpoints deployed, the world's endpoint on its own axis, the
-// headset deployed, rendering on from the launch, no robot listed, and its
-// robot entries: for each option no commander of its own and the rendered
-// rig, so every robot named on the command line, at launch with `--join
-// OPTION:NAME` or later with a plain `stack join`, and every robot
-// stack.join adds, comes up driven over MCP and from the headset with its
-// cameras, listed on the same URL when the join returns. A
-// launch or a join of a simulated robot returns only once the simulation
-// stands the robot. A robot that stack.join adds stands on a free floor
-// spot, and workspace.stand_at on the world's endpoint stands it at a work
-// surface. A v1 OpenArm, which the simulations render no rig for, joins with
-// `--with v1,camera_rig=none`. The stacks this file is meant for, and the
-// same client on the real robots, are in mcp/README.md:
-//
-//   peppy stack launch simulation_mcp                                    # Waldo and the four endpoints, no robot
-//   peppy stack launch simulation_mcp --join openarm_sim:alpha           # an OpenArm v2 over MCP
-//   peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # an OpenArm and an SO-101
-//   peppy stack launch simulation_mcp --with mujoco,world_control=none   # the robots' and the framework's endpoints, under MuJoCo
-//   peppy stack join openarm_sim:bravo                                   # an OpenArm, on the same URL when the join returns
-//   peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box    # an OpenArm here, its brain on the machine cn-gpu-box
-//   peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box   # an OpenArm named at launch, its brain on cn-gpu-box
-//   peppy stack remove alpha                                             # the endpoints keep running
-//
-// A `--with` word on a join wins on its own axis and the entry's other axes
-// stay selected: `--with web_commander` puts that robot under its own browser
-// panel; the headset does not drive it. `--join openarm_sim:alpha --with
-// robot_control=none,teleop=none,alpha.web_commander,alpha.lerobot_recorder`
-// on the launch is the world's endpoint alone, alpha under the browser panel
-// with the recorder filming its rig. A robot runs on the machine its name is
-// placed on, `OPTION:NAME@CORE_NODE`, else on the coordinator, and a word
-// with a machine runs the part of the robot it selects there:
-// `ai_brain_vla@cn-gpu-box` runs the brain on cn-gpu-box, and
-// `NAME.ai_brain_vla@cn-gpu-box` does so at launch.
 {
   peppy_schema: "launcher/v1",
+  description: [
+    "Robots in Waldo, driven over MCP and from the stack's headset, on four MCP endpoints: the framework's, the workflows', the simulated world's and the robots'. It opens no device: every robot it adds is simulated.",
+    "The simulation starts empty; robots are named at launch, joined later or added over MCP, and each comes up with its rendered rig, listed on the MCP endpoint and paired into the headset. Four endpoints, one per family: a call to the framework, to the workflows, to the simulated world and to a robot each goes to its own endpoint.",
+    "http://127.0.0.1:8903/framework_controls/v1/mcp: the peppy framework: the stack of nodes, where a client adds a robot of this launcher's options and removes it, and halts the stack.",
+    "http://127.0.0.1:8904/workflow_controls/v1/mcp: the workflows: the check of a workflow and its runs on the robots of the stack, under robot leases.",
+    "http://127.0.0.1:8902/simulation/v1/mcp: the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the apply of one, a workflow run in one and the judges that check it.",
+    "http://127.0.0.1:8900/robot_control/v1/mcp: every robot of the stack: its identity, guide, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot.",
+    "The robots' endpoint is the robot_control axis every launcher with robots carries; this launcher deploys it, and the other launchers serve it with `--with robot_control`. Every robot beside it is listed with its identity, its guide, its limb state, its moves and where its design lets it work, with its recorder whenever it runs, its rig's cameras and its brain's tools, at launch or by a later join, and a removal takes them out.",
+    "The framework's endpoint comes with it, on the same option, as in every launcher with robots: stack.list, stack.join and stack.remove add and remove the robots of the scope this launcher gives, its two robot options with the features each offers, up to four robots on the stack, each robot and each feature on the machine of the federation the client names, and fleet.list and fleet.halt read the fleet of the stack and halt the stack. The launch builds on its machine the nodes of each of these robots with each set of its features before it starts anything, so a robot or a feature that a client adds on this machine builds nothing, and one on another machine builds there when it joins; `--no-prebuild` builds only what the launch starts.",
+    "The world's endpoint is this launcher's own world_control axis, deployed with a `none` option, with the workflow director and the workflows' endpoint beside it: Waldo alone implements the object controls, lighting, daylight, materials, view, clock, workspace and sensor streams contracts it binds, and the simulation world contract of its applier of worlds, so this launcher refuses it under any other engine, and `--with mujoco,world_control=none` is the robots' and the framework's endpoints under MuJoCo. The four URLs are the same with no robot, one or ten and before and after any join, so a client registers them once, and all four run while no robot stands in the simulation.",
+    "The stack's headset is this launcher's headset axis, deployed with a `none` option: one xr_commander that every robot without a commander of its own pairs into, its page opened from Waldo's headset panel; the robot it drives is chosen on that page. An MCP client and the headset share the robots through the robot leases: a squeeze takes the lease of the robot and stops the moves in flight on it, and while the headset holds a robot the stack refuses a client's move on it with `leased`, naming the headset.",
+    "What this launcher adds to openarm_simulation: the robots' and the framework's endpoints deployed, the world's endpoint on its own axis, the headset deployed, rendering on from the launch, no robot listed, and its robot entries: for each option no commander of its own and the rendered rig, so every robot named on the command line, at launch with `--join OPTION:NAME` or later with a plain `stack join`, and every robot stack.join adds, comes up driven over MCP and from the headset with its cameras, listed on the same URL when the join returns. A launch or a join of a simulated robot returns only once the simulation stands the robot. A robot that stack.join adds stands on a free floor spot, and workspace.stand_at on the world's endpoint stands it at a work surface. A v1 OpenArm, which the simulations render no rig for, joins with `--with v1,camera_rig=none`. The stacks this launcher is meant for, and the same client on the real robots, are in mcp/README.md of launchers-hub.",
+    "`peppy stack launch simulation_mcp`: Waldo and the four endpoints, no robot.",
+    "`peppy stack launch simulation_mcp --join openarm_sim:alpha`: an OpenArm v2 over MCP.",
+    "`peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie`: an OpenArm and an SO-101.",
+    "`peppy stack launch simulation_mcp --with mujoco,world_control=none`: the robots' and the framework's endpoints, under MuJoCo.",
+    "`peppy stack join openarm_sim:bravo`: an OpenArm, on the same URL when the join returns.",
+    "`peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box`: an OpenArm here, its brain on the machine cn-gpu-box.",
+    "`peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box`: an OpenArm named at launch, its brain on cn-gpu-box.",
+    "`peppy stack remove alpha`: the endpoints keep running.",
+    "A `--with` word on a join wins on its own axis and the entry's other axes stay selected: `--with web_commander` puts that robot under its own browser panel; the headset does not drive it. `--join openarm_sim:alpha --with robot_control=none,teleop=none,alpha.web_commander,alpha.lerobot_recorder` on the launch is the world's endpoint alone, alpha under the browser panel with the recorder filming its rig. A robot runs on the machine its name is placed on, `OPTION:NAME@CORE_NODE`, else on the coordinator, and a word with a machine runs the part of the robot it selects there: `ai_brain_vla@cn-gpu-box` runs the brain on cn-gpu-box, and `NAME.ai_brain_vla@cn-gpu-box` does so at launch.",
+  ],
 
   components: [
     {

@@ -27,14 +27,20 @@ def fleet_axes():
     ]
 
 
-def resolved_plan(*nodes):
+#: The description every launcher of these tests gives, as peppy requires
+#: of each launcher.
+LAUNCHER_DESCRIPTION = ["A launcher of the tests."]
+
+
+def resolved_plan(*nodes, description=LAUNCHER_DESCRIPTION):
     """What `stack resolve` prints for a launcher deploying `nodes`, each a
-    `name:tag` running as the one instance `name_inst`."""
+    `name:tag` running as the one instance `name_inst`, under the launcher's
+    `description`."""
     deployments = [
         {"source": {"name": name, "tag": tag}, "instances": [{"instance_id": f"{name}_inst"}]}
         for name, tag in (node.split(":") for node in nodes)
     ]
-    return completed(json.dumps({"deployments": deployments}))
+    return completed(json.dumps({"description": description, "deployments": deployments}))
 
 
 def completed(stdout="", returncode=0, stderr=""):
@@ -49,6 +55,7 @@ def simulation_launcher(*simulations):
     """A launcher whose one axis picks a simulation, deploying the first."""
     return {
         "peppy_schema": "launcher/v1",
+        "description": LAUNCHER_DESCRIPTION,
         "components": [simulation_axis(*simulations)],
         "deployments": [{"simulation": simulations[0]}],
     }
@@ -68,6 +75,7 @@ def fleet_launcher(file_copy=None, at_launch=False):
         deployments.append({"robot": "openarm_v2"})
     return {
         "peppy_schema": "launcher/v1",
+        "description": LAUNCHER_DESCRIPTION,
         "components": [
             simulation_axis("mujoco"),
             {"name": "robot", "cardinality": "zero_or_more", "options": {"openarm_v2": robot}},
@@ -2602,9 +2610,13 @@ def so101_copy(name, **selected):
 
 def so101_stack(simulation, *copies):
     """What `stack resolve` prints for so101_simulation under `simulation`
-    with `copies` in it."""
+    with `copies` in it, under the launcher's own description."""
+    launcher = combinations.load_json5(ROOT / "so101_simulation.json5", "so101_simulation.json5")
     deployments = fragment_deployments(f"simulation/fragments/{simulation}.json5")
-    return completed(json.dumps({"deployments": deployments + [d for copy in copies for d in copy]}))
+    return completed(json.dumps({
+        "description": launcher["description"],
+        "deployments": deployments + [d for copy in copies for d in copy],
+    }))
 
 
 class SimulatedSo101Tests(unittest.TestCase):
@@ -3023,6 +3035,18 @@ class ScopeTests(unittest.TestCase):
     def test_a_change_that_moves_no_plan_launches_nothing(self):
         launchers = {"sim": simulation_launcher("mujoco", "waldo")}
         with planned(launchers, scope=CHANGED, base_launchers=launchers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, [])
+            self.assertIn("Launching nothing: this change moves no combination's resolved plan", summary)
+
+    def test_a_change_to_a_launcher_description_alone_launches_nothing(self):
+        # The description is prose for the people who choose the launcher:
+        # no launch reads it, so the plan of each combination is the base's.
+        launchers = {"sim": {**simulation_launcher("mujoco", "waldo"), "description": ["Waldo or MuJoCo."]}}
+        base_launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        answers = {("sim.json5", "simulation=waldo", "", ""):
+                   resolved_plan("waldo:v1", description=["Waldo or MuJoCo."])}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1")}
+        with planned(launchers, answers, CHANGED, base_launchers, base_answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, [])
             self.assertIn("Launching nothing: this change moves no combination's resolved plan", summary)
 

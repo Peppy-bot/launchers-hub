@@ -1,0 +1,57 @@
+// The workflows of the stack: the workflow director, which checks workflows
+// and runs them on the robots of the stack under robot leases, and its MCP
+// endpoint, at http://127.0.0.1:8904/workflow_controls/v1/mcp. The server
+// built into peppy serves the workflow_controls:v1 exposure from the MCP
+// hub, linked to the director.
+//
+// The director finds the robots in the fleet listing, with no link to a
+// robot: its daemon target fleet gives it the listing (list and changes),
+// the pinned contract documents (contract), the leases (lease) and the move
+// check before each call that moves a robot (check_move). allowed_contracts
+// names the contracts that runs may command and observe: the skills of the
+// robots of the hubs. The director declares no core_node, so it runs on the
+// coordinator, as an instance serving a daemon target must. It keeps the
+// journal of each run in journal_root, a directory of the coordinator's
+// disk that outlives its container and each launch.
+//
+// simulation_mcp deploys it with the world's endpoint, on its world_control
+// option, and binds the director to the simulation's clock; so101_simulation
+// and physical serve it with `--with workflow_control`.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "workflow_director", tag: "v1" },
+      instances: [
+        {
+          instance_id: "workflow_director_inst",
+          arguments: {
+            allowed_contracts: "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, item_perception:v1, item_manipulation:v1",
+            poll_s: 0.5,
+            cancel_timeout_s: 10,
+            journal_root: "/var/tmp/peppy_workflow_director",
+            journal_max_runs: 1000,
+            journal_max_mib: 4096,
+          },
+          daemon_scopes: { fleet: { members: ["list", "contract", "changes", "lease", "check_move"] } },
+        },
+      ],
+    },
+    {
+      source: { exposures: ["workflow_controls:v1"] },
+      instances: [
+        {
+          instance_id: "workflow_controls_inst",
+          // The derived node's only parameter: the port the server prefers
+          // on 127.0.0.1, serving the exposure at
+          // /workflow_controls/v1/mcp, beside the framework's endpoint on
+          // 8903. A server that finds the port held takes another and
+          // announces it.
+          arguments: { port: 8904 },
+          links: { director: "workflow_director_inst" },
+        },
+      ],
+    },
+  ],
+}

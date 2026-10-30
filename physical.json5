@@ -11,6 +11,7 @@
     "`peppy stack launch physical --with robot_control`: the robots' and the framework's MCP endpoints, waiting for robots.",
     "`peppy stack join openarm:alpha@jetson-1 --with v2,cameras`: driven over MCP, listed when the join returns.",
     "`peppy stack launch physical --with xr_commander`: the stack's headset, waiting for robots.",
+    "`peppy stack launch physical --with robot_control,workflow_control`: workflows run on the robots that join.",
     "`peppy stack join openarm:alpha@jetson-1 --with v2,robot_commander=none`: led by the headset.",
     "`peppy stack launch physical --join openarm:alpha@jetson-1 --join so101:bravo@jetson-2 --with alpha.v2`: an OpenArm v2 and an SO-101, both named at launch.",
     "A robot runs on the machine its name is placed on, `OPTION:NAME@CORE_NODE`, else on the coordinator; a word with a machine runs the part of the robot it selects there, such as `--with ai_brain_vla@cn-gpu-box` for the brain.",
@@ -37,6 +38,16 @@
       cardinality: "zero_or_one",
       options: {
         xr_commander: "teleop/fragments/xr_commander.json5",
+      },
+    },
+    // The workflows, selected with `--with workflow_control`: the workflow
+    // director, which runs workflows on the robots under robot leases, and
+    // its MCP endpoint, where a client checks workflows and runs them.
+    {
+      name: "workflow_control",
+      cardinality: "zero_or_one",
+      options: {
+        workflow_control: "mcp/fragments/workflow_control.json5",
       },
     },
     // Each robot fragment describes itself. The connections between a robot
@@ -173,5 +184,10 @@
     // wired to, so its stack target stays vacant.
     { target: "framework_controls_inst",
       set_daemon_scopes: { stack: { vacant: "physical robots join from the command line, on the machine their hardware is wired to" } } },
+    // A run on the physical robots commands their postures, arm moves and
+    // perception, and no brain sequence: item_manipulation is not an
+    // allowed contract here.
+    { target: "workflow_director_inst",
+      set_arguments: { allowed_contracts: "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, item_perception:v1" } },
   ],
 }

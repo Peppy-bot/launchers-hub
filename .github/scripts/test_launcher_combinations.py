@@ -180,6 +180,12 @@ HEADSET = "headset_inst"
 #: The guard under which the headset leads a robot: the stack runs one, and
 #: the robot runs no commander of its own.
 HEADSET_LEADS = {"teleop": "xr_commander", "robot_commander": "none"}
+#: The workflow director, which the MCP launcher deploys with its world's
+#: endpoint and the SO-101 and physical launchers on their workflow axis.
+DIRECTOR = "workflow_director_inst"
+#: The launchers whose director and its endpoint read the simulation's clock.
+DIRECTOR_ON_THE_SIMULATION_CLOCK = ["mcp/simulation_mcp.json5", "so101_simulation.json5"]
+DIRECTOR_CLOCK = {"target": [DIRECTOR, "workflow_controls_inst"], "set_framework": {"clock": "simulation"}}
 #: What every simulation launcher writes at its top level for the headset:
 #: its clock, and Waldo's panel showing it.
 HEADSET_WIRING = [
@@ -269,7 +275,8 @@ class FragmentInventoryTests(unittest.TestCase):
             ("teleop/fragments", {"xr_commander.json5"}),
             ("simulation/fragments", {"isaac_sim.json5", "mujoco.json5", "waldo.json5",
                                       "web_scene_commander.json5"}),
-            ("mcp/fragments", {"framework_controls.json5", "robot_control.json5", "world_control.json5"}),
+            ("mcp/fragments", {"framework_controls.json5", "robot_control.json5", "workflow_control.json5",
+                               "world_control.json5"}),
             ("common/fragments", {"none.json5"}),
         ]:
             with self.subTest(directory=directory):
@@ -491,6 +498,18 @@ class OptionShapeTests(unittest.TestCase):
         ]}
         self.assertEqual(self.parts(spec), ["fragments/a.json5"])
 
+    def test_an_adjustment_target_is_one_instance_or_a_list_of_distinct_ones(self):
+        # As peppy reads it: a list names each instance once, each an id.
+        listed = {"fragments": ["fragments/a.json5"], "adjustments": [
+            {"target": ["framework_controls_inst", "sim_harness_inst"], "set_arguments": {"a": 1}}]}
+        self.assertEqual(self.parts(listed), ["fragments/a.json5"])
+        for target, refusal in [([], "instance id"), (["a_inst", "a_inst"], "twice"), (["a_inst", 7], "instance id")]:
+            with self.subTest(target=target):
+                spec = {"fragments": ["fragments/a.json5"], "adjustments": [{"target": target, "set_arguments": {"a": 1}}]}
+                with self.assertRaises(combinations.Json5Error) as refused:
+                    self.parts(spec)
+                self.assertIn(refusal, str(refused.exception))
+
     def test_an_option_inside_a_body_carries_no_adjustments(self):
         spec = {"adjustments": [{"target": "x", "set_arguments": {"a": 1}}]}
         with self.assertRaises(combinations.Json5Error) as refusal:
@@ -597,11 +616,11 @@ class CombinationsTests(unittest.TestCase):
         # version has no default, so every join names one.
         openarm, so101 = 2 * 3 * 2 * 2 * 3, 1 + 2 * 2 * 2
         openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2
-        # The physical launcher: the endpoint and the headset each unfilled
-        # or on, each bare and joined by any physical robot. It lists no
-        # robot, so no launch names one.
+        # The physical launcher: the endpoint, the workflows and the headset
+        # each unfilled or on, each bare and joined by any physical robot. It
+        # lists no robot, so no launch names one.
         physical = combos("physical")
-        self.assertEqual(len(physical), 2 * 2 * (1 + openarm + so101))
+        self.assertEqual(len(physical), 2 * 2 * 2 * (1 + openarm + so101))
         self.assertIn(["combo", "physical", "robot_control=robot_control", "", "", "", "-"], physical)
         self.assertIn(["combo", "physical", "", "", "", "", "-"], physical)
         self.assertIn(
@@ -651,10 +670,11 @@ class CombinationsTests(unittest.TestCase):
             self.assertIn(reference, references)
         self.assertNotIn("world_control", references)
         self.assertIn("mcp/fragments/framework_controls.json5", references)
-        # The so101_simulation launcher: the same selections, joined by any
-        # simulated robot, plain and under every selection of its axes.
+        # The so101_simulation launcher: the same selections and the
+        # workflows unfilled or on, joined by any simulated robot, plain and
+        # under every selection of its axes.
         so101_launcher = combos("so101_simulation")
-        self.assertEqual(len(so101_launcher), stacks * (alpha_so101 + openarm_sim + so101_sim))
+        self.assertEqual(len(so101_launcher), 2 * stacks * (alpha_so101 + openarm_sim + so101_sim))
         self.assertIn(["combo", "so101_simulation", "simulation=waldo", "", "", "", "-"], so101_launcher)
         self.assertIn(
             ["combo", "so101_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=so101_leader,alpha.recorder=lerobot_recorder", "", "", "", "-"],
@@ -1337,11 +1357,21 @@ class CombinationsTests(unittest.TestCase):
         for path in SIMULATION_LAUNCHERS:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
-                expected = ([RENDERING_ON] if path == "mcp/simulation_mcp.json5" else []) + [SERVER_CLOCK] + HEADSET_WIRING
+                expected = (
+                    ([RENDERING_ON] if path == "mcp/simulation_mcp.json5" else [])
+                    + [SERVER_CLOCK]
+                    + ([DIRECTOR_CLOCK] if path in DIRECTOR_ON_THE_SIMULATION_CLOCK else [])
+                    + HEADSET_WIRING
+                )
                 self.assertEqual(
                     [a for a in document["adjustments"] if "set_daemon_scopes" not in a], expected)
         physical = combinations.load_json5(root / "physical.json5", "physical")
-        self.assertEqual([a for a in physical["adjustments"] if "set_daemon_scopes" not in a], [])
+        # The physical launcher narrows the contracts of a run on its robots
+        # alone; test_the_workflow_axis_deploys_the_director_and_its_endpoint
+        # checks which.
+        self.assertEqual(
+            [(a["target"], list(a["set_arguments"])) for a in physical["adjustments"] if "set_daemon_scopes" not in a],
+            [(DIRECTOR, ["allowed_contracts"])])
         self.assertEqual(physical["deployments"], [])
         # Every rig is listed: color and depth on hardware, where neither
         # node describes a profile and the launcher lists no geometry, and
@@ -1365,10 +1395,50 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(listing["add_links"], links)
 
 
+    def test_the_workflow_axis_deploys_the_director_and_its_endpoint(self):
+        root = Path(__file__).resolve().parents[2]
+        fragment = combinations.load_json5(root / "mcp/fragments/workflow_control.json5", "workflow_control")
+        director, endpoint = fragment["deployments"]
+        self.assertEqual(director["source"], {"name": "workflow_director", "tag": "v1"})
+        instance, = director["instances"]
+        self.assertEqual(instance["instance_id"], DIRECTOR)
+        # The director finds its robots in the fleet listing, reads their
+        # contracts, leases them and asks the move check: no link to a robot,
+        # and no core_node, so it runs on the coordinator.
+        self.assertEqual(instance["daemon_scopes"], {"fleet": {"members": ["list", "contract", "changes", "lease", "check_move"]}})
+        self.assertNotIn("links", instance)
+        self.assertNotIn("core_node", instance)
+        self.assertIn("item_manipulation:v1", instance["arguments"]["allowed_contracts"])
+        # A run on the physical robots calls every contract of the fragment
+        # but the brain's manipulation.
+        allowed = [contract.strip() for contract in instance["arguments"]["allowed_contracts"].split(",")]
+        physical = combinations.load_json5(root / "physical.json5", "physical.json5")
+        on_hardware, = [a for a in physical["adjustments"] if a.get("target") == DIRECTOR]
+        self.assertEqual(
+            [contract.strip() for contract in on_hardware["set_arguments"]["allowed_contracts"].split(",")],
+            [contract for contract in allowed if contract != "item_manipulation:v1"])
+        self.assertEqual(endpoint["source"], {"exposures": ["workflow_controls:v1"]})
+        server, = endpoint["instances"]
+        self.assertEqual((server["instance_id"], server["arguments"], server["links"]),
+                         ("workflow_controls_inst", {"port": 8904}, {"director": DIRECTOR}))
+        # The SO-101 and physical launchers carry the axis; openarm_simulation
+        # does not, and runs workflows through simulation_mcp.
+        for path, carries in [("so101_simulation.json5", True), ("physical.json5", True), ("openarm_simulation.json5", False)]:
+            with self.subTest(path=path):
+                document = combinations.load_json5(root / path, path)
+                axes = {axis["name"]: axis for axis in document["components"]}
+                if not carries:
+                    self.assertNotIn("workflow_control", axes)
+                    continue
+                self.assertEqual(axes["workflow_control"], {
+                    "name": "workflow_control", "cardinality": "zero_or_one",
+                    "options": {"workflow_control": "mcp/fragments/workflow_control.json5"},
+                })
+
     def test_the_world_endpoint_is_the_mcp_launchers_axis(self):
         root = Path(__file__).resolve().parents[2]
         fragment = combinations.load_json5(root / "mcp/fragments/world_control.json5", "world_control")
-        deployment, = fragment["deployments"]
+        deployment, harness = fragment["deployments"]
         self.assertEqual(deployment["source"], {"exposures": ["simulation:v1"]})
         instance, = deployment["instances"]
         # An id and a port of its own: it runs beside the robots' endpoint
@@ -1381,9 +1451,24 @@ class CombinationsTests(unittest.TestCase):
             "lighting": "simulation_inst", "daylight": "simulation_inst", "materials": "simulation_inst",
             "view": "simulation_inst", "clock": "simulation_inst",
             "workspace": "simulation_inst", "sensor_streams": "simulation_inst",
-            "simulation_world": "simulation_inst"})
+            "world": "sim_harness_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
-        # It binds nothing of a robot copy and adjusts nothing.
+        # The applier of worlds serves the world target: it drives Waldo and
+        # the director by its links and the fleet within its scope, on the
+        # coordinator, on the simulation's clock that every instance it binds
+        # reads.
+        self.assertEqual(harness["source"], {"name": "sim_harness", "tag": "v1"})
+        applier, = harness["instances"]
+        self.assertEqual(applier["instance_id"], "sim_harness_inst")
+        self.assertEqual(applier["links"], {
+            "world": "simulation_inst", "scene": "simulation_inst", "workspace": "simulation_inst",
+            "sim_clock": "simulation_inst", "sensor_streams": "simulation_inst",
+            "director": "workflow_director_inst"})
+        self.assertEqual(applier["daemon_scopes"], {"fleet": {"members": ["list", "changes", "lease", "check_move"]}})
+        self.assertNotIn("core_node", applier)
+        self.assertEqual(applier["framework"], {"clock": "simulation"})
+        # The fragment adjusts nothing: the option of the launcher links the
+        # applier to the backbone of each robot.
         self.assertNotIn("adjustments", fragment)
         self.assertNotIn("components", fragment)
         # The axis is the MCP launcher's, deployed by the file with `none`
@@ -1396,7 +1481,19 @@ class CombinationsTests(unittest.TestCase):
         axes = {axis["name"]: axis for axis in document["components"]}
         self.assertEqual(axes["world_control"], {
             "name": "world_control", "cardinality": "one",
-            "options": {"world_control": "fragments/world_control.json5", "none": "../common/fragments/none.json5"},
+            "options": {
+                "world_control": {
+                    "fragments": ["fragments/workflow_control.json5", "fragments/world_control.json5"],
+                    # Each simulated robot's backbone fills the applier's
+                    # set slots, so the applier homes it.
+                    "adjustments": [{
+                        "target": "sim_harness_inst", "when": {"robot": ["openarm_sim", "so101_sim"]},
+                        "add_links": {"limb_state": ["backbone_inst"], "limb_motion": ["backbone_inst"],
+                                      "postures": ["backbone_inst"]},
+                    }],
+                },
+                "none": "../common/fragments/none.json5",
+            },
         })
         self.assertEqual(combinations.option_entries(document, path)["world_control"], "world_control")
         rule, = document["constraints"]
@@ -1450,14 +1547,29 @@ class CombinationsTests(unittest.TestCase):
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             with self.subTest(path=path):
-                adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
-                self.assertEqual(adjustment["target"], "framework_controls_inst")
-                self.assertNotIn("when", adjustment)
-                self.assertEqual(list(adjustment["set_daemon_scopes"]), ["stack"])
-                stack = adjustment["set_daemon_scopes"]["stack"]
+                scopes = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
+                for adjustment in scopes:
+                    self.assertEqual(list(adjustment["set_daemon_scopes"]), ["stack"])
                 if path == "mcp/simulation_mcp.json5":
-                    self.assertNotIn("vacant", stack)
+                    # The MCP launcher's applier of worlds adds and removes
+                    # the same robots beside the robots' endpoint, under the
+                    # same scope, and without that endpoint leaves its stack
+                    # target vacant: a robot that joins there has no
+                    # consumer of its cameras.
+                    shared, applier = scopes
+                    self.assertEqual(shared["target"], ["framework_controls_inst", "sim_harness_inst"])
+                    self.assertEqual(shared["when"], {"robot_control": "robot_control"})
+                    self.assertNotIn("vacant", shared["set_daemon_scopes"]["stack"])
+                    self.assertEqual(applier["target"], "sim_harness_inst")
+                    self.assertEqual(applier["when"], {"robot_control": "none"})
+                    vacant = applier["set_daemon_scopes"]["stack"]
+                    self.assertEqual(list(vacant), ["vacant"])
+                    self.assertIn("launch with robot_control", vacant["vacant"])
                 else:
+                    adjustment, = scopes
+                    self.assertEqual(adjustment["target"], "framework_controls_inst")
+                    self.assertNotIn("when", adjustment)
+                    stack = adjustment["set_daemon_scopes"]["stack"]
                     self.assertEqual(list(stack), ["vacant"])
                     self.assertTrue(stack["vacant"].strip())
                     self.assertIn("command line", stack["vacant"])
@@ -1470,7 +1582,8 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         path = "mcp/simulation_mcp.json5"
         document = combinations.load_json5(root / path, path)
-        adjustment, = [a for a in document["adjustments"] if "set_daemon_scopes" in a]
+        adjustment, = [a for a in document["adjustments"]
+                       if "set_daemon_scopes" in a and "framework_controls_inst" in a["target"]]
         # The hub's policy alone: peppy's parse and launch checks hold the
         # shape of the scope and of its descriptions, and every feature's
         # axis and option, in the `peppy stack resolve` step of the same CI.

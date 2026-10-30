@@ -7,9 +7,11 @@
     "`peppy stack launch so101_simulation --with mujoco`: the same robot, alone in MuJoCo.",
     "`peppy stack launch so101_simulation --with alpha.so101_leader`: a real leader arm driving the simulated follower; it needs the SO-101 leader arm wired to the machine the robot runs on.",
     "`peppy stack launch so101_simulation --with robot_control,alpha.cameras_sim`: driven over MCP, its wrist camera served.",
+    "`peppy stack launch so101_simulation --with workflow_control`: workflows run on alpha.",
     "`peppy stack join openarm_sim:bravo`: an OpenArm v2 beside alpha, with the browser panel.",
     "The robot axis offers every simulated robot, so an OpenArm joins beside the SO-101; every simulation stands as many robots as the machines can run, of any model, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the fourth command above does, and `--with cameras_sim` on a join is refused on a launch without one.",
     "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the SO-101's arm and gripper and sees through its wrist camera, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
+    "`--with workflow_control` runs the workflow director and its MCP endpoint, http://127.0.0.1:8904/workflow_controls/v1/mcp, where a client checks workflows and runs them on the robots.",
     "`--with xr_commander` runs the stack's headset, which leads the SO-101 with the right hand.",
   ],
 
@@ -44,6 +46,16 @@
       cardinality: "zero_or_one",
       options: {
         xr_commander: "teleop/fragments/xr_commander.json5",
+      },
+    },
+    // The workflows, selected with `--with workflow_control`: the workflow
+    // director, which runs workflows on the robots under robot leases, and
+    // its MCP endpoint, where a client checks workflows and runs them.
+    {
+      name: "workflow_control",
+      cardinality: "zero_or_one",
+      options: {
+        workflow_control: "mcp/fragments/workflow_control.json5",
       },
     },
     // Every simulated robot, an option of the same name in every simulation
@@ -211,6 +223,10 @@
     // The server reads the simulation's clock, as every instance a robot
     // copy runs does; each simulated robot's fragment binds its own.
     { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+    // The director reads the simulation's clock, which its robots read, so
+    // the bounds of a run count simulated time; its endpoint reads the same
+    // clock as the director it binds.
+    { target: ["workflow_director_inst", "workflow_controls_inst"], set_framework: { clock: "simulation" } },
     // The framework's endpoint serves its fleet target alone: this file
     // offers an MCP client no robot to add, so its stack target stays
     // vacant, and every robot joins from the command line.

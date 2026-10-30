@@ -1451,15 +1451,17 @@ class CombinationsTests(unittest.TestCase):
             "lighting": "simulation_inst", "daylight": "simulation_inst", "materials": "simulation_inst",
             "view": "simulation_inst", "clock": "simulation_inst",
             "workspace": "simulation_inst", "sensor_streams": "simulation_inst",
-            "world": "sim_harness_inst"})
+            "world": "sim_harness_inst", "sweep": "sim_harness_inst"})
         self.assertEqual(instance["framework"], {"clock": "simulation"})
-        # The applier of worlds serves the world target: it drives Waldo and
-        # the director by its links and the fleet within its scope, on the
-        # coordinator, on the simulation's clock that every instance it binds
-        # reads.
+        # The applier of worlds serves the world and sweep targets: it drives
+        # Waldo and the director by its links and the fleet within its scope,
+        # on the coordinator, on the simulation's clock that every instance it
+        # binds reads, and keeps its sweeps in a directory that outlives each
+        # launch.
         self.assertEqual(harness["source"], {"name": "sim_harness", "tag": "v1"})
         applier, = harness["instances"]
         self.assertEqual(applier["instance_id"], "sim_harness_inst")
+        self.assertEqual(applier["arguments"], {"sweep_root": "/var/tmp/peppy_sim_harness"})
         self.assertEqual(applier["links"], {
             "world": "simulation_inst", "scene": "simulation_inst", "workspace": "simulation_inst",
             "sim_clock": "simulation_inst", "sensor_streams": "simulation_inst",

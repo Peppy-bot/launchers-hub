@@ -38,7 +38,8 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   each robot's instances with `add_links` on `robot_control_inst`, under the
   option that selects the robot: its initializer for its identity and its
   backbone for its limb state, its moves, where its design lets it work and,
-  on an OpenArm, its collision readout and its camera mounts, so every robot
+  on an OpenArm, its collision readout and its camera mounts, and its drivers
+  on the physical robots for their motor health and alerts, so every robot
   of the stack is listed with what it is, how it stands and how a model
   moves it, under any commander; its
   recorder ([openarm](../openarm/fragments/lerobot_recorder.json5),
@@ -266,7 +267,8 @@ other tool takes `robot`, one of those names. A robot's name is its copy's
 name, so `alpha` here is `alpha` in the simulated world's
 `scene.get_robots_list` too. The listing carries, per robot, its identity
 (model and host), its arms and grippers, its cameras under `members`
-(`camera` for color cameras, `depth_camera` for the ones carrying depth),
+(`camera` for color cameras, `depth_camera` for the ones carrying depth)
+and, on a physical robot, its drivers under `motor_health` and `alerts`,
 the tools it answers under `tools`, the resources it publishes under
 `resources`, and notes on anything that could not be read. A call naming a
 robot that is not there, a tool that robot does not answer or a camera it

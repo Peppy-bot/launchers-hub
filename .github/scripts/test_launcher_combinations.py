@@ -180,6 +180,13 @@ HEADSET = "headset_inst"
 #: The guard under which the headset leads a robot: the stack runs one, and
 #: the robot runs no commander of its own.
 HEADSET_LEADS = {"teleop": "xr_commander", "robot_commander": "none"}
+#: The OpenArm's four limb drivers, the arm and gripper instances its fragment
+#: runs: the initializer's limbs, and on a physical robot the drivers that
+#: report per-motor health and operator alerts.
+OPENARM_LIMBS = ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"]
+#: The drivers of each physical robot option that report per-motor health and
+#: operator alerts: the sources every reader of that telemetry binds.
+TELEMETRY_SOURCES = {"openarm": OPENARM_LIMBS, "so101": ["follower_inst"]}
 #: The workflow director, which the MCP launcher deploys with its world's
 #: endpoint and the SO-101 and physical launchers on their workflow axis.
 DIRECTOR = "workflow_director_inst"
@@ -1032,7 +1039,9 @@ class CombinationsTests(unittest.TestCase):
         # run. None of it is guarded on the server: an entry naming an
         # instance the launch does not run is skipped. Every robot's backbone
         # answers where its design lets it work; only the OpenArm's says how
-        # close its arms stand and where its cameras are mounted.
+        # close its arms stand and where its cameras are mounted. Only a real
+        # driver reports per-motor health and operator alerts, so the physical
+        # launcher alone lists them, a report and an alert set per driver.
         readouts_of_every_robot = {
             "identity": ["init_inst"], "guide": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"],
             "postures": ["backbone_inst"], "limb_motion": ["backbone_inst"]}
@@ -1047,7 +1056,9 @@ class CombinationsTests(unittest.TestCase):
                 with self.subTest(path=path, robot=robot):
                     entries = robot_option(document, robot)["adjustments"]
                     listing, = [a for a in entries if a["target"] == SERVER and "when" not in a]
-                    self.assertEqual(listing, {"target": SERVER, "add_links": readouts[family_of(robot)]})
+                    sources = TELEMETRY_SOURCES[family_of(robot)]
+                    telemetry = {"motor_health": sources, "alerts": sources} if path == "physical.json5" else {}
+                    self.assertEqual(listing, {"target": SERVER, "add_links": {**readouts[family_of(robot)], **telemetry}})
                     episodes, = [a for a in entries
                                  if a["target"] == SERVER and a.get("when") == {"recorder": "lerobot_recorder"}]
                     self.assertEqual(episodes["add_links"], {"recorder": ["recorder_inst"]})
@@ -1248,22 +1259,25 @@ class CombinationsTests(unittest.TestCase):
     def test_the_launcher_binds_the_leaders_telemetry_and_the_simulated_panels_cap(self):
         root = Path(__file__).resolve().parents[2]
         # Real drivers report per-motor health and operator alerts, and the
-        # panel and the stack's headset show them; a simulated robot has no
-        # motors, and its panel streams the cap the simulated backbone starts
-        # on.
-        openarm_limbs = ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"]
+        # stack's server, the panel and the stack's headset show them; a
+        # simulated robot has no motors, and its panel streams the cap the
+        # simulated backbone starts on.
         physical = combinations.load_json5(root / "physical.json5", "physical")
-        for robot, readers, sources in [
-            ("openarm", [("commander_inst", {"robot_commander": "web_commander"}), (HEADSET, HEADSET_LEADS)],
-             openarm_limbs),
-            ("so101", [(HEADSET, HEADSET_LEADS)], ["follower_inst"]),
+        for robot, readers in [
+            ("openarm", [(SERVER, None), ("commander_inst", {"robot_commander": "web_commander"}), (HEADSET, HEADSET_LEADS)]),
+            ("so101", [(SERVER, None), (HEADSET, HEADSET_LEADS)]),
         ]:
             with self.subTest(robot=robot):
+                sources = TELEMETRY_SOURCES[robot]
                 telemetry = [a for a in robot_option(physical, robot)["adjustments"]
                              if "motor_health" in a.get("add_links", {})]
-                self.assertEqual(telemetry, [
-                    {"target": target, "when": when, "add_links": {"motor_health": sources, "alerts": sources}}
-                    for target, when in readers])
+                self.assertEqual([(a["target"], a.get("when")) for a in telemetry], readers)
+                for entry in telemetry:
+                    links = entry["add_links"]
+                    self.assertEqual((links["motor_health"], links["alerts"]), (sources, sources))
+                    if entry["target"] != SERVER:
+                        self.assertEqual(set(entry), {"target", "when", "add_links"})
+                        self.assertEqual(set(links), {"motor_health", "alerts"})
         cap = instance_of(combinations.load_json5(root / ROBOT_FILES["openarm_sim"], "openarm_sim"),
                           "backbone_inst")["arguments"]["max_ee_velocity_m_s"]
         for path in SIMULATION_LAUNCHERS:
@@ -1865,7 +1879,6 @@ class CombinationsTests(unittest.TestCase):
     def test_every_robot_runs_the_one_initializer_under_its_model(self):
         root = Path(__file__).resolve().parents[2]
         vacancy = "vacant"
-        openarm_limbs = ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"]
         # Every robot deploys the one initializer where its model is known:
         # an OpenArm's hardware version options each deploy theirs in place, and
         # the axis provides the node; every SO-101 is the one model, named
@@ -1880,8 +1893,8 @@ class CombinationsTests(unittest.TestCase):
         # has one for each arm, measured there; no other robot has any yet.
         openarm_v2_sim_park = ({"left_arm", "right_arm"}, 7)
         for path, model, links, clock, park in [
-            ("openarm/fragments/openarm.json5:v1", "openarm_v1", {"simulation": vacancy, "limbs": openarm_limbs}, None, None),
-            ("openarm/fragments/openarm.json5:v2", "openarm_v2", {"simulation": vacancy, "limbs": openarm_limbs}, None, None),
+            ("openarm/fragments/openarm.json5:v1", "openarm_v1", {"simulation": vacancy, "limbs": OPENARM_LIMBS}, None, None),
+            ("openarm/fragments/openarm.json5:v2", "openarm_v2", {"simulation": vacancy, "limbs": OPENARM_LIMBS}, None, None),
             ("openarm/fragments/openarm_sim.json5:v1", "openarm_v1", {"simulation": "simulation_inst"}, {"clock": "simulation"}, None),
             ("openarm/fragments/openarm_sim.json5:v2", "openarm_v2", {"simulation": "simulation_inst"}, {"clock": "simulation"}, openarm_v2_sim_park),
             ("so101/fragments/so101.json5", "so101", {"simulation": vacancy, "limbs": ["follower_inst"]}, None, None),

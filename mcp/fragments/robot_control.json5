@@ -5,9 +5,10 @@
 // set the robots fill: this instance takes no links, and the launcher adds
 // a robot's instances with `add_links` on robot_control_inst under the
 // option that selects the robot: its identity, its guide, its limb state,
-// its moves and where its design lets it work, and on an OpenArm its collision
-// readout and its camera mounts, under any commander; its recorder, its
-// rig's cameras and its brain's tools whenever they run. A join adds its
+// its moves and where its design lets it work, on an OpenArm its collision
+// readout and its camera mounts, and on the physical robots its drivers'
+// motor health and alerts, under any commander; its recorder, its rig's
+// cameras and its brain's tools whenever they run. A join adds its
 // robot's instances while the server runs and a
 // removal takes them out, so the endpoint and its URL are the same for one
 // robot or ten and before and after any join.

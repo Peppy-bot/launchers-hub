@@ -68,13 +68,13 @@ the robot or from the `recorder.record_episode` tool of the stack's
 `robot_control` endpoint, where the recorder is listed whenever the
 endpoint runs. A camera rig requires a consumer of its stream: the
 recorder, the stack's headset leading the robot, or the `robot_control`
-endpoint, which lists the camera. The headset shows the
-follower's motor health and alerts on the physical robot; a simulated robot
-has no motors to report on.
+endpoint, which lists the camera. The headset and the `robot_control`
+endpoint show the follower's motor health and alerts on the physical robot;
+a simulated robot has no motors to report on.
 
 Where the endpoint runs, the launcher lists the robot on it under any
-commander: its identity, its limb state, its moves and where its design
-lets it work.
+commander: its identity, its limb state, its moves, where its design lets
+it work and, on the physical robot, the follower's motor health and alerts.
 The backbone's `robot.describe_workspace` and `robot.check_positions` check
 reach alone: the `wrist` camera is on the arm, so the design carries no
 perception camera.

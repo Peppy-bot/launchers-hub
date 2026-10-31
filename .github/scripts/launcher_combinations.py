@@ -595,10 +595,12 @@ INCLUDE_KEY = "$include"
 
 
 def included_path(root, directory, written, label):
-    """The repository-relative path of the file an include names, by the
-    fragment path rules: relative to `directory`, the directory of the
-    document that writes it, with no `.` segment, and inside the repository,
-    through a symlink too."""
+    """The repository-relative path of the file an include names, as `peppy`
+    resolves it by the fragment path rules: `written` is relative to
+    `directory`, the directory of the document that writes it, has no `.`
+    segment, and stays inside the repository as written. The file is the one
+    the operating system opens at `directory/written`, each symlink followed
+    before the `..` after it, and it is inside the repository too."""
     if not isinstance(written, str) or not written.strip():
         raise Json5Error(
             f'{label}: an include names a file, `{{ {INCLUDE_KEY}: "<path>" }}`, '
@@ -620,14 +622,13 @@ def included_path(root, directory, written, label):
             parts.pop()
         elif segment:
             parts.append(segment)
-    path = "/".join(parts)
     repository = os.path.realpath(root)
-    target = os.path.realpath(os.path.join(root, path))
+    target = os.path.realpath(os.path.join(repository, directory, written))
     if os.path.commonpath([repository, target]) != repository:
         raise Json5Error(
             f"{label}: the include `{written}` leaves the repository through a symlink"
         )
-    return path
+    return os.path.relpath(target, repository).replace(os.sep, "/")
 
 
 def holds_include(value):
@@ -1377,11 +1378,50 @@ def resolve_command(path, words, join_option, join_words, launch_joins=()):
 
 
 def launched_plan(resolved):
-    """The flattened launcher that `stack resolve` prints, less its
-    `description`: that is prose for the people who choose and start the
-    launcher, and no launch reads it. So a change to the description alone
-    moves no combination's plan."""
-    return {key: value for key, value in resolved.items() if key != "description"}
+    """The flattened launcher that `stack resolve` prints, less what no
+    launch reads: its `description`, prose for the people who choose and
+    start the launcher, and the `product` of each option of a daemon scope,
+    the product sheet that a buyer of the robot reads. So a change to the
+    description or to a product sheet alone moves no combination's plan;
+    `stack resolve`, which the plan runs on both trees, still holds them."""
+    plan = {key: value for key, value in resolved.items() if key != "description"}
+    if isinstance(plan.get("deployments"), list):
+        plan["deployments"] = [
+            deployment_without_product_sheets(deployment) for deployment in plan["deployments"]
+        ]
+    return plan
+
+
+def deployment_without_product_sheets(deployment):
+    """`deployment`, a deployment of a flattened launcher, with no `product`
+    in an option of a daemon scope of its instances."""
+    if not isinstance(deployment, dict) or not isinstance(deployment.get("instances"), list):
+        return deployment
+    return {**deployment, "instances": [
+        instance_without_product_sheets(instance) for instance in deployment["instances"]
+    ]}
+
+
+def instance_without_product_sheets(instance):
+    """`instance` with no `product` in an option of its daemon scopes."""
+    if not isinstance(instance, dict) or not isinstance(instance.get("daemon_scopes"), dict):
+        return instance
+    return {**instance, "daemon_scopes": {
+        target: scope_without_product_sheets(scope)
+        for target, scope in instance["daemon_scopes"].items()
+    }}
+
+
+def scope_without_product_sheets(scope):
+    """`scope`, a daemon scope, with no `product` in its options. A vacant
+    scope has no option."""
+    if not isinstance(scope, dict) or not isinstance(scope.get("options"), list):
+        return scope
+    return {**scope, "options": [
+        {key: value for key, value in option.items() if key != "product"}
+        if isinstance(option, dict) else option
+        for option in scope["options"]
+    ]}
 
 
 def resolve_candidate(root, candidate, skips):

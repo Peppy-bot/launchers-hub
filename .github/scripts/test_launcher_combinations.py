@@ -2396,7 +2396,30 @@ class IncludeTests(unittest.TestCase):
             })
             Path(directory, "mcp", "sheet.json5").symlink_to(Path(directory, "arm/products/arm_v2.json5"))
             launcher = combinations.read_launcher(directory, "mcp/fleet.json5")
-        self.assertEqual(launcher.includes, ["mcp/sheet.json5"])
+        # The reader counts the file that peppy reads: the target of the symlink.
+        self.assertEqual(launcher.includes, ["arm/products/arm_v2.json5"])
+
+    def test_a_parent_segment_after_a_symlink_leaves_the_directory_it_points_to(self):
+        # `mcp/link` points to `arm/fragments`, so `link/../products/arm_v2.json5`
+        # opens `arm/products/arm_v2.json5`, as it does for peppy, and not
+        # `mcp/products/arm_v2.json5`, which the written path names as text.
+        with tempfile.TemporaryDirectory() as directory:
+            write_files(directory, {
+                "mcp/fleet.json5": {"components": [
+                    {"name": "robot", "cardinality": "zero_or_more",
+                     "options": {"arm_sim": {"$include": "link/../products/arm_v2.json5"}}},
+                ]},
+                "mcp/products/arm_v2.json5": {},
+                "arm/fragments/arm_sim.json5": {},
+                "arm/products/arm_v2.json5": {"components": [
+                    {"name": "recorder", "cardinality": "zero_or_one", "options": {"lerobot_recorder": {}}},
+                ]},
+            })
+            Path(directory, "mcp", "link").symlink_to(Path(directory, "arm", "fragments"))
+            launcher = combinations.read_launcher(directory, "mcp/fleet.json5")
+        self.assertEqual(launcher.includes, ["arm/products/arm_v2.json5"])
+        robot, = launcher.axes
+        self.assertEqual([axis.name for axis in robot.nested["arm_sim"]], ["recorder"])
 
     def test_an_include_is_an_object_of_the_one_key(self):
         refusal = self.refusal({
@@ -2443,6 +2466,46 @@ SCOPE_REFUSAL = completed(returncode=1, stderr=(
     "Error: the flat launcher breaks daemon scope rules a launch would reject:\n"
     "  - option `openarm_v2` with the features `recorder`: " + REFUSAL.stderr.removeprefix("Error: ")
 ))
+
+
+def scoped_plan(product, description="A simulated arm"):
+    """What `stack resolve` prints for a launcher whose framework endpoint
+    offers one robot option, with `product` as the product sheet of its model
+    and `description` as the line of the option."""
+    instance = {"instance_id": "framework_controls_inst", "daemon_scopes": {"stack": {
+        "max_copies": 4,
+        "options": [{"option": "arm_sim", "model": "arm_v2", "description": description, "product": product}],
+    }}}
+    deployments = [{"source": {"exposures": ["framework_controls:v1"]}, "instances": [instance]}]
+    return completed(json.dumps({"description": LAUNCHER_DESCRIPTION, "deployments": deployments}))
+
+
+class LaunchedPlanTests(unittest.TestCase):
+    """The part of a resolved plan that a launch reads: all of it but the
+    description of the launcher and the product sheet of each option of a
+    daemon scope."""
+
+    def plan(self, resolved):
+        return combinations.launched_plan(json.loads(resolved.stdout))
+
+    def test_a_product_sheet_is_no_part_of_the_launched_plan(self):
+        plan = self.plan(scoped_plan(SHEET))
+        self.assertNotIn("description", plan)
+        options = plan["deployments"][0]["instances"][0]["daemon_scopes"]["stack"]["options"]
+        self.assertEqual(options, [{"option": "arm_sim", "model": "arm_v2", "description": "A simulated arm"}])
+        self.assertEqual(plan, self.plan(scoped_plan({**SHEET, "vendor": "Another seller"})))
+
+    def test_every_other_part_of_a_scope_is_part_of_the_launched_plan(self):
+        self.assertNotEqual(self.plan(scoped_plan(SHEET)),
+                            self.plan(scoped_plan(SHEET, description="A simulated arm on a table")))
+
+    def test_a_plan_with_no_scope_or_a_vacant_scope_stays_as_it_is(self):
+        plain = json.loads(resolved_plan("waldo:v1").stdout)
+        self.assertEqual(combinations.launched_plan(plain), {"deployments": plain["deployments"]})
+        vacant = {"deployments": [{"source": {"exposures": ["framework_controls:v1"]}, "instances": [
+            {"instance_id": "framework_controls_inst", "daemon_scopes": {"stack": {"vacant": "no robot"}}},
+        ]}]}
+        self.assertEqual(combinations.launched_plan(vacant), vacant)
 
 
 class ResolveTests(unittest.TestCase):
@@ -3323,6 +3386,16 @@ class ScopeTests(unittest.TestCase):
                    resolved_plan("waldo:v1", description=["Waldo or MuJoCo."])}
         base_answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1")}
         with planned(launchers, answers, CHANGED, base_launchers, base_answers) as (_, labels, _plan, summary):
+            self.assertEqual(labels, [])
+            self.assertIn("Launching nothing: this change moves no combination's resolved plan", summary)
+
+    def test_a_change_to_a_product_sheet_alone_launches_nothing(self):
+        # A product sheet is what a buyer reads: no launch reads it, so a new
+        # price leaves the plan of each combination as the base's.
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): scoped_plan({**SHEET, "vendor": "Another seller"})}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): scoped_plan(SHEET)}
+        with planned(launchers, answers, CHANGED, launchers, base_answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, [])
             self.assertIn("Launching nothing: this change moves no combination's resolved plan", summary)
 

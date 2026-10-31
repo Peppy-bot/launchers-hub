@@ -308,9 +308,12 @@ changes launcher files alone (a launcher, a fragment that an option
 references, and a file that a launcher or a fragment includes) launches from
 the combinations whose resolved plan differs from the base tree's; the run
 summary names every combination left out and the launches that stand for
-it. A file that no launcher reads, such as a product sheet that no launcher
-includes, is outside every launcher, so a change to it runs every
-combination.
+it. The resolved plan that this compares leaves out what no launch reads:
+the description of the launcher, and the product sheet of each option of a
+daemon scope, which `peppy stack resolve` still checks on both trees. So a
+change to a product sheet alone launches nothing. A file that no launcher
+reads, such as a product sheet that no launcher includes, is outside every
+launcher, so a change to it runs every combination.
 
 The peppy the workflow launches with, and the hub repositories it launches
 against, come from the shared `hub-ci-peppy` action of the peppy repository:
@@ -375,7 +378,7 @@ so it sits under `common/fragments/`.
 
 Fragment paths are relative to the file that names them: the launcher's directory for its options, the fragment's for the options of its own axes. A repository launcher can reference siblings, such as `../simulation/fragments/mujoco.json5`. The nearest valid `peppy_repository.json5` defines the boundary; parent traversal and symlinks must stay within it. Standalone launchers are confined to their own directory. A fragment file is named for the option that selects it, and a simulated variant of an option takes the `_sim` suffix: `openarm` and `openarm_sim`, `so101` and `so101_sim`, `cameras` and `cameras_sim`. An option that names several files names its own last: the `robot_control` option of each launcher names `framework_controls.json5`, then `robot_control.json5`.
 
-Any JSON value of a launcher or a fragment can be written `{ $include: "<path>" }`, with no other key: when peppy loads the document, it puts the parsed JSON5 file at that path in place of the value. The path follows the fragment path rules: it is relative to the directory of the document that writes it, it stays inside the repository, through a symlink too, and it has no `.` segment. An included file includes no other file. The product sheets use it: the option `openarm_sim` of the `stack` scope of `mcp/simulation_mcp.json5` gives `product: { $include: "../openarm/products/openarm_v2.json5" }`, so each launcher that offers a model shares the one sheet of that model.
+Any JSON value of a launcher or a fragment can be written `{ $include: "<path>" }`, with no other key: when peppy loads the document, it puts the parsed JSON5 file at that path in place of the value. The path follows the fragment path rules: it is relative to the directory of the document that writes it, it stays inside the repository, through a symlink too, and it has no `.` segment. The file is the one that the operating system opens at that path, so a `..` after a symlink leaves the directory that the symlink points to. An included file includes no other file. The product sheets use it: the option `openarm_sim` of the `stack` scope of `mcp/simulation_mcp.json5` gives `product: { $include: "../openarm/products/openarm_v2.json5" }`, so each launcher that offers a model shares the one sheet of that model.
 
 After adding or moving a launcher, run `peppy repo index .` and commit the
 index. Fragments use `launcher_fragment/v1` and are excluded from the

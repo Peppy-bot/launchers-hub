@@ -1,0 +1,29 @@
+// The product sheet of the OpenArm v2, the model `openarm_v2`: one offer of
+// the robot, with the facts that its seller states and the date of each
+// check. A launcher that offers the model in the `stack` scope of its
+// framework endpoint includes this file in the option of the scope, as
+// `product: { $include: "<the path of this file>" }`, the path relative to
+// the directory of the launcher. The sheet gives only what the seller states.
+//
+// The offer: OpenArm 2.0 "Without Top Stereo Camera", bought online from
+// WowRobo Robotics. It is the two arms with their grippers, without the top
+// stereo camera package that the same page sells as the other configuration.
+// Enactic, Inc., which designs OpenArm, sells no robot itself: its purchase
+// page, https://docs.openarm.dev/purchase, names WowRobo as an Official
+// Manufacturing Partner and a Certified manufacturer.
+//
+// The source of each fact, checked on 2026-10-31:
+// - vendor, price and availability:
+//   https://shop.wowrobo.com/products/openarm-2?variant=48719214379225
+//   "Without Top Stereo Camera ... Online Purchase USD 6,500". The page sells
+//   the configuration with "Add to Cart", with a lead time of 20 to 30 days
+//   after the order.
+// - No mass_kg: the page states "Weight per Arm 5.5 kg" and no mass of the
+//   robot with its two arms.
+// - No height_m: the page states no height.
+{
+  vendor: "WowRobo Robotics",
+  purchase_url: "https://shop.wowrobo.com/products/openarm-2?variant=48719214379225",
+  price: { amount: 6500, currency: "USD", checked_on: "2026-10-31" },
+  availability: { state: "in_stock", checked_on: "2026-10-31" },
+}

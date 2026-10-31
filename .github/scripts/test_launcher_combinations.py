@@ -297,6 +297,87 @@ class FragmentInventoryTests(unittest.TestCase):
         )
 
 
+#: The fields of a product sheet, each optional.
+SHEET_FIELDS = {"vendor", "purchase_url", "price", "availability", "mass_kg", "height_m"}
+#: The fields of the price and of the availability of a sheet.
+PRICE_FIELDS = {"amount", "currency", "checked_on"}
+AVAILABILITY_FIELDS = {"state", "checked_on"}
+AVAILABILITY_STATES = {"in_stock", "preorder", "out_of_stock", "discontinued"}
+
+
+def models_named_by_initializers(document):
+    """The models that the robot initializers of a document name, wherever
+    the document deploys them."""
+    if isinstance(document, list):
+        return {model for item in document for model in models_named_by_initializers(item)}
+    if not isinstance(document, dict):
+        return set()
+    models = {model for value in document.values() for model in models_named_by_initializers(value)}
+    if (document.get("source") or {}).get("name") == combinations.INITIALIZER_NODE:
+        models |= {instance["arguments"]["model"] for instance in document["instances"]}
+    return models
+
+
+class ProductSheetTests(unittest.TestCase):
+    """One product sheet for each robot model, under the directory of its
+    robot, named for the model; each launcher that offers the model in a
+    `stack` scope includes it. peppy parses each sheet that a launcher
+    includes; these tests hold every sheet, the ones that no launcher
+    includes too, to the fields of a sheet."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def sheets(self):
+        return {path.relative_to(self.ROOT).as_posix(): path
+                for path in sorted(self.ROOT.glob("*/products/*.json5"))}
+
+    def test_each_robot_model_has_one_sheet_named_for_it(self):
+        models = set()
+        for path in self.ROOT.glob("*/fragments/*.json5"):
+            models |= models_named_by_initializers(combinations.load_json5(path, path.name))
+        self.assertEqual(models, set(ROBOT_MODELS))
+        self.assertEqual(sorted(self.sheets()), [
+            "openarm/products/openarm_v1.json5",
+            "openarm/products/openarm_v2.json5",
+            "so101/products/so101.json5",
+        ])
+        self.assertEqual({Path(path).stem for path in self.sheets()}, models)
+
+    def test_a_sheet_is_a_plain_object_of_the_sheet_fields(self):
+        for relative, path in self.sheets().items():
+            with self.subTest(sheet=relative):
+                sheet = combinations.load_json5(path, relative)
+                self.assertIsInstance(sheet, dict)
+                self.assertNotIn("peppy_schema", sheet)
+                self.assertFalse(combinations.holds_include(sheet))
+                self.assertEqual(set(sheet) - SHEET_FIELDS, set())
+                if "price" in sheet:
+                    self.assertEqual(set(sheet["price"]), PRICE_FIELDS)
+                if "availability" in sheet:
+                    self.assertEqual(set(sheet["availability"]), AVAILABILITY_FIELDS)
+                    self.assertIn(sheet["availability"]["state"], AVAILABILITY_STATES)
+
+    def test_each_option_of_a_stack_scope_includes_the_sheet_of_its_model(self):
+        for path in ROBOT_LAUNCHERS:
+            document = combinations.load_json5(self.ROOT / path, path)
+            options = [option
+                       for adjustment in document.get("adjustments", [])
+                       for option in (adjustment.get("set_daemon_scopes") or {})
+                       .get("stack", {}).get("options", [])]
+            sheets = {option["option"]: f"{family_of(option['option'])}/products/{option['model']}.json5"
+                      for option in options}
+            with self.subTest(path=path):
+                for option in options:
+                    written = posixpath.relpath(sheets[option["option"]], posixpath.dirname(path))
+                    self.assertEqual(option["product"], {combinations.INCLUDE_KEY: written})
+                # A vacant scope offers no robot, so its launcher includes
+                # no sheet.
+                self.assertEqual(combinations.read_launcher(self.ROOT, path).includes,
+                                 sorted(set(sheets.values())))
+        mcp = combinations.read_launcher(self.ROOT, "mcp/simulation_mcp.json5")
+        self.assertEqual(mcp.includes, ["openarm/products/openarm_v2.json5", "so101/products/so101.json5"])
+
+
 def constraints_anywhere(document):
     """Every constraint a document declares, its options' bodies included."""
     found = list(document.get("constraints") or [])
@@ -2181,6 +2262,160 @@ class CombinationsTests(unittest.TestCase):
                 combinations.read_launcher(directory, "fleet.json5")
 
 
+def write_files(root, files):
+    """Writes each `path: document` of `files` under `root`, a document that
+    is not text as JSON."""
+    for path, document in files.items():
+        target = Path(root, path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(document if isinstance(document, str) else json.dumps(document))
+
+
+#: A product sheet as a launcher includes it.
+SHEET = {"vendor": "A seller", "purchase_url": "https://example.com/arm"}
+
+
+def scoped_launcher(product):
+    """A launcher whose framework endpoint offers its one robot option with
+    `product` as the product sheet of the option's model."""
+    return {
+        "components": [
+            {"name": "robot", "cardinality": "zero_or_more", "options": {"arm_sim": {}}},
+        ],
+        "adjustments": [{"target": "framework_controls_inst", "set_daemon_scopes": {"stack": {
+            "max_copies": 4,
+            "options": [{"option": "arm_sim", "model": "arm_v2", "product": product,
+                         "description": "A simulated arm"}],
+        }}}],
+    }
+
+
+class IncludeTests(unittest.TestCase):
+    """`{ $include: "<path>" }` as `peppy` loads it: the JSON5 file at the
+    path takes the place of the value, by the fragment path rules, and the
+    reader counts the file among the files the launcher reads."""
+
+    def read(self, files):
+        """The launcher `mcp/fleet.json5` of a repository of `files`."""
+        with tempfile.TemporaryDirectory() as directory:
+            write_files(directory, files)
+            return combinations.read_launcher(directory, "mcp/fleet.json5")
+
+    def refusal(self, files):
+        """Why the reader refuses the launcher of `read`."""
+        with self.assertRaises(combinations.Json5Error) as refused:
+            self.read(files)
+        return str(refused.exception)
+
+    def test_an_include_in_a_launcher_is_relative_to_its_directory(self):
+        launcher = self.read({
+            "mcp/fleet.json5": scoped_launcher({"$include": "../arm/products/arm_v2.json5"}),
+            "arm/products/arm_v2.json5": "// The sheet.\n" + json.dumps(SHEET),
+        })
+        self.assertEqual(launcher.includes, ["arm/products/arm_v2.json5"])
+        self.assertEqual(launcher.references, [])
+
+    def test_an_included_value_is_read_as_the_document_it_is_part_of(self):
+        # The included option declares the robot's own axis, which the
+        # reader finds as if the launcher wrote it in place.
+        launcher = self.read({
+            "mcp/fleet.json5": {"components": [
+                {"name": "robot", "cardinality": "zero_or_more",
+                 "options": {"arm_sim": {"$include": "arm_sim.json5"}}},
+            ]},
+            "mcp/arm_sim.json5": {"components": [
+                {"name": "recorder", "cardinality": "zero_or_one", "options": {"lerobot_recorder": {}}},
+            ]},
+        })
+        robot, = launcher.axes
+        self.assertEqual([axis.name for axis in robot.nested["arm_sim"]], ["recorder"])
+        self.assertEqual(launcher.includes, ["mcp/arm_sim.json5"])
+
+    def test_an_include_in_a_fragment_is_relative_to_the_fragment(self):
+        launcher = self.read({
+            "mcp/fleet.json5": {"components": [
+                {"name": "robot", "cardinality": "zero_or_more",
+                 "options": {"arm_sim": "../arm/fragments/arm_sim.json5"}},
+            ]},
+            "arm/fragments/arm_sim.json5": {"deployments": [
+                {"source": {"name": "robot_initializer", "tag": "v1"}, "instances": [
+                    {"instance_id": "init_inst", "arguments": {"$include": "../products/arm_v2.json5"}}]},
+            ]},
+            "arm/products/arm_v2.json5": {"model": "arm_v2"},
+        })
+        self.assertEqual(launcher.references, ["arm/fragments/arm_sim.json5"])
+        self.assertEqual(launcher.includes, ["arm/products/arm_v2.json5"])
+
+    def test_the_files_of_a_launcher_hold_what_it_includes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            write_files(directory, {
+                "mcp/fleet.json5": scoped_launcher({"$include": "../arm/products/arm_v2.json5"}),
+                "arm/products/arm_v2.json5": SHEET,
+            })
+            inventory = combinations.read_launcher_inventory(directory, "fleet", "mcp/fleet.json5")
+        self.assertEqual(inventory.files, {"mcp/fleet.json5", "arm/products/arm_v2.json5"})
+
+    def test_an_include_breaking_the_path_rules_is_refused(self):
+        for written, refusal in [
+            ("/etc/arm_v2.json5", "is absolute"),
+            ("./arm_v2.json5", "has a `.` segment"),
+            ("../arm/./products/arm_v2.json5", "has a `.` segment"),
+            ("../../arm_v2.json5", "leaves the repository"),
+            ("", "an include names a file"),
+            (7, "an include names a file"),
+            ("../arm/products/missing.json5", "cannot read"),
+        ]:
+            with self.subTest(written=written):
+                self.assertIn(refusal, self.refusal({
+                    "mcp/fleet.json5": scoped_launcher({"$include": written}),
+                    "arm/products/arm_v2.json5": SHEET,
+                }))
+
+    def test_an_include_through_a_symlink_out_of_the_repository_is_refused(self):
+        with tempfile.TemporaryDirectory() as outside, tempfile.TemporaryDirectory() as directory:
+            write_files(outside, {"arm_v2.json5": SHEET})
+            write_files(directory, {"mcp/fleet.json5": scoped_launcher({"$include": "products"})})
+            Path(directory, "mcp", "products").symlink_to(Path(outside, "arm_v2.json5"))
+            with self.assertRaises(combinations.Json5Error) as refused:
+                combinations.read_launcher(directory, "mcp/fleet.json5")
+        self.assertIn("leaves the repository through a symlink", str(refused.exception))
+
+    def test_an_included_file_that_does_not_parse_names_both_documents(self):
+        refusal = self.refusal({
+            "mcp/fleet.json5": scoped_launcher({"$include": "../arm/products/arm_v2.json5"}),
+            "arm/products/arm_v2.json5": "{\n  vendor: A seller,\n}",
+        })
+        self.assertIn("mcp/fleet.json5: the include `../arm/products/arm_v2.json5`: "
+                      "arm/products/arm_v2.json5:2: bare word 'A' is not a value", refusal)
+
+    def test_an_include_through_a_symlink_inside_the_repository_is_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            write_files(directory, {
+                "mcp/fleet.json5": scoped_launcher({"$include": "sheet.json5"}),
+                "arm/products/arm_v2.json5": SHEET,
+            })
+            Path(directory, "mcp", "sheet.json5").symlink_to(Path(directory, "arm/products/arm_v2.json5"))
+            launcher = combinations.read_launcher(directory, "mcp/fleet.json5")
+        self.assertEqual(launcher.includes, ["mcp/sheet.json5"])
+
+    def test_an_include_is_an_object_of_the_one_key(self):
+        refusal = self.refusal({
+            "mcp/fleet.json5": scoped_launcher(
+                {"$include": "../arm/products/arm_v2.json5", "vendor": "Another seller"}),
+            "arm/products/arm_v2.json5": SHEET,
+        })
+        self.assertIn("an include is an object with the one key `$include`", refusal)
+        self.assertIn("`vendor`", refusal)
+
+    def test_an_included_file_includes_no_other_file(self):
+        refusal = self.refusal({
+            "mcp/fleet.json5": scoped_launcher({"$include": "../arm/products/arm_v2.json5"}),
+            "arm/products/arm_v2.json5": {**SHEET, "price": {"$include": "price.json5"}},
+            "arm/products/price.json5": {"amount": 1, "currency": "USD"},
+        })
+        self.assertIn("arm/products/arm_v2.json5: an included file includes no other file", refusal)
+
+
 REFUSAL = completed(returncode=1, stderr=(
     "Error: camera_rig=cameras_sim requires recorder=lerobot_recorder, "
     "which this selection (camera_rig=cameras_sim) does not satisfy"
@@ -2523,6 +2758,16 @@ class ScopeModelTests(unittest.TestCase):
         ]}
         self.assertEqual(combinations.scoped_models(plan), {})
         self.assertIsNone(combinations.scope_model_drift(plan, self.candidate("arm_sim")))
+
+    def test_the_product_sheet_of_an_option_leaves_its_model_read(self):
+        # The sheet that the launcher includes is in place in the plan,
+        # beside the model it describes.
+        plan = self.plan([("arm_sim", "arm_v2")], (combinations.COPY_NAME, "arm_v1"))
+        entry, = plan["deployments"][0]["instances"][0]["daemon_scopes"]["stack"]["options"]
+        entry["product"] = SHEET
+        self.assertEqual(combinations.scoped_models(plan), {"arm_sim": "arm_v2"})
+        self.assertIn("gives option `arm_sim` the model `arm_v2`",
+                      combinations.scope_model_drift(plan, self.candidate("arm_sim")))
 
     def test_a_plain_join_adds_the_model_the_scope_gives_its_option(self):
         plan = self.plan([("arm_sim", "arm_v2")], (combinations.COPY_NAME, "arm_v2"), ("alpha", "other"))
@@ -2987,14 +3232,17 @@ class ScopeTests(unittest.TestCase):
         self.assertIs(scope.kind, combinations.ScopeKind.EVERYTHING)
         self.assertIn("`.github/workflows/tests.yml` is outside every launcher", scope.reason)
 
-    def scoped(self, changed, launchers, base_launchers=None):
+    def scoped(self, changed, launchers, base_launchers=None, files=None):
         """The scope decided for a pull request changing `changed`, and what
-        the step reports to the workflow."""
+        the step reports to the workflow; `files` are the other files of
+        both trees."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             write_repository(root / "head", launchers)
+            write_files(root / "head", files or {})
             if base_launchers is not None:
                 write_repository(root / "base", base_launchers)
+                write_files(root / "base", files or {})
             (root / "changed.txt").write_text("".join(f"{file}\n" for file in changed))
             output = root / "output.txt"
             with patch.dict(combinations.os.environ, {"GITHUB_OUTPUT": str(output)}), \
@@ -3010,6 +3258,21 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(self.scoped(["Readme.md"], launchers), (combinations.ScopeKind.NOTHING, "any=false\n"))
         self.assertEqual(self.scoped(["fleet.json5", "LICENSE"], launchers),
                          (combinations.ScopeKind.EVERYTHING, "any=true\n"))
+
+    def test_a_change_to_an_included_file_covers_what_it_changes(self):
+        # A product sheet is a file of each launcher that includes it, so
+        # its change resolves the combinations of those launchers against
+        # the base tree's, and only the ones whose plan it moves launch.
+        launchers = {"fleet": scoped_launcher({"$include": "arm/products/arm_v2.json5"})}
+        files = {"arm/products/arm_v2.json5": SHEET}
+        kind, output = self.scoped(["arm/products/arm_v2.json5"], launchers, launchers, files)
+        self.assertEqual((kind, output), (combinations.ScopeKind.CHANGED, "any=true\n"))
+
+    def test_a_file_that_no_launcher_includes_covers_everything(self):
+        launchers = {"fleet": scoped_launcher(SHEET)}
+        files = {"arm/products/arm_v1.json5": SHEET}
+        kind, _ = self.scoped(["arm/products/arm_v1.json5"], launchers, launchers, files)
+        self.assertIs(kind, combinations.ScopeKind.EVERYTHING)
 
     def test_a_launcher_the_pull_request_deletes_is_still_a_launcher_file(self):
         kind, _ = self.scoped(

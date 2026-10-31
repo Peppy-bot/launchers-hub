@@ -14,8 +14,11 @@ CI.
 
 scope decides what a change can reach from the files it touches: every
 combination, the combinations whose resolved plan the change moves, or
-nothing. A launcher's description is prose that no launch reads, so the
-resolved plan leaves it out, and a change to it alone moves no plan.
+nothing. The files of a launcher are its own, the fragments its options
+compose and the files that they include with `{ $include: "<path>" }`,
+which the reader puts in place as peppy does. A launcher's description is
+prose that no launch reads, so the resolved plan leaves it out, and a change
+to it alone moves no plan.
 
 plan previews every combination through peppy stack resolve, its join
 included. Constraints classify refused combinations. The skip file
@@ -326,7 +329,7 @@ class Copy:
 class Launcher:
     """One launcher: its axes, the fragment files its options compose, the
     copies its file deploys, the options it sets up without listing a copy,
-    and its declared core-node placement."""
+    its declared core-node placement, and the files its documents include."""
 
     axes: list[Axis]
     references: list[str]
@@ -335,6 +338,9 @@ class Launcher:
     #: The options of repeatable axes whose entry lists no copy: a launch
     #: starts one with `--join OPTION:NAME`.
     unlisted: tuple = ()
+    #: The files that the launcher and its fragments include with
+    #: `{ $include: "<path>" }`, repository-relative.
+    includes: list[str] = field(default_factory=list)
 
 
 def deployed_option(entry, label):
@@ -582,16 +588,104 @@ def fragment_parts(spec, label, depth=1, axis=None):
     return [*(files or []), *([body] if body else [])]
 
 
+#: The key of an include: any JSON value of a launcher or a fragment can be
+#: written `{ $include: "<path>" }`, and `peppy` puts the JSON5 file at that
+#: path in place of the value when it loads the document.
+INCLUDE_KEY = "$include"
+
+
+def included_path(root, directory, written, label):
+    """The repository-relative path of the file an include names, by the
+    fragment path rules: relative to `directory`, the directory of the
+    document that writes it, with no `.` segment, and inside the repository,
+    through a symlink too."""
+    if not isinstance(written, str) or not written.strip():
+        raise Json5Error(
+            f'{label}: an include names a file, `{{ {INCLUDE_KEY}: "<path>" }}`, '
+            "relative to this document's directory"
+        )
+    if posixpath.isabs(written):
+        raise Json5Error(
+            f"{label}: the include `{written}` is absolute; name it relative to this "
+            "document's directory"
+        )
+    segments = written.split("/")
+    if "." in segments:
+        raise Json5Error(f"{label}: the include `{written}` has a `.` segment")
+    parts = [part for part in directory.split("/") if part]
+    for segment in segments:
+        if segment == "..":
+            if not parts:
+                raise Json5Error(f"{label}: the include `{written}` leaves the repository")
+            parts.pop()
+        elif segment:
+            parts.append(segment)
+    path = "/".join(parts)
+    repository = os.path.realpath(root)
+    target = os.path.realpath(os.path.join(root, path))
+    if os.path.commonpath([repository, target]) != repository:
+        raise Json5Error(
+            f"{label}: the include `{written}` leaves the repository through a symlink"
+        )
+    return path
+
+
+def holds_include(value):
+    """Whether `value` writes an include anywhere in it."""
+    if isinstance(value, dict):
+        return INCLUDE_KEY in value or any(holds_include(item) for item in value.values())
+    if isinstance(value, list):
+        return any(holds_include(item) for item in value)
+    return False
+
+
 class Reader:
-    """Reads a launcher and every fragment it composes, collecting the
-    repository-relative path of each fragment file."""
+    """Reads a launcher and every fragment it composes, as `peppy` loads
+    them, collecting the repository-relative path of each fragment file and
+    of each file their documents include."""
 
     def __init__(self, root):
         self.root = root
         self.references = set()
+        self.includes = set()
+
+    def document(self, path):
+        """The document at the repository-relative `path`, each include in
+        it replaced by the file it names."""
+        document = load_json5(os.path.join(self.root, path), path)
+        return self.resolve_includes(document, posixpath.dirname(path), path)
+
+    def resolve_includes(self, value, directory, label):
+        """`value` with each `{ $include: "<path>" }` in it replaced by the
+        JSON5 file it names, relative to `directory`. An included file
+        includes no other file."""
+        if isinstance(value, list):
+            return [self.resolve_includes(item, directory, label) for item in value]
+        if not isinstance(value, dict):
+            return value
+        if INCLUDE_KEY not in value:
+            return {key: self.resolve_includes(item, directory, label) for key, item in value.items()}
+        if len(value) != 1:
+            others = ", ".join(f"`{key}`" for key in value if key != INCLUDE_KEY)
+            raise Json5Error(
+                f'{label}: an include is an object with the one key `{INCLUDE_KEY}`, '
+                f'`{{ {INCLUDE_KEY}: "<path>" }}`; this one also writes {others}'
+            )
+        path = included_path(self.root, directory, value[INCLUDE_KEY], label)
+        try:
+            included = load_json5(os.path.join(self.root, path), path)
+        except Json5Error as error:
+            raise Json5Error(f"{label}: the include `{value[INCLUDE_KEY]}`: {error}") from error
+        if holds_include(included):
+            raise Json5Error(
+                f"{path}: an included file includes no other file; write its content in "
+                f"place of the `{INCLUDE_KEY}`"
+            )
+        self.includes.add(path)
+        return included
 
     def launcher(self, path):
-        document = load_json5(os.path.join(self.root, path), path)
+        document = self.document(path)
         if not isinstance(document, dict):
             raise Json5Error(f"{path}: a launcher document is an object")
         directory = posixpath.dirname(path)
@@ -607,6 +701,7 @@ class Reader:
             copies,
             bool(document.get("core_nodes")),
             unlisted,
+            sorted(self.includes),
         )
 
     def option_axes(self, spec, directory, label, depth, axis=None):
@@ -617,7 +712,7 @@ class Reader:
             if isinstance(part, str):
                 reference = posixpath.normpath(posixpath.join(directory, part))
                 self.references.add(reference)
-                body = load_json5(os.path.join(self.root, reference), reference)
+                body = self.document(reference)
                 body_directory = posixpath.dirname(reference)
                 body_label = reference
             else:
@@ -844,16 +939,20 @@ class Candidate:
 @dataclass(frozen=True)
 class LauncherInventory:
     """One launcher of the repository index: its file, the fragment files
-    its options compose, and every combination of its axes."""
+    its options compose, every combination of its axes, and the files its
+    documents include."""
 
     name: str
     path: str
     references: list
     candidates: list
+    includes: list = field(default_factory=list)
 
     @property
     def files(self):
-        return {self.path, *self.references}
+        """Every file the launcher reads: its own, its fragments and the
+        files they include."""
+        return {self.path, *self.references, *self.includes}
 
 
 def read_index(root):
@@ -892,7 +991,7 @@ def read_launcher_inventory(root, name, path):
         )
         for combination in combinations
     ]
-    return LauncherInventory(name, path, launcher.references, candidates)
+    return LauncherInventory(name, path, launcher.references, candidates, launcher.includes)
 
 
 def read_inventory(root):
@@ -959,7 +1058,8 @@ class Scope:
 def classify_scope(changed_files, launcher_files):
     """What a run covers, from the files a pull request changes (`None`
     outside a pull request) and the files the launchers are made of, in the
-    pull request's tree and in its base.
+    pull request's tree and in its base: each launcher, the fragments its
+    options compose and the files they include.
 
     A launcher's whole behavior is the plan its combinations resolve to, so
     a change confined to launcher files reaches exactly the combinations

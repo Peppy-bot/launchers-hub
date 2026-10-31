@@ -38,10 +38,12 @@ name: Tests
 #
 # A pull request narrows that to what it can reach. A launcher's whole
 # behaviour is the plan its combinations resolve to, so a change confined to
-# launcher files (a launcher, or a fragment any option references) reaches
-# exactly the combinations whose resolved plan differs from the one the base
-# tree gives them, and only those are planned. A change outside every
-# launcher (this workflow, the skips file, the repository index, ...) plans
+# launcher files (a launcher, a fragment any option references, or a file a
+# launcher or a fragment includes, such as a product sheet) reaches exactly
+# the combinations whose resolved plan differs from the one the base tree
+# gives them, and only those are planned. A change outside every launcher
+# (this workflow, the skips file, the repository index, a product sheet that
+# no launcher includes, ...) plans
 # every combination, as does every push to main and every run the peppy
 # release dispatches; a Markdown file outside every launcher is the one
 # exception, planning nothing.

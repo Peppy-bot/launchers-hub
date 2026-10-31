@@ -12,9 +12,11 @@
 // fleet.clear_halt, and an MCP client clears no halt: the operator clears it
 // with `peppy fleet clear-halt`. The launcher that includes this fragment
 // gives the stack target its scope with a `set_daemon_scopes` adjustment on
-// framework_controls_inst: the robot options of that launcher, a description
-// for each, the features of each option (the name a client adds it by, the
-// own axis and option it selects, and a description), and max_copies; or the
+// framework_controls_inst: the robot options of that launcher, the model of
+// each with the product sheet of that model (a `$include` of the file of the
+// model under `<robot>/products/`), a description for each, the features of
+// each option (the name a client adds it by, the own axis and option it
+// selects, and a description), and max_copies; or the
 // vacant scope, with the reason, when the launcher offers MCP clients no
 // robot to add. A launch without that scope is refused. The robots it adds
 // are listed on the robots' endpoint, so the option that includes this

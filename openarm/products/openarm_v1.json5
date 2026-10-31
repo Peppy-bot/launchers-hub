@@ -1,0 +1,30 @@
+// The product sheet of the OpenArm v1, the model `openarm_v1`: one offer of
+// the robot, with the facts that its seller states and the date of each
+// check. A launcher that offers the model in the `stack` scope of its
+// framework endpoint includes this file in the option of the scope, as
+// `product: { $include: "<the path of this file>" }`, the path relative to
+// the directory of the launcher. The sheet gives only what the seller states.
+//
+// The offer: OpenArm V1.1, "Assembled Version / Follower Arm Set", bought
+// online from WowRobo Robotics. It is two follower arms, each with a gripper.
+// WowRobo sells the v1 OpenArm as version V1.1. Enactic, Inc., which designs
+// OpenArm, sells no robot itself: its purchase page,
+// https://docs.openarm.dev/purchase, names WowRobo as an Official
+// Manufacturing Partner and a Certified manufacturer, and lists the V1.1 of
+// WowRobo beside its V2.
+//
+// The source of each fact, checked on 2026-10-31:
+// - vendor, price and availability:
+//   https://shop.wowrobo.com/products/openarm-open-source-humanoid-robot-arm-by-enactic?variant=47406282997977
+//   "Purchase on this page or Credit Card: USD 5,400 / set". The page sells
+//   the follower arm set with "Add to cart", with a production lead time of
+//   10 to 15 days after the order.
+// - No mass_kg: the page and its datasheet state "Weight per Arm 5.5 kg" and
+//   the 41 kg of the package, and no mass of the robot with its two arms.
+// - No height_m: the page states no height.
+{
+  vendor: "WowRobo Robotics",
+  purchase_url: "https://shop.wowrobo.com/products/openarm-open-source-humanoid-robot-arm-by-enactic?variant=47406282997977",
+  price: { amount: 5400, currency: "USD", checked_on: "2026-10-31" },
+  availability: { state: "in_stock", checked_on: "2026-10-31" },
+}

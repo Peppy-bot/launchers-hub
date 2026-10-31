@@ -116,13 +116,14 @@ peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with v2,ker_commander
 ```
 
-The default web commander streams joint setpoints. `robot_commander=none` gives the robot no commander of its own. If the stack runs the headset, the headset drives the robot, streaming end-effector poses to the backbone in pose mode; otherwise only actions move it. The `robot_commander` axis declares `role: "robot_commander"`, so the fleet listing gives the option of each copy as the robot commander of that robot: the browser panel or the KER drives its robot outside the leases and the halt of the stack. The headset is not a robot commander. The headset drives one robot at a time: the one chosen on its page or, until one is chosen, the first robot that paired, which it keeps until that robot leaves. MCP drives the robot by name, under any commander, on the stack's `robot_control:v1` endpoint, the robots' own surface, where every call names its robot: the robot's identity, the backbone's discrete motion actions, its limb state and collision readout, where its design lets it work, and the cameras of the copy's rig, their latest frames and the chest's depth as resources and their stream info, exposure, gain and white balance as tools.
+The default web commander streams joint setpoints. `robot_commander=none` gives the robot no commander of its own. If the stack runs the headset, the headset drives the robot, streaming end-effector poses to the backbone in pose mode; otherwise only actions move it. The `robot_commander` axis declares `role: "robot_commander"`, so the fleet listing gives the option of each copy as the robot commander of that robot: the browser panel or the KER drives its robot outside the leases and the halt of the stack. The headset is not a robot commander. The headset drives one robot at a time: the one chosen on its page or, until one is chosen, the first robot that paired, which it keeps until that robot leaves. MCP drives the robot by name, under any commander, on the stack's `robot_control:v1` endpoint, the robots' own surface, where every call names its robot: the robot's identity, the backbone's discrete motion actions, its limb state and collision readout, where its design lets it work, on a physical robot its drivers' motor health and alerts as resources, and the cameras of the copy's rig, their latest frames and the chest's depth as resources and their stream info, exposure, gain and white balance as tools.
 
 The endpoint is the launcher's `robot_control` axis, deployed by `simulation_mcp`
 and selected with `--with robot_control` on the other launchers. Every robot beside
 it is listed with its
-identity, limb state, moves, collision readout, camera mounts and workspace
-under any commander, by the launcher's `add_links` on `robot_control_inst`
+identity, limb state, moves, collision readout, camera mounts, workspace and,
+on the physical robot, its drivers' motor health and alerts under any
+commander, by the launcher's `add_links` on `robot_control_inst`
 under the robot's option, and with its recorder, its brain and its rig's
 cameras whenever they run, `cameras` on a physical robot and `cameras_sim`
 on a simulated one; a robot without a rig is listed with no camera. The
@@ -218,9 +219,10 @@ release a trigger and squeeze it again to re-engage. The node reads the
 hardware 2.x channel layout, so any 2.x unit runs on the arguments in the
 fragment.
 
-The KER replaces the browser panel, so a KER session has no alerts or
-motor-health readout and no record button; with the endpoint on,
-`recorder.record_episode` records a KER session. The governor keeps the
+The KER replaces the browser panel, so a KER session has no panel readout
+of alerts or motor health and no record button; with the endpoint on,
+`recorder.record_episode` records a KER session and the endpoint serves the
+drivers' motor health and alerts. The governor keeps the
 backbone's launch-time band and caps.
 
 For two robots on one host, assign the second copy's CAN interfaces,

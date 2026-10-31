@@ -189,8 +189,8 @@ run, of any model. The simulation stays up when a robot is removed;
 simulated one the simulation's clock, and the stack's MCP server reads one
 clock, so the physical robots have a launcher of their own,
 `physical.json5`, and the simulation launchers offer the simulated robots.
-A simulated robot has no motors to report on, so the web and XR panels
-show no motor health for it.
+A simulated robot has no motors to report on, so the web and XR panels and
+the robots' endpoint show no motor health for it.
 
 | Robot | Rendered cameras its `camera_rig` axis offers |
 |---|---|

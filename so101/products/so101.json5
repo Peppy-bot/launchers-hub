@@ -1,0 +1,32 @@
+// The product sheet of the SO-101, the model `so101`: one offer of the
+// robot, with the facts that its seller states and the date of each check. A
+// launcher that offers the model in the `stack` scope of its framework
+// endpoint includes this file in the option of the scope, as
+// `product: { $include: "<the path of this file>" }`, the path relative to
+// the directory of the launcher. The sheet gives only what the seller states.
+//
+// The offer: "Package 3: Assembled SO-101 Arm (1 Leader + 1 Follower +1
+// camera)", in black, bought online from WowRobo Robotics. It is the full kit,
+// assembled: the follower arm, its leader arm and a camera. The SO-101 is an
+// open design of The Robot Studio and Hugging Face, which sell no robot. The
+// official SO-101 project names the sellers of its kits in the "Kits" list of
+// https://github.com/TheRobotStudio/SO-ARM100#kits, and the LeRobot guide of
+// the SO-101 sends its readers to that project. This sheet takes the offer of
+// WowRobo because the list names WowRobo as a seller of the assembled robot
+// to all countries ("International"), with a link to this product page. The
+// four colors have the same price.
+//
+// The source of each fact, checked on 2026-10-31:
+// - vendor, price and availability:
+//   https://shop.wowrobo.com/products/so-arm101-diy-kit-assembled-version-1?variant=46588641607897
+//   "Package 3: Assembled SO-101 Arm (1 Leader + 1 Follower +1 camera)" at
+//   "$299.00". The page sells the package with "Add to cart" and ships an
+//   order within 1 to 3 business days.
+// - No mass_kg: the page states only the weight of the package, 5 kg.
+// - No height_m: the page states no height.
+{
+  vendor: "WowRobo Robotics",
+  purchase_url: "https://shop.wowrobo.com/products/so-arm101-diy-kit-assembled-version-1?variant=46588641607897",
+  price: { amount: 299, currency: "USD", checked_on: "2026-10-31" },
+  availability: { state: "in_stock", checked_on: "2026-10-31" },
+}

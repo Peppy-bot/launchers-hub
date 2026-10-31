@@ -297,33 +297,23 @@ class FragmentInventoryTests(unittest.TestCase):
         )
 
 
-#: The fields of a product sheet, each optional.
-SHEET_FIELDS = {"vendor", "purchase_url", "price", "availability", "mass_kg", "height_m"}
-#: The fields of the price and of the availability of a sheet.
-PRICE_FIELDS = {"amount", "currency", "checked_on"}
-AVAILABILITY_FIELDS = {"state", "checked_on"}
-AVAILABILITY_STATES = {"in_stock", "preorder", "out_of_stock", "discontinued"}
-
-
-def models_named_by_initializers(document):
-    """The models that the robot initializers of a document name, wherever
-    the document deploys them."""
-    if isinstance(document, list):
-        return {model for item in document for model in models_named_by_initializers(item)}
-    if not isinstance(document, dict):
-        return set()
-    models = {model for value in document.values() for model in models_named_by_initializers(value)}
-    if (document.get("source") or {}).get("name") == combinations.INITIALIZER_NODE:
-        models |= {instance["arguments"]["model"] for instance in document["instances"]}
-    return models
+def offered_options(document):
+    """The options of the `stack` scopes that the adjustments of a launcher
+    write, each as the launcher writes it."""
+    return [option
+            for adjustment in document.get("adjustments", [])
+            for option in (adjustment.get("set_daemon_scopes") or {})
+            .get("stack", {}).get("options", [])]
 
 
 class ProductSheetTests(unittest.TestCase):
-    """One product sheet for each robot model, under the directory of its
-    robot, named for the model; each launcher that offers the model in a
-    `stack` scope includes it. peppy parses each sheet that a launcher
-    includes; these tests hold every sheet, the ones that no launcher
-    includes too, to the fields of a sheet."""
+    """One product sheet for each robot model that a launcher offers in a
+    `stack` scope, under the directory of its robot, named for the model;
+    each launcher that offers the model includes it. So every sheet is one
+    that a launcher includes, and peppy parses each one, with every rule of
+    a sheet, in the `peppy stack resolve` of that launcher, which this CI
+    runs on every combination: a sheet that no launcher includes would hold
+    facts that no check reads."""
 
     ROOT = Path(__file__).resolve().parents[2]
 
@@ -331,39 +321,28 @@ class ProductSheetTests(unittest.TestCase):
         return {path.relative_to(self.ROOT).as_posix(): path
                 for path in sorted(self.ROOT.glob("*/products/*.json5"))}
 
-    def test_each_robot_model_has_one_sheet_named_for_it(self):
-        models = set()
-        for path in self.ROOT.glob("*/fragments/*.json5"):
-            models |= models_named_by_initializers(combinations.load_json5(path, path.name))
-        self.assertEqual(models, set(ROBOT_MODELS))
-        self.assertEqual(sorted(self.sheets()), [
-            "openarm/products/openarm_v1.json5",
-            "openarm/products/openarm_v2.json5",
-            "so101/products/so101.json5",
-        ])
-        self.assertEqual({Path(path).stem for path in self.sheets()}, models)
+    def test_each_sheet_is_the_sheet_of_a_model_that_a_launcher_offers_and_includes(self):
+        offered = {(family_of(option["option"]), option["model"])
+                   for path in ROBOT_LAUNCHERS
+                   for option in offered_options(combinations.load_json5(self.ROOT / path, path))}
+        self.assertEqual(sorted(self.sheets()),
+                         sorted(f"{family}/products/{model}.json5" for family, model in offered))
+        included = {include
+                    for path in ROBOT_LAUNCHERS
+                    for include in combinations.read_launcher(self.ROOT, path).includes}
+        self.assertEqual(included, set(self.sheets()))
 
-    def test_a_sheet_is_a_plain_object_of_the_sheet_fields(self):
+    def test_a_sheet_is_a_plain_object_that_includes_no_file(self):
         for relative, path in self.sheets().items():
             with self.subTest(sheet=relative):
                 sheet = combinations.load_json5(path, relative)
                 self.assertIsInstance(sheet, dict)
                 self.assertNotIn("peppy_schema", sheet)
                 self.assertFalse(combinations.holds_include(sheet))
-                self.assertEqual(set(sheet) - SHEET_FIELDS, set())
-                if "price" in sheet:
-                    self.assertEqual(set(sheet["price"]), PRICE_FIELDS)
-                if "availability" in sheet:
-                    self.assertEqual(set(sheet["availability"]), AVAILABILITY_FIELDS)
-                    self.assertIn(sheet["availability"]["state"], AVAILABILITY_STATES)
 
     def test_each_option_of_a_stack_scope_includes_the_sheet_of_its_model(self):
         for path in ROBOT_LAUNCHERS:
-            document = combinations.load_json5(self.ROOT / path, path)
-            options = [option
-                       for adjustment in document.get("adjustments", [])
-                       for option in (adjustment.get("set_daemon_scopes") or {})
-                       .get("stack", {}).get("options", [])]
+            options = offered_options(combinations.load_json5(self.ROOT / path, path))
             sheets = {option["option"]: f"{family_of(option['option'])}/products/{option['model']}.json5"
                       for option in options}
             with self.subTest(path=path):

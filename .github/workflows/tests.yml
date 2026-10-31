@@ -42,9 +42,8 @@ name: Tests
 # launcher or a fragment includes, such as a product sheet) reaches exactly
 # the combinations whose resolved plan differs from the one the base tree
 # gives them, and only those are planned. A change outside every launcher
-# (this workflow, the skips file, the repository index, a product sheet that
-# no launcher includes, ...) plans
-# every combination, as does every push to main and every run the peppy
+# (this workflow, the skips file, the repository index, ...) plans every
+# combination, as does every push to main and every run the peppy
 # release dispatches; a Markdown file outside every launcher is the one
 # exception, planning nothing.
 #

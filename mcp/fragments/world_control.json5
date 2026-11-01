@@ -1,13 +1,15 @@
 // The simulated world over MCP, with the applier of worlds behind its world
-// target. The server built into peppy serves the simulation:v1 exposure
-// from the MCP hub as one endpoint, http://127.0.0.1:8902/simulation/v1/mcp.
+// and sweep targets. The server built into peppy serves the simulation:v1
+// exposure from the MCP hub as one endpoint,
+// http://127.0.0.1:8902/simulation/v1/mcp.
 // The exposure covers the scene, the controls of its objects, its light
 // sources, its daylight and its weather, and its materials. It also covers a
 // picture of the scene from any viewpoint, the simulation clock, where a
 // robot can work in the scene, the rate at which the simulation renders the
 // cameras of each robot's rig and the holds that keep a camera at its own
 // rate, and its worlds: the live world as a world document, the check and
-// the apply of one, a workflow run in one and the judges that check it. The
+// the apply of one, the expansion of a world pattern, a workflow run in one
+// and the judges that check it, and the sweeps of a workflow. The
 // server is a process of its own beside the stack's robot_control endpoint
 // on port 8900 and the framework_controls endpoint on port 8903, which
 // simulation_mcp's robot_control option deploys together. Its instance id
@@ -19,16 +21,18 @@
 // world_control axis deploys it, requires Waldo beside it; `--with
 // world_control=none` switches it off.
 //
-// The applier of worlds, sim_harness_inst, serves the world target. It
-// drives Waldo through its links (the workspace link measures the surfaces
-// it teaches each robot), the workflow director through `director`,
-// each simulated robot through the set slots that the launcher fills for
-// each robot option, and the stack and the fleet through the daemon. It
-// declares no core_node, so it runs on the coordinator, as an instance
-// serving a daemon target must; the launcher gives its stack target the
-// scope of the framework's endpoint. It reads the simulation's clock, which
-// every instance it binds reads; its own waits count wall time: it waits
-// on the daemon, Waldo and the director.
+// The applier of worlds, sim_harness_inst, serves the world and sweep
+// targets. It drives Waldo through its links (the workspace link measures
+// the surfaces it teaches each robot), the workflow director through
+// `director`, each simulated robot through the set slots that the launcher
+// fills for each robot option, and the stack and the fleet through the
+// daemon. It declares no core_node, so it runs on the coordinator, as an
+// instance serving a daemon target must; the launcher gives its stack target
+// the scope of the framework's endpoint. It reads the simulation's clock,
+// which every instance it binds reads; its own waits count wall time: it
+// waits on the daemon, Waldo and the director. It keeps the records and the
+// reports of the sweeps in sweep_root, a directory of the coordinator's disk
+// that outlives its container and each launch.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -44,7 +48,7 @@
           // another and announces it.
           arguments: { port: 8902 },
           // One entry per target of the exposure: nine the simulation's,
-          // and the world target the applier's.
+          // and the world and sweep targets the applier's.
           links: {
             scene: "simulation_inst",
             controls: "simulation_inst",
@@ -56,6 +60,7 @@
             workspace: "simulation_inst",
             sensor_streams: "simulation_inst",
             world: "sim_harness_inst",
+            sweep: "sim_harness_inst",
           },
           framework: { clock: "simulation" },
         },
@@ -66,6 +71,7 @@
       instances: [
         {
           instance_id: "sim_harness_inst",
+          arguments: { sweep_root: "/var/tmp/peppy_sim_harness" },
           links: {
             world: "simulation_inst",
             scene: "simulation_inst",

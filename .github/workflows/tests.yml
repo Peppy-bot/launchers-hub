@@ -110,26 +110,28 @@ name: Tests
 # the daemon's container build cache (the crates.io registry and sccache the
 # Rust nodes compile through), the model weights the simulated brain
 # downloads, waldo's state directory, which holds its asset store (the
-# catalogue, scene and robot files the simulation downloads, each under a
-# key whose digest pins its bytes) and its viewer certificates, and the
-# daemon's build artifact cache, where every built node image sits under the
+# catalogue, scene and robot files the simulation downloads, each under a key
+# whose digest pins its bytes) and its viewer certificates, and the daemon's
+# build artifact cache, where every built node image sits under the
 # fingerprint of the staged sources it was built from (the node's tree, its
 # def, its generated code and the peppy version). A launch reuses an image
 # whose fingerprint it finds and builds the rest, so a run rebuilds exactly
 # the nodes whose sources moved since the launches its snapshot comes from
 # built them. RunsOn restores the disk from the newest snapshot of the same
-# branch, or of main for a branch's first run, and snapshots it after the
-# job. A pull request's run reads main's snapshot but never writes it; every
-# push to main launches every combination, and that run is what keeps main's
-# snapshot current. Nothing kept there may be state one run depends on
-# another having written, only what apptainer, uv, the daemon, the brain and
-# waldo rebuild or download again from scratch. All of it but the viewer
-# certificates is keyed by content, so an entry is either a hit for the same
-# bytes or a miss; waldo makes a certificate when it finds none, and
-# replaces one before it expires. The fingerprint does not cover a def's
-# floating base image tag, so a moved base image reaches a cached node image
-# when that image's fingerprint next changes: at the next peppy release, or
-# at the next change to the node's sources.
+# branch, or of main for a branch's first run, and snapshots it after the job.
+# The disk restores lazily (`lazy-init` in the job's label), so a block comes
+# from the snapshot when the job first reads it and no restore pays for a
+# provisioned initialization rate. A pull request's run reads main's snapshot
+# but never writes it; every push to main launches every combination, and that
+# run is what keeps main's snapshot current. Nothing kept there may be state
+# one run depends on another having written, only what apptainer, uv, the
+# daemon, the brain and waldo rebuild or download again from scratch. All of
+# it but the viewer certificates is keyed by content, so an entry is either a
+# hit for the same bytes or a miss; waldo makes a certificate when it finds
+# none, and replaces one before it expires. The fingerprint does not cover a
+# def's floating base image tag, so a moved base image reaches a cached node
+# image when that image's fingerprint next changes: at the next peppy release,
+# or at the next change to the node's sources.
 #
 # The last job, `test`, is the one status check the org ruleset requires on
 # main. It is green only when every other job of this workflow succeeded or
@@ -447,7 +449,7 @@ jobs:
     # found at once. The 50 GB root disk holds apptainer's build scratch (a
     # full launch writes near 18 GB there), and the sticky disk holds the
     # caches named below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8/ram=16+32/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8/ram=16+32/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once

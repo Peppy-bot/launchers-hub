@@ -29,12 +29,21 @@ A plain join of an option a daemon scope lists, whose robot's initializer
 names another model than the scope gives the option, fails the plan.
 Of the launchable combinations in scope it keeps the launches that, between
 them, run every configured node instance and every pair of instances that run
-side by side.
+side by side. A resolve names the launch variables the launch needs from the
+shell that launches; for each launcher with planned launches whose
+combinations need any, it plans one more launch of the launcher that runs
+without them, which must be refused.
 
-launch runs the planned launches one after the other on the running daemon,
+launch runs the refused launches first, each without the launch variables it
+needs: each must be refused, with a message that names every one of them,
+and must leave the stack's nodes as they were, so it added and built none.
+
+It then runs the planned launches one after the other on the running daemon,
 resetting the stack between them, holds each joined copy to the instances
 its preview promised, every one of them running, and reports each one's
-outcome. It also times each command that stands a robot in a simulation,
+outcome. Each join runs without the launch variables its launcher names, so
+the instances it starts take them from the values the daemon kept from the
+launch. It also times each command that stands a robot in a simulation,
 cold or warm, against the stand budget: a report, which fails nothing.
 
 The JSON5 subset reader reports unsupported syntax with its file and line.
@@ -92,6 +101,15 @@ JOIN_CHANGE_MARK = "would change"
 LINK_RULES_UNCHECKED_MARK = "link rules not checked"
 DAEMON_SCOPES_UNCHECKED_MARK = "daemon scopes not checked"
 UNCHECKED_MARKS = (LINK_RULES_UNCHECKED_MARK, DAEMON_SCOPES_UNCHECKED_MARK)
+
+# `stack resolve` writes one report line for each launch variable the launch
+# needs from the shell that launches: a variable that an instance the launch
+# starts takes from the launch environment, or that an instance a join
+# through a daemon scope of the launch can start takes. A launch without one
+# of them is refused before it builds anything.
+LAUNCH_VARIABLE_NEED = re.compile(
+    r"^launch variables: the launch needs `([^`]+)` from the shell that launches"
+)
 
 # The environment variable the step that fills the caches sets when it knows
 # they are short: its value says why, in one clause, and a resolve reporting
@@ -452,6 +470,8 @@ BODY_SHAPES = {
 #: `set_daemon_scopes` gives the daemon targets of an MCP exposure instance
 #: their scopes, by target name; `peppy` parses each scope against the
 #: exposure when it resolves the launcher, so the planner reads it as a map.
+#: `set_env_from_launch` names the launch variables of the target: the
+#: variables it takes from the environment of the launch.
 ADJUSTMENT_OPERATIONS = (
     "set_arguments",
     "set_framework",
@@ -459,7 +479,17 @@ ADJUSTMENT_OPERATIONS = (
     "add_links",
     "unset_links",
     "set_daemon_scopes",
+    "set_env_from_launch",
 )
+
+
+def writes_operation(entry, operation):
+    """Whether an adjustment writes `operation`. An empty
+    `set_env_from_launch` takes every launch variable from the target, so it
+    writes; any other operation writes only where it holds something."""
+    if operation == "set_env_from_launch":
+        return operation in entry
+    return bool(entry.get(operation))
 
 
 def check_adjustments(written, label):
@@ -484,7 +514,7 @@ def check_adjustments(written, label):
                     f"{label}: adjustment on `{target}` writes `{key}`; an adjustment writes "
                     + ", ".join(f"`{name}`" for name in ADJUSTMENT_OPERATIONS)
                 )
-        written_operations = [key for key in ADJUSTMENT_OPERATIONS if entry.get(key)]
+        written_operations = [key for key in ADJUSTMENT_OPERATIONS if writes_operation(entry, key)]
         if not written_operations:
             raise Json5Error(
                 f"{label}: adjustment on `{target}` names no operation; write "
@@ -502,6 +532,19 @@ def check_adjustments(written, label):
                 )
         if any(not slot.strip() for slot in (entry.get("unset_links") or [])):
             raise Json5Error(f"{label}: adjustment on `{target}` unsets an empty link key")
+        variables = entry.get("set_env_from_launch", [])
+        if not isinstance(variables, list) or any(
+            not isinstance(variable, str) or not variable.strip() for variable in variables
+        ):
+            raise Json5Error(
+                f"{label}: adjustment on `{target}` writes `set_env_from_launch` as a list of "
+                "variable names"
+            )
+        if len(set(variables)) != len(variables):
+            raise Json5Error(
+                f"{label}: adjustment on `{target}` names one launch variable twice in "
+                "`set_env_from_launch`"
+            )
         for slot, targets in (entry.get("add_links") or {}).items():
             if not targets:
                 raise Json5Error(
@@ -1066,11 +1109,16 @@ class Resolution:
     detail: str
     #: The flattened launcher, where the combination resolves.
     plan: dict | None = None
+    #: The launch variables the launch needs from the shell that launches,
+    #: sorted, where the combination resolves.
+    launch_variables: tuple = ()
 
     def fingerprint(self, candidate):
         """Everything a launch of the combination depends on: two trees
         giving a combination the same fingerprint launch the same thing."""
-        return canonical([self.verdict.value, self.detail, self.plan, candidate.local])
+        return canonical([
+            self.verdict.value, self.detail, self.plan, candidate.local, list(self.launch_variables),
+        ])
 
 
 def canonical(value):
@@ -1320,13 +1368,24 @@ def resolve_candidate(root, candidate, skips):
     if unchecked:
         return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
     plan = launched_plan(_Parser(resolve.stdout, "resolved").parse_document())
+    variables = needed_launch_variables(resolve.stderr)
     nodes = deployed_nodes(plan)
     hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
     if hits:
         detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
-        return Resolution(Verdict.SKIPPED, detail, plan)
+        return Resolution(Verdict.SKIPPED, detail, plan, variables)
     # A joined copy comes up beside the copies the file deploys.
-    return Resolution(Verdict.LAUNCH, "-", plan)
+    return Resolution(Verdict.LAUNCH, "-", plan, variables)
+
+
+def needed_launch_variables(report):
+    """The launch variables a resolve's report says the launch needs from
+    the shell that launches, sorted."""
+    return tuple(sorted({
+        need.group(1)
+        for line in report.splitlines()
+        if (need := LAUNCH_VARIABLE_NEED.match(line))
+    }))
 
 
 def resolve_inventory(root, inventory, skips):
@@ -1516,9 +1575,13 @@ class Launch:
     launch_stands: list = field(default_factory=list)
     #: The robot `stack join` stands in a simulation.
     join_stands: list = field(default_factory=list)
+    #: The launch variables the launcher names, which the join runs without,
+    #: so the instances it starts take them from the values the daemon kept
+    #: from the launch.
+    launch_variables: list = field(default_factory=list)
 
     @classmethod
-    def of(cls, candidate, resolution):
+    def of(cls, candidate, resolution, launch_variables):
         launched = candidate.file_copies + ((COPY_NAME,) if candidate.launch_joins else ())
         joined = (COPY_NAME,) if candidate.join_option else ()
         return cls(
@@ -1533,6 +1596,7 @@ class Launch:
             list(candidate.launch_joins),
             robot_stands(resolution.plan, launched),
             robot_stands(resolution.plan, joined),
+            list(launch_variables),
         )
 
     @classmethod
@@ -1544,15 +1608,105 @@ class Launch:
             "join_stands": [Stand(**stand) for stand in entry["join_stands"]],
         })
 
+    @property
+    def passed(self):
+        """What the launch reports once it came up start to end."""
+        return Status.PASSED
 
-def write_plan(launches, path):
+    def prove(self, run, stand_times):
+        launch_start_to_end(self, run, stand_times)
+
+
+@dataclass(frozen=True)
+class RefusedLaunch:
+    """A launch of a launcher whose combinations need launch variables, run
+    without the variables it needs: it must be refused before it builds
+    anything, with a message that names each of them."""
+
+    label: str
+    launcher: str
+    words: str
+    local: bool
+    #: The options `--join OPTION:NAME` starts a copy of with the launch.
+    launch_joins: list
+    #: The launch variables the launch needs, which it runs without.
+    variables: list
+
+    @classmethod
+    def of(cls, candidate, resolution):
+        variables = list(resolution.launch_variables)
+        return cls(
+            f"{candidate.label} without {', '.join(variables)}",
+            candidate.launcher,
+            candidate.words,
+            candidate.local,
+            list(candidate.launch_joins),
+            variables,
+        )
+
+    @property
+    def passed(self):
+        """What the launch reports once it was refused as planned."""
+        return Status.REFUSED
+
+    def prove(self, run, _stand_times):
+        refused_before_any_build(self, run)
+
+
+@dataclass(frozen=True)
+class Plan:
+    """What the launch job runs: the refused launches, then the launches."""
+
+    refused: list
+    launches: list
+
+
+def refused_launches(candidates, resolutions, launchers):
+    """For each launcher of `launchers` whose combinations need launch
+    variables, the launch that runs without them: of its launchable
+    combinations that join no copy after the launch, the first that needs
+    the most launch variables. In the order of `candidates`."""
+    chosen = {}
+    for candidate in candidates:
+        if candidate.launcher not in launchers or candidate.join_option:
+            continue
+        resolution = resolutions[candidate.key]
+        if resolution.verdict is not Verdict.LAUNCH or not resolution.launch_variables:
+            continue
+        held = chosen.get(candidate.launcher)
+        if held is None or len(resolution.launch_variables) > len(held[1].launch_variables):
+            chosen[candidate.launcher] = (candidate, resolution)
+    return [RefusedLaunch.of(candidate, resolution) for candidate, resolution in chosen.values()]
+
+
+def launch_variables_by_launcher(candidates, resolutions):
+    """The launch variables the combinations of each launcher need, launcher
+    name to the sorted variables, for every launcher of `candidates`."""
+    variables = {candidate.launcher: set() for candidate in candidates}
+    for candidate in candidates:
+        variables[candidate.launcher].update(resolutions[candidate.key].launch_variables)
+    return {launcher: tuple(sorted(names)) for launcher, names in variables.items()}
+
+
+def write_plan(plan, path):
     with open(path, "w", encoding="utf-8") as handle:
-        json.dump([asdict(launch) for launch in launches], handle, separators=(",", ":"))
+        json.dump(
+            {
+                "refused": [asdict(refused) for refused in plan.refused],
+                "launches": [asdict(launch) for launch in plan.launches],
+            },
+            handle,
+            separators=(",", ":"),
+        )
 
 
 def read_plan(path):
     with open(path, encoding="utf-8") as handle:
-        return [Launch.parse(entry) for entry in json.load(handle)]
+        written = json.load(handle)
+    return Plan(
+        [RefusedLaunch(**entry) for entry in written["refused"]],
+        [Launch.parse(entry) for entry in written["launches"]],
+    )
 
 
 def candidates_in_scope(scope, candidates, resolutions, base_root, skips):
@@ -1613,13 +1767,39 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
     }
     selected = select_launches(units_by_key)
     by_key = {candidate.key: candidate for candidate in launchable}
-    write_plan([Launch.of(by_key[key], resolutions[key]) for key in selected], plan_path)
+    variables = launch_variables_by_launcher(candidates, resolutions)
+    launches = [
+        Launch.of(by_key[key], resolutions[key], variables[by_key[key].launcher])
+        for key in selected
+    ]
+    refused = refused_launches(
+        candidates, resolutions, {launch.launcher for launch in launches}
+    )
+    write_plan(Plan(refused, launches), plan_path)
 
     append_to_env_file(
         "GITHUB_STEP_SUMMARY",
         plan_summary(
             candidates, in_scope, resolutions, by_key, selected, units_by_key, unprovable
-        ),
+        )
+        + refused_summary(refused),
+    )
+    append_to_env_file("GITHUB_OUTPUT", f"launches={'true' if launches else 'false'}\n")
+
+
+def refused_summary(refused):
+    """The run summary's account of the refused launches, or nothing where
+    the plan holds none."""
+    if not refused:
+        return ""
+    return (
+        f"\n### 🔑 Launches without their launch variables ({len(refused)})\n\n"
+        "Each runs before the launches, without the launch variables it needs, and must "
+        "be refused before it builds anything, with a message that names each of them. "
+        "Every join of the launches below runs without the launch variables of its "
+        "launcher, so the instances it starts take them from the values the daemon "
+        "kept from the launch.\n\n"
+        + "".join(f"- {launch.label}\n" for launch in refused)
     )
 
 
@@ -1782,6 +1962,38 @@ class JoinedCopyDiffers(LaunchFailed):
         )
 
 
+class LaunchNotRefused(LaunchFailed):
+    """A launch run without the launch variables it needs came up."""
+
+    def __init__(self, argv, variables):
+        super().__init__(
+            f"`{' '.join(argv)}` without {', '.join(variables)} exited 0; a launch "
+            "without the launch variables it needs is refused before it builds anything"
+        )
+
+
+class RefusalNamesTooLittle(LaunchFailed):
+    """A refusal that does not name every launch variable the launch needs."""
+
+    def __init__(self, argv, unnamed):
+        super().__init__(
+            f"`{' '.join(argv)}` was refused, and its message does not name "
+            + ", ".join(f"`{variable}`" for variable in unnamed)
+        )
+
+
+class RefusedLaunchChangedTheNodes(LaunchFailed):
+    """A refused launch that changed the nodes of the stack, so it got as far
+    as adding or building one."""
+
+    def __init__(self, argv, before, after):
+        super().__init__(
+            f"`{' '.join(argv)}` was refused after it changed the nodes of the stack, "
+            f"from {', '.join(before) or 'none'} to {', '.join(after) or 'none'}; a launch "
+            "without its launch variables is refused before it builds anything"
+        )
+
+
 class JoinedCopyNotRunning(LaunchFailed):
     """An instance of the joined copy is not running once the join returned:
     a join ends when the simulation stands the robot, and a robot the engine
@@ -1795,20 +2007,26 @@ class JoinedCopyNotRunning(LaunchFailed):
         )
 
 
-def run_peppy(argv, capture=False):
+def run_peppy(argv, capture=False, without=()):
     """Runs one command of a launch, its output going to the job's log, or
-    returned where `capture` asks for it. A captured command is read as JSON,
-    so peppy's own logging is held to errors and stdout carries the document
-    alone."""
-    print(f"$ {' '.join(argv)}", flush=True)
-    env = {**os.environ, "RUST_LOG": "error"} if capture else None
+    its stdout returned where `capture` asks for it, in the job's
+    environment less the variables `without` names. A captured command's
+    peppy logging is held to errors, so stdout carries the document it
+    prints, or the error that ends it, alone."""
+    unset = f"  # without {', '.join(without)}" if without else ""
+    print(f"$ {' '.join(argv)}{unset}", flush=True)
+    env = None
+    if capture or without:
+        env = {name: value for name, value in os.environ.items() if name not in without}
+    if capture:
+        env["RUST_LOG"] = "error"
     return subprocess.run(
         argv, text=True, stdout=subprocess.PIPE if capture else None, env=env
     )
 
 
-def checked(run, argv, capture=False):
-    completed = run(argv, capture)
+def checked(run, argv, capture=False, without=()):
+    completed = run(argv, capture, without)
     if completed.returncode != 0:
         raise CommandFailed(argv, completed.returncode)
     return completed
@@ -1822,6 +2040,17 @@ def copy_instance_ids(listing, name):
         for copy in core_node["copies"]
         if copy["name"] == name
         for instance_id in copy["instance_ids"]
+    )
+
+
+def stack_nodes(listing):
+    """The nodes the stack holds, as `name:tag`, sorted, from `peppy stack
+    list --json`: the nodes a launch added, its instances running or not,
+    and the daemon's own."""
+    return sorted(
+        f"{node.get('name')}:{node.get('tag')}"
+        for core_node in json.loads(listing)["core_nodes"]
+        for node in (core_node.get("stack") or {}).get("nodes", [])
     )
 
 
@@ -1878,11 +2107,30 @@ def launch_start_to_end(launch, run, stand_times):
         hold_copy_to_preview(launch, run)
     if launch.join_option:
         with stand_times.timing(launch.label, "join", launch.join_stands):
-            checked(run, join_command(launch))
+            checked(run, join_command(launch), without=launch.launch_variables)
         hold_copy_to_preview(launch, run)
         checked(run, ["peppy", "stack", "list"])
         checked(run, ["peppy", "stack", "remove", launch.join_name])
     checked(run, ["peppy", "stack", "list"])
+
+
+def refused_before_any_build(refused, run):
+    """Runs a launch without the launch variables it needs: it is refused,
+    with a message that names each of them, and the stack holds the nodes it
+    held before, so the launch added and built none."""
+    listed = ["peppy", "stack", "list", "--json"]
+    before = stack_nodes(checked(run, listed, capture=True).stdout)
+    argv = launch_command(refused)
+    completed = run(argv, True, refused.variables)
+    print(completed.stdout, end="", flush=True)
+    if completed.returncode == 0:
+        raise LaunchNotRefused(argv, refused.variables)
+    unnamed = [variable for variable in refused.variables if f"`{variable}`" not in completed.stdout]
+    if unnamed:
+        raise RefusalNamesTooLittle(argv, unnamed)
+    after = stack_nodes(checked(run, listed, capture=True).stdout)
+    if after != before:
+        raise RefusedLaunchChangedTheNodes(argv, before, after)
 
 
 def hold_copy_to_preview(launch, run):
@@ -2001,6 +2249,7 @@ def stand_summary(times):
 
 class Status(enum.Enum):
     PASSED = "✅ launched"
+    REFUSED = "✅ refused before any build"
     FAILED = "❌ failed"
     NOT_LAUNCHED = "⏸️ not launched"
 
@@ -2028,12 +2277,12 @@ def workflow_command(name, message, **properties):
 
 
 def launch_and_reset(launch, run, stand_times):
-    """One launch inside its log group, and the reset that hands the next
-    launch an empty stack. Returns the outcome and whether the stack is
-    empty again."""
+    """One launch, planned or refused, inside its log group, and the reset
+    that hands the next launch an empty stack. Returns the outcome and
+    whether the stack is empty again."""
     workflow_command("group", launch.label)
     try:
-        launch_start_to_end(launch, run, stand_times)
+        launch.prove(run, stand_times)
         failure = ""
     except LaunchFailed as error:
         failure = str(error)
@@ -2045,14 +2294,14 @@ def launch_and_reset(launch, run, stand_times):
         stack_is_empty = False
     workflow_command("endgroup", "")
     if not failure:
-        return Outcome(launch.label, Status.PASSED), stack_is_empty
+        return Outcome(launch.label, launch.passed), stack_is_empty
     workflow_command("error", failure, title=launch.label)
     return Outcome(launch.label, Status.FAILED, failure), stack_is_empty
 
 
 def launch_all(launches, run, stand_times):
-    """Every planned launch, one after the other on the one daemon. A failed
-    launch does not stop the ones after it: the stack is reset and the run
+    """Every launch of `launches`, planned or refused, one after the other
+    on the one daemon. A failed launch does not stop the ones after it: the stack is reset and the run
     goes on, so a red run names every failing combination. A stack that does
     not reset is the exception: nothing launched onto it could be trusted,
     so the remaining launches are reported as not launched. `stand_times`
@@ -2072,16 +2321,19 @@ def launch_all(launches, run, stand_times):
 
 
 def command_launch(plan_path, clock=time.monotonic):
+    """The refused launches of the plan first, on the daemon whose stack
+    holds no launch yet, then its launches."""
     stand_times = StandTimes(clock)
-    outcomes = launch_all(read_plan(plan_path), run_peppy, stand_times)
+    plan = read_plan(plan_path)
+    outcomes = launch_all(plan.refused + plan.launches, run_peppy, stand_times)
     rows = [
         (outcome.label, f"{outcome.status.value} {sanitize(outcome.detail)}".strip())
         for outcome in outcomes
     ]
-    passed = sum(outcome.status is Status.PASSED for outcome in outcomes)
+    passed = sum(outcome.status in (Status.PASSED, Status.REFUSED) for outcome in outcomes)
     append_to_env_file(
         "GITHUB_STEP_SUMMARY",
-        f"\n{passed} of {len(outcomes)} launches came up start to end.\n"
+        f"\n{passed} of {len(outcomes)} launches went as planned.\n"
         + markdown_table("Launches", ("combination", "result"), rows)
         + stand_summary(stand_times.times),
     )

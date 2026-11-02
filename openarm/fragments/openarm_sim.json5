@@ -29,6 +29,13 @@
             follower_state_rate_hz: 100,
             d_stop_m: 0.005,
             d_safe_m: 0.02,
+            // How far each measured joint may stand (rad) from a path move's
+            // expected start, and from where it stood when the backbone took
+            // the path, while the backbone checks the path: twice the 0.024
+            // rad an arm's joints were measured to drift on in simulation
+            // after a move_arm_joints settled within 0.1 rad, so a path planned
+            // from the joints a move ended at starts within it.
+            start_tolerance_rad: 0.05,
             collision_governor_enabled: true,
             max_ee_angular_velocity_rad_s: 0.8,
             max_ee_velocity_m_s: 0.5,

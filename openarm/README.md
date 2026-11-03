@@ -186,10 +186,11 @@ coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
 router brain.
 
 A v2 copy's `motion_planner` axis adds the motion planner, the node
-`motion_planner`, which takes the robot's model from its initializer's identity, serving `motion_planning`:
-arm paths planned around what the chest camera sees, which a caller runs with
-the backbone's `execute_joint_path`. A v1 copy that selects it is refused.
-`simulation_mcp` gives every `openarm_sim` copy the planner from its entry. Each launcher binds the rig's chest camera to it
+`motion_planner`, which takes the robot's model from its initializer's
+identity, serving `motion_planning`: arm paths planned around what the chest
+camera sees, which a caller runs with the backbone's `execute_joint_path`. A v1
+copy that selects it is refused. `simulation_mcp` gives every `openarm_sim` copy
+the planner from its entry. Each launcher binds the rig's chest camera to it
 whenever the copy selects `cameras` or `cameras_sim`; without a rig its map
 stays empty, and a plan keeps clear of the robot's own body only. Its
 clearance, `min_clearance_m`, covers how far a full-speed run strays from its

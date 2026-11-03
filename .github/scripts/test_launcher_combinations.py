@@ -315,8 +315,8 @@ class FragmentInventoryTests(unittest.TestCase):
         for directory, expected in [
             ("openarm/fragments", {"ai_brain_vla.json5", "cameras.json5", "cameras_sim.json5",
                                    "ker_commander.json5", "lerobot_recorder.json5",
-                                   "openarm.json5", "openarm_sim.json5", "vlm_router_brain.json5",
-                                   "web_commander.json5"}),
+                                   "openarm.json5", "openarm_sim.json5", "v2.json5",
+                                   "vlm_router_brain.json5", "web_commander.json5"}),
             ("so101/fragments", {"cameras.json5", "cameras_sim.json5", "lerobot_recorder.json5",
                                  "so101.json5", "so101_leader.json5", "so101_sim.json5"}),
             ("teleop/fragments", {"xr_commander.json5"}),
@@ -1297,8 +1297,9 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # A robot writes nothing onto the server, and a simulated one declares
         # the simulation's clock on the instances it deploys where it deploys
-        # them; the commander, the recorder and the brain are shared with the
-        # physical robot, so the launcher binds those.
+        # them; the commander, the recorder, an OpenArm's brain and a v2's
+        # motion planner are shared with the physical robot, so the launcher
+        # binds those.
         for robot, path in ROBOT_FILES.items():
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1317,7 +1318,8 @@ class CombinationsTests(unittest.TestCase):
             for robot in ROBOT_LAUNCHERS[path]:
                 with self.subTest(path=path, robot=robot):
                     clocked = [a for a in robot_option(document, robot)["adjustments"] if "set_framework" in a]
-                    expected = ["commander_inst", "recorder_inst"] + (["brain_inst"] if family_of(robot) == "openarm" else [])
+                    expected = ["commander_inst", "recorder_inst"] + (
+                        ["brain_inst", "planner_inst"] if family_of(robot) == "openarm" else [])
                     self.assertCountEqual(
                         clocked, [{"target": target, "set_framework": {"clock": "simulation"}} for target in expected])
 

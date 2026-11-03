@@ -1,4 +1,6 @@
-// An OpenArm v2's motion planner: the node that serves motion_planning,
+// What the hardware_version option v2 deploys beside its initializer, on the
+// physical OpenArm and in a simulation alike: the motion planner, the node
+// that serves motion_planning,
 // arm paths planned around what the chest camera sees. It keeps a map of the
 // chest camera's depth frames in the robot frame, with the arms cut out at
 // the joint positions the backbone measured at each frame, and plans on it.

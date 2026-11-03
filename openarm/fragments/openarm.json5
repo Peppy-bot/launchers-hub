@@ -132,7 +132,7 @@
         // A v2 carries the chest camera, so it plans its arm paths with the
         // motion planner.
         v2: {
-          fragments: ["motion_planner.json5"],
+          fragments: ["v2.json5"],
           deployments: [{
             source: { name: "robot_initializer", tag: "v1" },
             instances: [{

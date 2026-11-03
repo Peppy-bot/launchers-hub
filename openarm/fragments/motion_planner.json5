@@ -15,7 +15,6 @@
         {
           instance_id: "planner_inst",
           arguments: {
-            robot: "openarm_v2",
             // At least the backbone's d_safe_m (0.02), where its guard leaves a
             // motion unthrottled, and the most a run strays from its plan: in
             // Waldo, six AC1 runs at full speed strayed at most 36.0 mm at an
@@ -79,6 +78,8 @@
             planning_attempts: 1,
           },
           links: {
+            // Who the robot is: the initializer names its model, openarm_v2.
+            identity: "init_inst",
             // The arms' measured joints, where the robot's design carries the
             // chest camera, and which camera the robot perceives with: the
             // backbone answers all three.

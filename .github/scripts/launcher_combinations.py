@@ -66,7 +66,7 @@ from dataclasses import asdict, dataclass, field
 # larger than this (daemon-config-internal, COMBINATION_CEILING); the CI holds
 # itself to the same ceiling so a launcher peppy's check escalates is escalated
 # here too rather than launching combinations for hours.
-COMBINATION_CEILING = 4096
+COMBINATION_CEILING = 8192
 
 # Both constraint refusals (`... requires ..., which this selection (...) does
 # not satisfy` and `... forbids ..., which this selection (...) has`) carry this

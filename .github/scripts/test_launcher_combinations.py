@@ -314,7 +314,7 @@ class FragmentInventoryTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         for directory, expected in [
             ("openarm/fragments", {"ai_brain_vla.json5", "cameras.json5", "cameras_sim.json5",
-                                   "ker_commander.json5", "lerobot_recorder.json5",
+                                   "ker_commander.json5", "lerobot_recorder.json5", "motion_planner.json5",
                                    "openarm.json5", "openarm_sim.json5", "vlm_router_brain.json5",
                                    "web_commander.json5"}),
             ("so101/fragments", {"cameras.json5", "cameras_sim.json5", "lerobot_recorder.json5",
@@ -682,12 +682,12 @@ class CombinationsTests(unittest.TestCase):
         # A join is plain (1) or under any selection of the robot's axes: an
         # OpenArm has two hardware versions, three commanders (`none` among
         # them), a recorder, a rig (off or on, `none` being the simulated
-        # rig's off) and a brain (off, ai_brain_vla or vlm_router_brain); an
-        # SO-101 two commanders, a recorder and a rig. A selection its
+        # rig's off), a brain (off, ai_brain_vla or vlm_router_brain) and a
+        # motion planner; an SO-101 two commanders, a recorder and a rig. A selection its
         # constraints refuse is still enumerated, and reported refused when it
         # resolves. The physical OpenArm has no plain join: its hardware
         # version has no default, so every join names one.
-        openarm, so101 = 2 * 3 * 2 * 2 * 3, 1 + 2 * 2 * 2
+        openarm, so101 = 2 * 3 * 2 * 2 * 3 * 2, 1 + 2 * 2 * 2
         openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2
         # The physical launcher: the endpoint, the workflows and the headset
         # each unfilled or on, each bare and joined by any physical robot. It
@@ -711,7 +711,7 @@ class CombinationsTests(unittest.TestCase):
         # selection of its axes (the v2's, or the SO-101's) and joined by any
         # simulated robot.
         stacks = (1 + 2 + 2) * 2 * 2
-        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 3, 2 * 2 * 2
+        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 3 * 2, 2 * 2 * 2
         sim = combos("openarm_simulation")
         self.assertEqual(len(sim), stacks * (alpha_openarm + openarm_sim + so101_sim))
         self.assertIn(["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "", "", "-"], sim)
@@ -1181,6 +1181,36 @@ class CombinationsTests(unittest.TestCase):
                     self.assertEqual(thinking["add_links"], {
                         "item_perception": ["brain_inst"], "item_manipulation": ["brain_inst"], "brain_model": ["brain_inst"]})
 
+    def test_the_motion_planner_is_listed_and_maps_its_rigs_chest_camera(self):
+        root = Path(__file__).resolve().parents[2]
+        # Every launcher lists the planner's tools whenever it runs and gives
+        # it the chest camera of the rig the copy selects; the planner takes
+        # the robot's model from the copy's initializer, and plans for a v2,
+        # so every OpenArm refuses it on a v1.
+        planner = combinations.load_json5(root / "openarm/fragments/motion_planner.json5", "motion_planner")
+        self.assertNotIn("adjustments", planner)
+        [[instance]] = [d["instances"] for d in planner["deployments"]]
+        self.assertEqual(instance["links"]["identity"], "init_inst")
+        for path in ["openarm/fragments/openarm.json5", "openarm/fragments/openarm_sim.json5"]:
+            with self.subTest(path=path):
+                document = combinations.load_json5(root / path, path)
+                self.assertIn({"when": {"motion_planner": "motion_planner"}, "requires": [{"hardware_version": "v2"}],
+                               "reason": "the motion planner plans for a v2 alone; select v2, or motion_planner=none"},
+                              document["constraints"])
+        for path, robots in ROBOT_LAUNCHERS.items():
+            document = combinations.load_json5(root / path, path)
+            for robot in robots:
+                if family_of(robot) != "openarm":
+                    continue
+                with self.subTest(path=path, robot=robot):
+                    rig = "cameras_sim" if robot == "openarm_sim" else "cameras"
+                    entries = robot_option(document, robot)["adjustments"]
+                    self.assertIn({"target": SERVER, "when": {"motion_planner": "motion_planner"},
+                                   "add_links": {"planner": ["planner_inst"]}}, entries)
+                    self.assertEqual([a for a in entries if a["target"] == "planner_inst" and "set_framework" not in a], [
+                        {"target": "planner_inst", "when": {"motion_planner": "motion_planner", "camera_rig": rig},
+                         "set_links": {"camera": "chest", "geometry": "chest"}}])
+
     def test_both_brains_stand_in_the_same_place_with_the_same_arguments(self):
         root = Path(__file__).resolve().parents[2]
         # Either brain is brain_inst on the same links with the same limbs
@@ -1297,8 +1327,9 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # A robot writes nothing onto the server, and a simulated one declares
         # the simulation's clock on the instances it deploys where it deploys
-        # them; the commander, the recorder and the brain are shared with the
-        # physical robot, so the launcher binds those.
+        # them; the commander, the recorder, an OpenArm's brain and its
+        # motion planner are shared with the physical robot, so the launcher
+        # binds those.
         for robot, path in ROBOT_FILES.items():
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1317,7 +1348,8 @@ class CombinationsTests(unittest.TestCase):
             for robot in ROBOT_LAUNCHERS[path]:
                 with self.subTest(path=path, robot=robot):
                     clocked = [a for a in robot_option(document, robot)["adjustments"] if "set_framework" in a]
-                    expected = ["commander_inst", "recorder_inst"] + (["brain_inst"] if family_of(robot) == "openarm" else [])
+                    expected = ["commander_inst", "recorder_inst"] + (
+                        ["brain_inst", "planner_inst"] if family_of(robot) == "openarm" else [])
                     self.assertCountEqual(
                         clocked, [{"target": target, "set_framework": {"clock": "simulation"}} for target in expected])
 
@@ -2167,14 +2199,16 @@ class CombinationsTests(unittest.TestCase):
              "teleop": "xr_commander"})
         # Each robot's entry states, for every copy of the option, no
         # commander of its own and the rendered rig, and for the OpenArm the
-        # router brain: the ones `--join OPTION:NAME` starts with the launch
-        # and the ones joined later without it, a v1 being one the
-        # simulations render no rig for. No entry lists a copy, so the bare
+        # router brain and the motion planner: the ones `--join OPTION:NAME`
+        # starts with the launch and the ones joined later without it, a v1
+        # being one the simulations render no rig for and the planner plans
+        # for no v1. No entry lists a copy, so the bare
         # launch is the simulation, the two endpoints and the headset with no
         # robot.
         self.assertEqual([entry for entry in document["deployments"] if "robot" in entry], [
             {"robot": "openarm_sim",
-             "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "brain": "vlm_router_brain"}},
+             "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "brain": "vlm_router_brain",
+                      "motion_planner": "motion_planner"}},
             {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim"}},
         ])
         launcher = combinations.read_launcher(root, path)

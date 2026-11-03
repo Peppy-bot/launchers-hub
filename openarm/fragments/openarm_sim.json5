@@ -1,8 +1,8 @@
 // A simulated OpenArm: the backbone that governs the limbs the simulation
 // stands, and the robot's own axes: its hardware version, the commander that
-// leads it, the recorder that films it, its camera rig and its brain. The
-// `hardware_version` axis carries the initializer, which names the model the
-// simulation stands.
+// leads it, the recorder that films it, its camera rig, its brain and its
+// motion planner. The `hardware_version` axis carries the initializer, which
+// names the model the simulation stands.
 //
 // This file writes only the backbone it deploys. The launcher's simulation
 // axis supplies simulation_inst, and the launcher that selects this robot
@@ -146,6 +146,10 @@
       name: "brain", cardinality: "zero_or_one", provides: ["brain_inst"],
       options: { ai_brain_vla: "ai_brain_vla.json5", vlm_router_brain: "vlm_router_brain.json5" },
     },
+    {
+      name: "motion_planner", cardinality: "zero_or_one", provides: ["planner_inst"],
+      options: { motion_planner: "motion_planner.json5" },
+    },
   ],
 
   constraints: [
@@ -169,6 +173,10 @@
     { when: { robot_commander: "ker_commander" },
       requires: [{ hardware_version: "v2" }],
       reason: "ker_commander is offered on a v2 alone; select v2, or another commander" },
+    // The motion planner plans for an openarm_v2.
+    { when: { motion_planner: "motion_planner" },
+      requires: [{ hardware_version: "v2" }],
+      reason: "the motion planner plans for a v2 alone; select v2, or motion_planner=none" },
   ],
 
   adjustments: [

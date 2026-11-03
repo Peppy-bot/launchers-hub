@@ -7,7 +7,8 @@ simulation that stands its limbs. Each deploys the robot's backbone and
 declares the robot's own axes: its hardware version, which a copy of the
 physical robot names and a simulated copy stands as `v2` unless its `with`
 or `--with v1` says otherwise, the robot commander, the recorder, the camera
-rig and the brain. `hardware_version` is an option written in place: each
+rig, the brain and the motion planner. `hardware_version` is an option
+written in place: each
 deploys the initializer, `robot_initializer`, which every robot runs, naming
 its model, `openarm_v1` or `openarm_v2`; the physical file deploys the four
 CAN drivers as a v2 and sets a v1's frames and interfaces on them per
@@ -124,9 +125,10 @@ it is listed with its
 identity, limb state, moves, collision readout, camera mounts, workspace and,
 on the physical robot, its drivers' motor health and alerts under any
 commander, by the launcher's `add_links` on `robot_control_inst`
-under the robot's option, and with its recorder, its brain and its rig's
-cameras whenever they run, `cameras` on a physical robot and `cameras_sim`
-on a simulated one; a robot without a rig is listed with no camera. The
+under the robot's option, and with its recorder, its brain, its motion
+planner and its rig's cameras whenever they run, `cameras` on a physical
+robot and `cameras_sim` on a simulated one; a robot without a rig is listed
+with no camera. The
 backbone's workspace answers judge what the chest camera sees from that
 camera's geometry, a link the robot file writes vacant: `openarm` binds the
 ZED Mini whenever `cameras` runs on a v2 and `openarm_sim` the rendered
@@ -182,6 +184,25 @@ it from the shell that launches and gives it to the brain of each OpenArm
 that a later join starts, and a brain with a launch variable runs on the
 coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
 router brain.
+
+A v2 copy's `motion_planner` axis adds the motion planner, the node
+`motion_planner`, which takes the robot's model from its initializer's
+identity, serving `motion_planning`: arm paths planned around what the chest
+camera sees, which a caller runs with the backbone's `execute_joint_path`. A v1
+copy that selects it is refused. `simulation_mcp` gives every `openarm_sim` copy
+the planner from its entry. Each launcher binds the rig's chest camera to it
+whenever the copy selects `cameras` or `cameras_sim`; without a rig its map
+stays empty, and a plan keeps clear of the robot's own body only. Its
+clearance, `min_clearance_m`, covers how far a full-speed run strays from its
+plan and stands above the backbone's `d_safe_m`, so the backbone's guard does
+not slow an arm on a planned path. The fragment states where each of its values
+comes from. Its tools are listed under the robot's name on the `robot_control`
+endpoint with the prefix `planner.`:
+
+```sh
+peppy stack join openarm:foxtrot@jetson-1 --with v2,cameras,motion_planner
+peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim,alpha.motion_planner
+```
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras

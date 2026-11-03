@@ -22,7 +22,7 @@ table and the copy semantics.
 |---|---|---|---|---|
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one, the fleet of the stack, and the halt of the stack | the peppy daemon that started the server, within the scope the launcher gives each target | the fleet and the halt; `physical.json5` leaves the `stack` target vacant, so a client adds no robot there |
 | Workflows | `http://127.0.0.1:8904/workflow_controls/v1/mcp` | `workflow_controls:v1`: the robots a workflow can bind, the check of a workflow, its runs with their confirmations, suspensions, resumes and aborts, and the state and the journal of each run | the workflow director, `workflow_director_inst` | yes, with `--with workflow_control`; a run there calls no `item_manipulation` |
-| Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain and its recorder | each robot's initializer, backbone, rig, brain and recorder | yes |
+| Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain, its recorder and its motion planner | each robot's initializer, backbone, rig, brain, recorder and motion planner | yes |
 | Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the check and the apply of a world, a workflow run in one and the judges that check it | the simulation, and for its worlds the applier of worlds, `sim_harness_inst` | no |
 
 The four URLs are the stack's: the same for one robot or ten, and the same before and after any join or removal, so a client registers them once. A model reads four `instructions` blocks. The framework's says it controls the stack of nodes, not the world and not the motion of a robot, and that a halt is not a motion and not a safety function; the robots' says it is the robots' own surface and names no other endpoint, so a client of the physical robots reads it alone; the simulated world's says it configures a simulated world and, through its world target, applies worlds and runs workflows in it, with no effect on and no counterpart in the physical robot; the workflows' says it runs workflows on the robots, not the world, and moves a robot only through a run.
@@ -385,7 +385,7 @@ The robots' endpoint is the same document, `robot_control:v1`, whether a backbon
 
 ```sh
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha@jetson-1 --with v2,cameras
+peppy stack join openarm:alpha@jetson-1 --with v2,cameras,motion_planner
 peppy stack join so101:bravo --with robot_commander=none,cameras
 ```
 
@@ -495,7 +495,7 @@ peppy stack launch simulation_mcp --join openarm_sim:alpha --with mujoco,world_c
 peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha --with v2,cameras
+peppy stack join openarm:alpha --with v2,cameras,motion_planner
 ```
 
 The first is the browser scene commander on Waldo with `alpha` under the browser panel: the scene panel, the lighting, daylight and materials panels the scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's four endpoints, the headset and `alpha`, named at launch, with no browser panel. The third adds the browser scene commander beside them, and with the rendered rig running its page carries the camera panel too, listing the same three relays the robots' endpoint serves. The fourth is the robots' and the framework's endpoints, under MuJoCo. The fifth is the same robot on the `openarm_simulation` launcher, selected by launch words and under its browser panel: the robots' endpoint and the fleet and the halt of the framework's, since the simulated world's axis, the robots that the framework's endpoint adds and the deployed headset are this launcher's. The sixth is a simulated SO-101 on its own launcher, its arm and wrist camera on the robots' endpoint. The last two are the real robot, the robots' endpoint with the three physical cameras behind it, and the fleet and the halt of the framework's endpoint.

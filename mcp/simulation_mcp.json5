@@ -7,12 +7,12 @@
     "http://127.0.0.1:8904/workflow_controls/v1/mcp: the workflows: the check of a workflow and its runs on the robots of the stack, under robot leases.",
     "http://127.0.0.1:8902/simulation/v1/mcp: the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the apply of one, a workflow run in one and the judges that check it.",
     "http://127.0.0.1:8900/robot_control/v1/mcp: every robot of the stack: its identity, guide, moves, limbs, cameras, workspace, brain, recorder and motion planner, each call naming its robot.",
-    "The robots' endpoint is the robot_control axis every launcher with robots carries; this launcher deploys it, and the other launchers serve it with `--with robot_control`. Every robot beside it is listed with its identity, its guide, its limb state, its moves and where its design lets it work, with its recorder whenever it runs, its rig's cameras, its brain's tools and an OpenArm v2's motion planner, at launch or by a later join, and a removal takes them out.",
+    "The robots' endpoint is the robot_control axis every launcher with robots carries; this launcher deploys it, and the other launchers serve it with `--with robot_control`. Every robot beside it is listed with its identity, its guide, its limb state, its moves and where its design lets it work, with its recorder whenever it runs, its rig's cameras, its brain's tools and its motion planner's, at launch or by a later join, and a removal takes them out.",
     "The framework's endpoint comes with it, on the same option, as in every launcher with robots: stack.list, stack.join and stack.remove add and remove the robots of the scope this launcher gives, its two robot options, up to four robots on the stack, each robot on the machine of the federation the client names, and fleet.list and fleet.halt read the fleet of the stack and halt the stack. The scope offers no feature: a robot comes up as the entry of its option selects it. The launch builds on its machine the nodes of each of these robots before it starts anything, so a robot that a client adds on this machine builds nothing, and one on another machine builds there when it joins; `--no-prebuild` builds only what the launch starts.",
     "Each OpenArm has the router brain, vlm_router_brain, on Gemini Robotics-ER for both of its roles, perception and manipulation, at launch and in each join. A launch that can start an OpenArm, with the robots' endpoint, whose stack.join adds OpenArms, or with an OpenArm in `--join`, needs GEMINI_API_KEY in the shell that launches, and is refused without it before it builds anything; the daemon keeps the key and gives it to the brain of each OpenArm that a later join starts. A launch with `robot_control=none` and no OpenArm in `--join` needs no key. The brain takes the key from the launch, so it runs on the coordinator: an OpenArm on another machine joins with `vlm_router_brain@self`, and stack.join adds an OpenArm on the coordinator only. The word ai_brain_vla in a join replaces the router brain, and that join builds ai_brain_vla, which the launch does not build. A switch of the brain to a model of another provider fails, since this launcher gives the brain no other key.",
     "The world's endpoint is this launcher's own world_control axis, deployed with a `none` option, with the workflow director and the workflows' endpoint beside it: Waldo alone implements the object controls, lighting, daylight, materials, view, clock, workspace and sensor streams contracts it binds, and the simulation world contract of its applier of worlds, so this launcher refuses it under any other engine, and `--with mujoco,world_control=none` is the robots' and the framework's endpoints under MuJoCo. The four URLs are the same with no robot, one or ten and before and after any join, so a client registers them once, and all four run while no robot stands in the simulation.",
     "The stack's headset is this launcher's headset axis, deployed with a `none` option: one xr_commander that every robot without a commander of its own pairs into, its page opened from Waldo's headset panel; the robot it drives is chosen on that page. An MCP client and the headset share the robots through the robot leases: a squeeze takes the lease of the robot and stops the moves in flight on it, and while the headset holds a robot the stack refuses a client's move on it with `leased`, naming the headset.",
-    "What this launcher adds to openarm_simulation: the robots' and the framework's endpoints deployed, the world's endpoint on its own axis, the headset deployed, rendering on from the launch, no robot listed, and its robot entries: for each option no commander of its own and the rendered rig, and for the OpenArm the router brain, so every robot named on the command line, at launch with `--join OPTION:NAME` or later with a plain `stack join`, and every robot stack.join adds, comes up driven over MCP and from the headset with its cameras, listed on the same URL when the join returns. A launch or a join of a simulated robot returns only once the simulation stands the robot. A robot that stack.join adds stands on a free floor spot, and workspace.stand_at on the world's endpoint stands it at a work surface. A v1 OpenArm, which the simulations render no rig for, joins with `--with v1,camera_rig=none`. The stacks this launcher is meant for, and the same client on the real robots, are in mcp/README.md of launchers-hub.",
+    "What this launcher adds to openarm_simulation: the robots' and the framework's endpoints deployed, the world's endpoint on its own axis, the headset deployed, rendering on from the launch, no robot listed, and its robot entries: for each option no commander of its own and the rendered rig, and for the OpenArm the router brain and the motion planner, so every robot named on the command line, at launch with `--join OPTION:NAME` or later with a plain `stack join`, and every robot stack.join adds, comes up driven over MCP and from the headset with its cameras, listed on the same URL when the join returns. A launch or a join of a simulated robot returns only once the simulation stands the robot. A robot that stack.join adds stands on a free floor spot, and workspace.stand_at on the world's endpoint stands it at a work surface. A v1 OpenArm joins with `--with v1,camera_rig=none,motion_planner=none`: the simulations render a rig on a v2 alone, and the motion planner plans for a v2 alone. The stacks this launcher is meant for, and the same client on the real robots, are in mcp/README.md of launchers-hub.",
     "`peppy stack launch simulation_mcp`: Waldo and the four endpoints, no robot.",
     "`peppy stack launch simulation_mcp --join openarm_sim:alpha`: an OpenArm v2 over MCP.",
     "`peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie`: an OpenArm and an SO-101.",
@@ -129,8 +129,8 @@
             // The brain's tools, listed beside the moves.
             { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
-            // A v2's motion planner: its tools listed beside the moves.
-            { target: "robot_control_inst", when: { hardware_version: "v2" },
+            // The motion planner's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { motion_planner: "motion_planner" },
               add_links: { planner: ["planner_inst"] } },
             // The simulated robot's brain sees through the chest camera the
             // rendered rig binds, color and depth from one producer; a brain
@@ -174,7 +174,7 @@
               set_arguments: { perception_model: "gemini-robotics-er-2-preview", manipulation_model: "gemini-robotics-er-2-preview" },
               set_env_from_launch: ["GEMINI_API_KEY"] },
             // The planner maps what the rig's chest camera sees.
-            { target: "planner_inst", when: { hardware_version: "v2", camera_rig: "cameras_sim" },
+            { target: "planner_inst", when: { motion_planner: "motion_planner", camera_rig: "cameras_sim" },
               set_links: { camera: "chest", geometry: "chest" } },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
@@ -257,11 +257,12 @@
     { teleop: "xr_commander" },
     {
       robot: "openarm_sim",
-      // Every OpenArm has the router brain, at launch and in each join, so
-      // no client adds one without a brain. A v1, which the simulations
-      // render no rig for, joins with `stack join openarm_sim:bravo --with
-      // v1,camera_rig=none`.
-      with: { robot_commander: "none", camera_rig: "cameras_sim", brain: "vlm_router_brain" },
+      // Every OpenArm has the router brain and the motion planner, at launch
+      // and in each join, so no client adds one without them. A v1 joins
+      // with `stack join openarm_sim:bravo --with
+      // v1,camera_rig=none,motion_planner=none`: the simulations render a
+      // rig on a v2 alone, and the motion planner plans for a v2 alone.
+      with: { robot_commander: "none", camera_rig: "cameras_sim", brain: "vlm_router_brain", motion_planner: "motion_planner" },
     },
     {
       robot: "so101_sim",
@@ -312,7 +313,7 @@
         max_copies: 4,
         options: [
           { option: "openarm_sim", model: "openarm_v2",
-            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest, a camera on each wrist and a brain on a hosted model" },
+            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest, a camera on each wrist, a brain on a hosted model and a motion planner" },
           { option: "so101_sim", model: "so101",
             description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
         ],

@@ -8,19 +8,20 @@
     "http://127.0.0.1:8902/simulation/v1/mcp: the simulated world: the scene, its objects' controls, its light sources, its materials, its views, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the apply of one, a workflow run in one and the judges that check it.",
     "http://127.0.0.1:8900/robot_control/v1/mcp: every robot of the stack: its identity, guide, moves, limbs, cameras, workspace, brain and recorder, each call naming its robot.",
     "The robots' endpoint is the robot_control axis every launcher with robots carries; this launcher deploys it, and the other launchers serve it with `--with robot_control`. Every robot beside it is listed with its identity, its guide, its limb state, its moves and where its design lets it work, with its recorder whenever it runs, its rig's cameras and its brain's tools, at launch or by a later join, and a removal takes them out.",
-    "The framework's endpoint comes with it, on the same option, as in every launcher with robots: stack.list, stack.join and stack.remove add and remove the robots of the scope this launcher gives, its two robot options with the features each offers, up to four robots on the stack, each robot and each feature on the machine of the federation the client names, and fleet.list and fleet.halt read the fleet of the stack and halt the stack. The launch builds on its machine the nodes of each of these robots with each set of its features before it starts anything, so a robot or a feature that a client adds on this machine builds nothing, and one on another machine builds there when it joins; `--no-prebuild` builds only what the launch starts.",
+    "The framework's endpoint comes with it, on the same option, as in every launcher with robots: stack.list, stack.join and stack.remove add and remove the robots of the scope this launcher gives, its two robot options, up to four robots on the stack, each robot on the machine of the federation the client names, and fleet.list and fleet.halt read the fleet of the stack and halt the stack. The scope offers no feature: a robot comes up as the entry of its option selects it. The launch builds on its machine the nodes of each of these robots before it starts anything, so a robot that a client adds on this machine builds nothing, and one on another machine builds there when it joins; `--no-prebuild` builds only what the launch starts.",
+    "Each OpenArm has the router brain, vlm_router_brain, on Gemini Robotics-ER for both of its roles, perception and manipulation, at launch and in each join. A launch that can start an OpenArm, with the robots' endpoint, whose stack.join adds OpenArms, or with an OpenArm in `--join`, needs GEMINI_API_KEY in the shell that launches, and is refused without it before it builds anything; the daemon keeps the key and gives it to the brain of each OpenArm that a later join starts. A launch with `robot_control=none` and no OpenArm in `--join` needs no key. The brain takes the key from the launch, so it runs on the coordinator: an OpenArm on another machine joins with `vlm_router_brain@self`, and stack.join adds an OpenArm on the coordinator only. The word ai_brain_vla in a join replaces the router brain, and that join builds ai_brain_vla, which the launch does not build. A switch of the brain to a model of another provider fails, since this launcher gives the brain no other key.",
     "The world's endpoint is this launcher's own world_control axis, deployed with a `none` option, with the workflow director and the workflows' endpoint beside it: Waldo alone implements the object controls, lighting, daylight, materials, view, clock, workspace and sensor streams contracts it binds, and the simulation world contract of its applier of worlds, so this launcher refuses it under any other engine, and `--with mujoco,world_control=none` is the robots' and the framework's endpoints under MuJoCo. The four URLs are the same with no robot, one or ten and before and after any join, so a client registers them once, and all four run while no robot stands in the simulation.",
     "The stack's headset is this launcher's headset axis, deployed with a `none` option: one xr_commander that every robot without a commander of its own pairs into, its page opened from Waldo's headset panel; the robot it drives is chosen on that page. An MCP client and the headset share the robots through the robot leases: a squeeze takes the lease of the robot and stops the moves in flight on it, and while the headset holds a robot the stack refuses a client's move on it with `leased`, naming the headset.",
-    "What this launcher adds to openarm_simulation: the robots' and the framework's endpoints deployed, the world's endpoint on its own axis, the headset deployed, rendering on from the launch, no robot listed, and its robot entries: for each option no commander of its own and the rendered rig, so every robot named on the command line, at launch with `--join OPTION:NAME` or later with a plain `stack join`, and every robot stack.join adds, comes up driven over MCP and from the headset with its cameras, listed on the same URL when the join returns. A launch or a join of a simulated robot returns only once the simulation stands the robot. A robot that stack.join adds stands on a free floor spot, and workspace.stand_at on the world's endpoint stands it at a work surface. A v1 OpenArm, which the simulations render no rig for, joins with `--with v1,camera_rig=none`. The stacks this launcher is meant for, and the same client on the real robots, are in mcp/README.md of launchers-hub.",
+    "What this launcher adds to openarm_simulation: the robots' and the framework's endpoints deployed, the world's endpoint on its own axis, the headset deployed, rendering on from the launch, no robot listed, and its robot entries: for each option no commander of its own and the rendered rig, and for the OpenArm the router brain, so every robot named on the command line, at launch with `--join OPTION:NAME` or later with a plain `stack join`, and every robot stack.join adds, comes up driven over MCP and from the headset with its cameras, listed on the same URL when the join returns. A launch or a join of a simulated robot returns only once the simulation stands the robot. A robot that stack.join adds stands on a free floor spot, and workspace.stand_at on the world's endpoint stands it at a work surface. A v1 OpenArm, which the simulations render no rig for, joins with `--with v1,camera_rig=none`. The stacks this launcher is meant for, and the same client on the real robots, are in mcp/README.md of launchers-hub.",
     "`peppy stack launch simulation_mcp`: Waldo and the four endpoints, no robot.",
     "`peppy stack launch simulation_mcp --join openarm_sim:alpha`: an OpenArm v2 over MCP.",
     "`peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie`: an OpenArm and an SO-101.",
     "`peppy stack launch simulation_mcp --with mujoco,world_control=none`: the robots' and the framework's endpoints, under MuJoCo.",
     "`peppy stack join openarm_sim:bravo`: an OpenArm, on the same URL when the join returns.",
-    "`peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box`: an OpenArm here, its brain on the machine cn-gpu-box.",
-    "`peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box`: an OpenArm named at launch, its brain on cn-gpu-box.",
+    "`peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box`: an OpenArm here, with ai_brain_vla in place of the router brain, on the machine cn-gpu-box.",
+    "`peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box`: an OpenArm named at launch, with ai_brain_vla on cn-gpu-box.",
     "`peppy stack remove alpha`: the endpoints keep running.",
-    "A `--with` word on a join wins on its own axis and the entry's other axes stay selected: `--with web_commander` puts that robot under its own browser panel; the headset does not drive it. `--join openarm_sim:alpha --with robot_control=none,teleop=none,alpha.web_commander,alpha.lerobot_recorder` on the launch is the world's endpoint alone, alpha under the browser panel with the recorder filming its rig. A robot runs on the machine its name is placed on, `OPTION:NAME@CORE_NODE`, else on the coordinator, and a word with a machine runs the part of the robot it selects there: `ai_brain_vla@cn-gpu-box` runs the brain on cn-gpu-box, and `NAME.ai_brain_vla@cn-gpu-box` does so at launch.",
+    "A `--with` word on a join wins on its own axis and the entry's other axes stay selected: `--with web_commander` puts that robot under its own browser panel; the headset does not drive it. `--join openarm_sim:alpha --with robot_control=none,teleop=none,alpha.web_commander,alpha.lerobot_recorder` on the launch is the world's endpoint alone, alpha under the browser panel with the recorder filming its rig. A robot runs on the machine its name is placed on, `OPTION:NAME@CORE_NODE`, else on the coordinator, and a word with a machine runs the part of the robot it selects there: `ai_brain_vla@cn-gpu-box` runs the brain on cn-gpu-box, and `NAME.ai_brain_vla@cn-gpu-box` does so at launch. `stack join openarm_sim:golf@cn-jetson-1 --with vlm_router_brain@self` runs golf on cn-jetson-1 and its router brain on the coordinator.",
   ],
 
   components: [
@@ -145,7 +146,6 @@
             // names by words alone. vlm_router_brain asks a hosted model
             // instead, with the key the launching shell exports, and needs
             // no GPU.
-            // perception_model: the node's own default applies (see the node's peppy.json5, parameter perception_model).
             { target: "brain_inst", when: { brain: "ai_brain_vla", simulation: "waldo" },
               set_arguments: { perception_gallery: "waldo_catalogue" } },
             { target: "brain_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"], camera_rig: "cameras_sim" },
@@ -155,13 +155,21 @@
             // each arm's camera by these instance ids.
             { target: "brain_inst", when: { brain: "vlm_router_brain", camera_rig: "cameras_sim" },
               add_links: { wrist_cameras: ["wrist_left", "wrist_right"] } },
-            // The router brain aligns its grab and its place with a catalog
-            // model, which looks through the arm's wrist camera and the chest
-            // camera above the item or the spot before the descent; it needs
-            // OPENROUTER_API_KEY in the launching shell. The node's own
-            // default, "scripted", moves with no model call.
+            // The router brain runs on Gemini Robotics-ER for both of its
+            // roles: it finds the items, and it aligns its grab and its place,
+            // looking through the arm's wrist camera and the chest camera
+            // above the item or the spot before the descent. The launcher
+            // writes the perception model too, although it is the node's own
+            // default, so a change of that default does not change the brain
+            // of this stack. The key of the provider of both models comes
+            // from the shell that launches: the daemon keeps it and gives it
+            // to the brain of each OpenArm that a launch or a join starts, so
+            // a launch that can start one is refused without it. The brain
+            // receives no other key, so a switch of a model to one of another
+            // provider fails.
             { target: "brain_inst", when: { brain: "vlm_router_brain" },
-              set_arguments: { manipulation_model: "gpt-6-astra" } },
+              set_arguments: { perception_model: "gemini-robotics-er-2-preview", manipulation_model: "gemini-robotics-er-2-preview" },
+              set_env_from_launch: ["GEMINI_API_KEY"] },
             // The recorder films the rig; binding order fixes the dataset's
             // feature order.
             { target: "recorder_inst", when: { camera_rig: "cameras_sim" },
@@ -234,7 +242,7 @@
   // every copy named on the command line, at launch with `--join
   // OPTION:NAME` or later with `stack join`, and every copy stack.join adds
   // on the framework's endpoint, runs no commander of its own, pairs into
-  // the stack's headset and films.
+  // the stack's headset and films, and every OpenArm has the router brain.
   deployments: [
     { simulation: "waldo" },
     { robot_control: "robot_control" },
@@ -242,9 +250,11 @@
     { teleop: "xr_commander" },
     {
       robot: "openarm_sim",
-      // A v1, which the simulations render no rig for, joins with
-      // `stack join openarm_sim:bravo --with v1,camera_rig=none`.
-      with: { robot_commander: "none", camera_rig: "cameras_sim" },
+      // Every OpenArm has the router brain, at launch and in each join, so
+      // no client adds one without a brain. A v1, which the simulations
+      // render no rig for, joins with `stack join openarm_sim:bravo --with
+      // v1,camera_rig=none`.
+      with: { robot_commander: "none", camera_rig: "cameras_sim", brain: "vlm_router_brain" },
     },
     {
       robot: "so101_sim",
@@ -281,30 +291,21 @@
     // tool reports a stance before the robot stands, up to four robots on
     // the stack. Every copy renders its cameras, and a furnished scene has
     // three work surfaces 1.5 m apart.
-    // An option also lists its features: each selects one option of one of
-    // the robot's own axes that brings a node, with one line that says what
-    // it adds, so the client adds it when its task needs it. The OpenArm
-    // offers its brain; the SO-101 has no brain axis, so it offers no
-    // feature. stack.join adds a robot of an option with the features it
-    // names, as `peppy stack join` does with their words, each on its
-    // machine: the robot on the machine the client names for it, and each
-    // feature on the machine the client names for that feature. So a brain
-    // can run on another machine than its robot, for example one with an
-    // NVIDIA GPU. stack.list lists each robot with its features and their
-    // machines, whether the client or the command line added it. The fleet
-    // target keeps the scope that the endpoint's fragment gives it. The
-    // applier of worlds adds and removes the same robots beside the same
-    // endpoint, so it takes the same scope.
+    // No option offers a feature: a robot comes up as the entry of its
+    // option selects it, so every OpenArm has its brain, which its line
+    // says, and no client adds one without it. stack.join adds a robot on
+    // the machine the client names for it; the OpenArm's brain takes a
+    // launch variable, so an OpenArm runs on the coordinator only.
+    // stack.list lists each robot with its machine, whether the client or
+    // the command line added it. The fleet target keeps the scope that the
+    // endpoint's fragment gives it. The applier of worlds adds and removes
+    // the same robots beside the same endpoint, so it takes the same scope.
     { target: ["framework_controls_inst", "sim_harness_inst"], when: { robot_control: "robot_control" },
       set_daemon_scopes: { stack: {
         max_copies: 4,
         options: [
           { option: "openarm_sim", model: "openarm_v2",
-            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest and a camera on each wrist",
-            features: [
-              { feature: "ai_brain", axis: "brain", option: "ai_brain_vla",
-                description: "An AI brain that finds and names items by words, then grabs and places them; it runs slowly without an NVIDIA GPU on its machine" },
-            ] },
+            description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest, a camera on each wrist and a brain on a hosted model" },
           { option: "so101_sim", model: "so101",
             description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
         ],

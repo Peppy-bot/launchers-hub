@@ -83,7 +83,7 @@ peppy stack launch simulation_mcp                                           # Wa
 peppy stack launch simulation_mcp --join openarm_sim:alpha                  # alpha, an OpenArm v2 over MCP
 peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie   # alpha and an SO-101 over MCP
 peppy stack join openarm_sim:bravo                                          # a second OpenArm, listed on the same URL when the join returns
-peppy stack join openarm_sim:echo --with ai_brain_vla@cn-gpu-box            # an OpenArm here, its brain on the machine cn-gpu-box
+peppy stack join openarm_sim:echo --with ai_brain_vla@cn-gpu-box            # an OpenArm here, with ai_brain_vla on cn-gpu-box in place of its router brain
 peppy stack join so101_sim:delta                                            # an SO-101, its arm and wrist camera on the same URL
 ```
 
@@ -97,7 +97,9 @@ its scene from the models standing in it.
 These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
 requires access to its private node repository; MuJoCo and Isaac Sim are in
-nodes-hub. Run join and remove on the coordinator, locally or with
+nodes-hub. Every OpenArm of `simulation_mcp` has the router brain, whose key
+`GEMINI_API_KEY` the shell that launches exports: a launch of it that can
+start an OpenArm is refused without the key ([mcp/README.md](mcp/README.md)). Run join and remove on the coordinator, locally or with
 `--core-node NAME`. A copy runs on the machine its name is placed on:
 `OPTION:NAME@CORE_NODE` on `stack join` and on `--join`, and `--place
 NAME@CORE_NODE` for a copy the launcher's file lists, else the
@@ -123,7 +125,7 @@ discovery and host setup.
 | `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`) and `none` (deployed by `so101_sim`), no commander of its own: the stack's headset leads the arm with its right hand when the stack runs one, and actions alone drive it otherwise. The axis declares `role: "robot_commander"`, as on an OpenArm |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or of the stack's headset leading the robot, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated one, which the simulations render on v2 links only; either gives a v2's backbone the chest camera's geometry for its workspace answers; requires a consumer: a recorder, the `robot_control` endpoint, which lists the cameras, the stack's headset leading the robot, or on a simulated v2 the brain, which looks through the chest camera |
-| `brain` | an OpenArm | `ai_brain_vla`, whose tools are listed under the robot's name on the `robot_control` endpoint; it runs on the copy's machine, or on the machine its word names (`ai_brain_vla@cn-gpu-box`), and `simulation_mcp.json5` offers it on the framework's endpoint as the feature `ai_brain` of `openarm_sim` |
+| `brain` | an OpenArm | `ai_brain_vla`, whose models run on the GPU of its machine, and `vlm_router_brain`, whose models are hosted vision-language models; the tools of either are listed under the robot's name on the `robot_control` endpoint, and either runs on the copy's machine, or on the machine its word names (`ai_brain_vla@cn-gpu-box`). `simulation_mcp.json5` gives every `openarm_sim` copy `vlm_router_brain` from its entry, with `GEMINI_API_KEY` from the shell that launches, so that brain runs on the coordinator |
 
 A copy selects one option per axis of its robot. `stack resolve` previews a
 launch and each copy it names, in order, without starting nodes:

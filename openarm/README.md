@@ -175,11 +175,13 @@ episodes. The brain runs on the copy's machine, or on the machine its word
 names: `--with
 ai_brain_vla@cn-gpu-box` runs it on `cn-gpu-box`, a machine with an NVIDIA
 GPU for its perception models, and the rest of the robot on its own
-machine. `simulation_mcp` offers `ai_brain_vla` as the brain of `openarm_sim`
-on its framework's endpoint, the feature `ai_brain`, which a client adds on
-the machine it names; a feature names one option of an axis, so
-`vlm_router_brain` is selected on the command line, `--with
-alpha.vlm_router_brain`.
+machine. `simulation_mcp` gives every `openarm_sim` copy `vlm_router_brain`
+from its entry, on Gemini Robotics-ER for perception and manipulation, and
+names `GEMINI_API_KEY` as a launch variable of the brain: the daemon takes
+it from the shell that launches and gives it to the brain of each OpenArm
+that a later join starts, and a brain with a launch variable runs on the
+coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
+router brain.
 
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras

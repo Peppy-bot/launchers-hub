@@ -65,6 +65,10 @@ name: Tests
 # stays green. A resolve refusing the daemon scopes fails the job as a broken
 # launcher, whatever constraint text the refusal quotes. The
 # launches picked among the launchable ones are the plan `launch` runs.
+# The resolve also names the launch variables each launch needs from the
+# shell that launches; for each launcher with planned launches whose
+# combinations need any, the plan holds one more launch of it, run without
+# them, which must be refused.
 # `launch` checks out the commit `discover` planned from, installs peppy,
 # boots one isolated daemon, whose registry resolves a launcher by name to
 # this checkout, and runs the planned launches one after the other: `peppy
@@ -72,12 +76,17 @@ name: Tests
 # container image, and runs it, returning only once every node has ended its
 # setup. A launch of `simulation_mcp` also builds, and starts none of, the
 # nodes of each robot and feature its framework endpoint's scope offers, so
-# a later join of one of them builds nothing. A simulated robot's initializer ends its setup when the simulation
+# a later join of one of them builds nothing. Before any launch, the job runs
+# each refused launch of the plan without the launch variables it needs: it
+# must be refused, with a message that names each of them, and the stack
+# must hold the nodes it held before, so the launch added and built none. A simulated robot's initializer ends its setup when the simulation
 # stands the robot, so a launch or a join of a simulated robot returns only
 # once the robot stands. A launch that plans a join then runs `peppy stack
 # join`, plain or with its words, beside whatever copies the file deploys:
 # two robots side by side where it deploys one, and the scene's first robot
-# where it deploys none. One join per launch is what a plan carries, so a
+# where it deploys none. The join runs without the launch variables its
+# launcher names, so each instance it starts takes them from the values the
+# daemon kept from the launch. One join per launch is what a plan carries, so a
 # simulation standing three robots or more is proven by hand and not here.
 # The joined copy is held to the instances its preview gave it. `peppy stack
 # list` then records what came up and `peppy stack reset` hands the next
@@ -219,6 +228,7 @@ jobs:
       contents: read
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
+      launches: ${{ steps.plan.outputs.launches }}
       commit: ${{ steps.checkout.outputs.commit }}
     steps:
       # The commit under test: the launchers-hub commit of the set a
@@ -419,7 +429,10 @@ jobs:
       # exposure document it could not read, unless the step above set
       # LINK_RULES_UNPROVABLE and the link rules alone went unchecked, when
       # those combinations pass, stay out of the plan, and are listed in the
-      # run summary under that reason.
+      # run summary under that reason. The plan also holds a refused launch
+      # for each launcher with planned launches whose combinations need
+      # launch variables. The step's output `launches` says whether the plan
+      # holds a launch.
       - name: Plan the combinations this run launches
         id: plan
         if: steps.scope.outputs.any == 'true'
@@ -438,7 +451,7 @@ jobs:
     # A documentation-only change plans nothing: no plan, no launch job, and
     # the run is green without booting a daemon; so does a change that moves
     # no launchable combination's plan.
-    if: needs.discover.outputs.plan != '' && needs.discover.outputs.plan != '[]'
+    if: needs.discover.outputs.launches == 'true'
     # 8 vCPU with 16 or 32 GB (a full launch peaks near 10 GB) on the AMD
     # families c8a, c7a, m8a and m7a, where one vCPU is a full core. The
     # launches run one after the other: with the node images in the cache a
@@ -686,10 +699,12 @@ jobs:
       - name: Fill the caches the launches resolve against
         run: peppy repo refresh --strict
 
-      # Every planned launch, one after the other on the daemon above: launch
-      # the combination, join its copy where it plans one, beside the copies
-      # the file deploys, record the resulting stack, and
-      # reset it for the next launch. Each launch has a log group of its own
+      # Every refused launch of the plan, then every planned launch, one after
+      # the other on the daemon above. A refused launch runs without the
+      # launch variables it needs and must be refused before any build. A
+      # planned launch launches the combination, joins its copy where it
+      # plans one, beside the copies the file deploys, records the resulting
+      # stack, and resets it for the next launch. Each launch has a log group of its own
       # under its label; a failed one is annotated, the stack is reset, and
       # the run goes on, so a red run names every failing combination. The
       # run summary lists every launch with its outcome, and the wall time
@@ -702,14 +717,17 @@ jobs:
       # reads instead of source the shell parses.
       #
       # vlm_router_brain stops at its start when no key reaches a model it
-      # starts on: Gemini Robotics-ER for perception, whose key is
-      # GEMINI_API_KEY, and gpt-6-astra for manipulation, whose key is
-      # OPENROUTER_API_KEY. A launch and a join forward their environment to
-      # the nodes they start, so both keys are set here. Their values are
-      # placeholders: the brain's start only checks that each key is set,
-      # its first search or grab is its first call to the provider, and no
-      # launch here runs one. So no real key is needed, and a pull request
-      # from a fork, which is given no secrets, launches the brain as well.
+      # starts on: Gemini Robotics-ER, whose key is GEMINI_API_KEY, and
+      # gpt-6-astra, whose key is OPENROUTER_API_KEY. A launch forwards its
+      # environment to the nodes it starts, so both keys are set here. A
+      # join of a launcher that names launch variables runs without them,
+      # and simulation_mcp names GEMINI_API_KEY, so the brain of each OpenArm
+      # that such a join starts gets the key that the daemon kept from the
+      # launch. The values are placeholders: the brain's start only checks
+      # that each key is set, its first search or grab is its first call to
+      # the provider, and no launch here runs one. So no real key is needed,
+      # and a pull request from a fork, which is given no secrets, launches
+      # the brain as well.
       - name: Launch every planned combination start to end
         env:
           PLAN: ${{ needs.discover.outputs.plan }}

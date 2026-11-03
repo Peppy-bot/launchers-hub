@@ -47,6 +47,17 @@ def completed(stdout="", returncode=0, stderr=""):
     return combinations.subprocess.CompletedProcess([], returncode, stdout, stderr)
 
 
+def needing(answer, *variables):
+    """`answer` with the report lines of `stack resolve` that say the launch
+    needs each of `variables` from the shell that launches."""
+    report = "".join(
+        f"launch variables: the launch needs `{variable}` from the shell that launches: "
+        "`brain_inst` takes it from the launch, and the launch starts it\n"
+        for variable in variables
+    )
+    return completed(answer.stdout, answer.returncode, answer.stderr + report)
+
+
 def simulation_axis(*simulations):
     return {"name": "simulation", "options": {simulation: {} for simulation in simulations}}
 
@@ -132,7 +143,17 @@ def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base
     answering `answers`, `base_answers` for the base tree a changed scope
     compares against, and `unprovable` for what the step that fills the caches
     reports about them: the fake resolve, the labels of the planned launches,
-    the plan and the run summary."""
+    those launches and the run summary."""
+    with planned_whole(launchers, answers, scope, base_launchers, base_answers, unprovable) \
+            as (resolve, plan, summary, _outputs):
+        yield resolve, [launch.label for launch in plan.launches], plan.launches, summary
+
+
+@contextlib.contextmanager
+def planned_whole(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base_answers=None,
+                  unprovable=""):
+    """`planned`, which yields the fake resolve, the whole plan, refused
+    launches included, the run summary and the step outputs."""
     with tempfile.TemporaryDirectory() as directory:
         head = Path(directory) / "head"
         write_repository(head, launchers)
@@ -146,15 +167,16 @@ def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base
         skips.write_text('[{ node: "zed_camera", reason: "the runner has no ZED camera" }]')
         plan_path = Path(directory) / "plan.json"
         summary = Path(directory) / "summary.md"
+        outputs = Path(directory) / "outputs"
         resolve = FakeResolve(head=answers or {}, base=base_answers or {})
         with patch.object(combinations.subprocess, "run", resolve), \
                 patch.dict(combinations.os.environ, {
                     "GITHUB_STEP_SUMMARY": str(summary),
+                    "GITHUB_OUTPUT": str(outputs),
                     combinations.LINK_RULES_UNPROVABLE: unprovable,
                 }):
             combinations.command_plan(head, scope_path, base, skips, plan_path)
-        plan = combinations.read_plan(plan_path)
-        yield resolve, [launch.label for launch in plan], plan, summary.read_text()
+        yield resolve, combinations.read_plan(plan_path), summary.read_text(), outputs.read_text()
 
 
 #: The stack's one server, every robot is listed on.
@@ -202,6 +224,24 @@ HEADSET_WIRING = [
     {"target": HEADSET, "when": {"simulation": "waldo", "teleop": "xr_commander"},
      "set_links": {"sensor_streams": "simulation_inst"}},
 ]
+#: The adjustment that sets the models of the router brain in each launcher
+#: with OpenArms. The MCP launcher runs both roles on Gemini Robotics-ER and
+#: names the key of its provider as a launch variable of the brain; the
+#: others align the grab and the place with gpt-6-astra, and the brain reads
+#: its keys from the environment of the launch or the join that starts it.
+ROUTER_BRAIN_MODELS = {
+    path: {"target": "brain_inst", "when": {"brain": "vlm_router_brain"},
+           "set_arguments": {"manipulation_model": "gpt-6-astra"}}
+    for path in ROBOT_LAUNCHERS
+} | {
+    "mcp/simulation_mcp.json5": {
+        "target": "brain_inst", "when": {"brain": "vlm_router_brain"},
+        "set_arguments": {"perception_model": "gemini-robotics-er-2-preview",
+                          "manipulation_model": "gemini-robotics-er-2-preview"},
+        "set_env_from_launch": ["GEMINI_API_KEY"],
+    },
+}
+
 #: Waldo's arguments the fragment alone sets: the scene it opens, its debug
 #: inspector and its plugins. No adjustment of a launcher writes them.
 WALDO_PINNED_ARGUMENTS = frozenset({"scene", "debug_inspector", "plugins"})
@@ -391,9 +431,12 @@ class SharedRobotBlockTests(unittest.TestCase):
             for option in ROBOT_LAUNCHERS[path]:
                 entries = robot_option(document, option).get("adjustments", [])
                 # The simulation is the launcher's own instance: only the MCP
-                # launcher turns its rendering on at the top level.
+                # launcher turns its rendering on at the top level. The
+                # models of the router brain are the launcher's own, and
+                # ROUTER_BRAIN_MODELS holds each launcher to them.
                 blocks[option][path] = [
-                    entry for entry in entries if entry["target"] != "simulation_inst"
+                    entry for entry in entries
+                    if entry["target"] != "simulation_inst" and entry not in ROUTER_BRAIN_MODELS.values()
                 ]
         for option, per_launcher in sorted(blocks.items()):
             first, *rest = sorted(per_launcher)
@@ -504,6 +547,29 @@ class OptionShapeTests(unittest.TestCase):
                  {"option": "arm", "description": "A simulated arm"}]}}},
         ]}
         self.assertEqual(self.parts(spec), ["fragments/a.json5"])
+
+    def test_the_launch_variables_of_a_target_are_an_operation_an_empty_list_included(self):
+        # An empty list takes every launch variable from the target, so peppy
+        # counts it as an operation.
+        for variables in (["GEMINI_API_KEY"], ["GEMINI_API_KEY", "OPENROUTER_API_KEY"], []):
+            with self.subTest(variables=variables):
+                spec = {"fragments": ["fragments/a.json5"], "adjustments": [
+                    {"target": "brain_inst", "set_env_from_launch": variables}]}
+                self.assertEqual(self.parts(spec), ["fragments/a.json5"])
+
+    def test_launch_variables_are_a_list_of_distinct_names(self):
+        for variables, refusal in (
+            ("GEMINI_API_KEY", "writes `set_env_from_launch` as a list of variable names"),
+            ([""], "writes `set_env_from_launch` as a list of variable names"),
+            ([7], "writes `set_env_from_launch` as a list of variable names"),
+            (["GEMINI_API_KEY", "GEMINI_API_KEY"], "names one launch variable twice"),
+        ):
+            with self.subTest(variables=variables):
+                spec = {"fragments": ["fragments/a.json5"], "adjustments": [
+                    {"target": "brain_inst", "set_env_from_launch": variables}]}
+                with self.assertRaises(combinations.Json5Error) as raised:
+                    self.parts(spec)
+                self.assertIn(refusal, str(raised.exception))
 
     def test_an_adjustment_target_is_one_instance_or_a_list_of_distinct_ones(self):
         # As peppy reads it: a list names each instance once, each an id.
@@ -1140,10 +1206,9 @@ class CombinationsTests(unittest.TestCase):
         # keeps the catalogue's name; that is a condition of the simulation,
         # and the robot's brain names by words alone, with no gallery. The
         # router brain also gets the rig's two wrist cameras, through which
-        # its aligning model looks before a grasp, and starts its
-        # manipulation on gpt-6-astra, the catalog model that aligns the grab
-        # and the place.
-        def sees(rig, enrols):
+        # its aligning model looks before a grasp, and starts on the models
+        # its launcher sets (ROUTER_BRAIN_MODELS).
+        def sees(path, rig, enrols):
             writes = []
             if enrols:
                 writes.append({"target": "brain_inst", "when": {"brain": "ai_brain_vla", "simulation": "waldo"},
@@ -1152,8 +1217,7 @@ class CombinationsTests(unittest.TestCase):
                            "set_links": {"camera": "chest", "geometry": "chest"}})
             writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain", "camera_rig": rig},
                            "add_links": {"wrist_cameras": ["wrist_left", "wrist_right"]}})
-            writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain"},
-                           "set_arguments": {"manipulation_model": "gpt-6-astra"}})
+            writes.append(ROUTER_BRAIN_MODELS[path])
             return writes
 
         for path, robots in ROBOT_LAUNCHERS.items():
@@ -1164,7 +1228,8 @@ class CombinationsTests(unittest.TestCase):
                 with self.subTest(path=path, robot=robot):
                     writes = [a for a in robot_option(document, robot)["adjustments"]
                               if a["target"] == "brain_inst" and "set_framework" not in a]
-                    expected = sees("cameras_sim", enrols=True) if robot == "openarm_sim" else sees("cameras", enrols=False)
+                    expected = (sees(path, "cameras_sim", enrols=True) if robot == "openarm_sim"
+                                else sees(path, "cameras", enrols=False))
                     self.assertEqual(writes, expected)
                     for write in writes:
                         self.assertNotIn("perception_gallery", write.get("set_arguments", {}) if robot != "openarm_sim" else {},
@@ -1614,13 +1679,12 @@ class CombinationsTests(unittest.TestCase):
         # robot a plain join of the option adds.
         self.assertEqual({entry["option"]: entry["model"] for entry in scope["options"]},
                          {"openarm_sim": "openarm_v2", "so101_sim": "so101"})
-        # The OpenArm offers its brain as a feature, and the SO-101, which
-        # has no brain axis, offers none.
-        self.assertEqual(
-            {entry["option"]: [(feature["feature"], feature["axis"], feature["option"])
-                               for feature in entry.get("features", [])]
-             for entry in scope["options"]},
-            {"openarm_sim": [("ai_brain", "brain", "ai_brain_vla")], "so101_sim": []})
+        # No option offers a feature: every OpenArm has the brain its entry
+        # selects, which the line of its option says, and the SO-101 has no
+        # brain axis.
+        self.assertEqual({entry["option"]: entry.get("features", []) for entry in scope["options"]},
+                         {"openarm_sim": [], "so101_sim": []})
+        self.assertIn("a brain on a hosted model", scope["options"][0]["description"])
         entries = {entry["robot"]: entry for entry in document["deployments"] if "robot" in entry}
         for entry in scope["options"]:
             with self.subTest(option=entry["option"]):
@@ -2102,13 +2166,15 @@ class CombinationsTests(unittest.TestCase):
             {"simulation": "waldo", "robot_control": "robot_control", "world_control": "world_control",
              "teleop": "xr_commander"})
         # Each robot's entry states, for every copy of the option, no
-        # commander of its own and the rendered rig: the ones `--join
-        # OPTION:NAME` starts with the launch and the ones joined later
-        # without it, a v1 being one the simulations render no rig for. No
-        # entry lists a copy, so the bare launch is the simulation, the two
-        # endpoints and the headset with no robot.
+        # commander of its own and the rendered rig, and for the OpenArm the
+        # router brain: the ones `--join OPTION:NAME` starts with the launch
+        # and the ones joined later without it, a v1 being one the
+        # simulations render no rig for. No entry lists a copy, so the bare
+        # launch is the simulation, the two endpoints and the headset with no
+        # robot.
         self.assertEqual([entry for entry in document["deployments"] if "robot" in entry], [
-            {"robot": "openarm_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim"}},
+            {"robot": "openarm_sim",
+             "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "brain": "vlm_router_brain"}},
             {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim"}},
         ])
         launcher = combinations.read_launcher(root, path)
@@ -2670,7 +2736,7 @@ class SimulatedSo101Tests(unittest.TestCase):
         with patch.object(combinations.subprocess, "run", return_value=answer):
             resolution = combinations.resolve_candidate(ROOT, candidate, self.skips)
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
-        launch = combinations.Launch.of(candidate, resolution)
+        launch = combinations.Launch.of(candidate, resolution, ())
         self.assertEqual(launch.launch_joins, ["so101_sim"])
         self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst", "bravo_wrist"])
         self.assertEqual(
@@ -2685,7 +2751,7 @@ class SimulatedSo101Tests(unittest.TestCase):
                 answer = so101_stack(simulation, so101_copy("alpha"), so101_copy("bravo"))
                 candidate, resolution = self.resolved(answer, words, "so101_sim")
                 self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
-                launch = combinations.Launch.of(candidate, resolution)
+                launch = combinations.Launch.of(candidate, resolution, ())
                 self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst"])
 
     def test_a_leader_arm_is_skipped_as_hardware_the_runner_lacks_and_a_headset_launches(self):
@@ -3030,6 +3096,16 @@ class ScopeTests(unittest.TestCase):
             self.assertIn("1 launchable combinations resolve to the plan the base tree gives them", summary)
             self.assertIn("- sim (simulation=mujoco)", summary)
 
+    def test_a_change_of_the_launch_variables_alone_launches_the_combination(self):
+        # A launch that needs a variable it did not need is refused without
+        # it, so the combination behaves otherwise even where its plan does
+        # not move.
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): needing(resolved_plan("waldo:v1"), "GEMINI_API_KEY")}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1")}
+        with planned(launchers, answers, CHANGED, launchers, base_answers) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=waldo)"])
+
     def test_a_combination_the_base_tree_lacks_is_launched(self):
         with planned({"sim": simulation_launcher("mujoco", "isaac_sim", "waldo")}, scope=CHANGED,
                      base_launchers={"sim": simulation_launcher("mujoco", "isaac_sim")}) as (_, labels, _plan, _summary):
@@ -3075,30 +3151,136 @@ class ScopeTests(unittest.TestCase):
 JOINED_INSTANCES = ["bravo_backbone_inst", "bravo_commander_inst"]
 
 
+class LaunchVariableTests(unittest.TestCase):
+    """The launch variables a resolve names: every join of a launcher that
+    needs any runs without them, and one launch of the launcher runs without
+    them and must be refused."""
+
+    def test_a_resolve_names_each_launch_variable_the_launch_needs_once(self):
+        candidate = combinations.Candidate("sim", "sim.json5", "", "", "", False)
+        answer = completed(resolved_plan("waldo:v1").stdout, stderr=(
+            "launch variables: the launch needs `OPENROUTER_API_KEY` from the shell that launches: "
+            "`brain_inst` takes it from the launch, and the launch starts it\n"
+            "launch variables: the launch needs `GEMINI_API_KEY` from the shell that launches: "
+            "`brain_inst` of option `openarm_sim` takes it from the launch, and stack.join through "
+            "`framework_controls_inst` can add a copy of `openarm_sim`\n"
+            # A placement line names a variable the launch needs too, and
+            # adds none.
+            "launch variables: `alpha_brain_inst` takes `GEMINI_API_KEY` from the launch and a word "
+            "places it on `cn-peer`, so the launch refuses it unless `cn-peer` is the coordinator\n"
+        ))
+        with patch.object(combinations.subprocess, "run", return_value=answer):
+            resolution = combinations.resolve_candidate(Path("."), candidate, {})
+        self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
+        self.assertEqual(resolution.launch_variables, ("GEMINI_API_KEY", "OPENROUTER_API_KEY"))
+
+    def test_every_launch_of_a_launcher_with_launch_variables_joins_without_them(self):
+        # The bare launch needs the key for the robots a scope can add, and
+        # the plain join's own resolve needs it for the robot it adds; the
+        # join with words needs none of its own, and runs without the
+        # launcher's all the same.
+        answers = {
+            ("fleet.json5", "", "", ""): needing(resolved_plan("sim_mujoco:v1"), "GEMINI_API_KEY"),
+            ("fleet.json5", "", "openarm_v2", ""):
+                needing(resolved_plan("sim_mujoco:v1", "brain:v1"), "GEMINI_API_KEY"),
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"):
+                resolved_plan("sim_mujoco:v1", "lerobot_recorder:v1"),
+        }
+        launchers = {"fleet": fleet_launcher(), "sim": simulation_launcher("mujoco")}
+        with planned_whole(launchers, answers) as (_, plan, summary, outputs):
+            self.assertEqual({launch.label: launch.launch_variables for launch in plan.launches}, {
+                "fleet + join openarm_v2": ["GEMINI_API_KEY"],
+                "fleet + join openarm_v2 (recorder=lerobot_recorder)": ["GEMINI_API_KEY"],
+                "sim": [],
+            })
+            # The bare launch is not planned, its instances run in the
+            # launches above, and it is the launch that runs without the key.
+            self.assertEqual(plan.refused, [combinations.RefusedLaunch(
+                "fleet without GEMINI_API_KEY", "fleet", "", False, [], ["GEMINI_API_KEY"])])
+            self.assertIn("### 🔑 Launches without their launch variables (1)", summary)
+            self.assertIn("- fleet without GEMINI_API_KEY\n", summary)
+            self.assertEqual(outputs, "launches=true\n")
+
+    def test_the_refused_launch_is_the_first_launch_that_needs_the_most_launch_variables(self):
+        answers = {
+            ("fleet.json5", "", "", ""): needing(resolved_plan("sim_mujoco:v1"), "GEMINI_API_KEY"),
+            ("fleet.json5", "", "openarm_v2", ""): needing(
+                resolved_plan("sim_mujoco:v1", "brain:v1"), "GEMINI_API_KEY", "OPENROUTER_API_KEY"),
+        }
+        with planned_whole({"fleet": fleet_launcher(at_launch=True)}, answers) as (_, plan, _summary, _outputs):
+            # The plain join needs both too, and a join's launch runs with
+            # the variables; the launch that names the copy is refused.
+            self.assertEqual(
+                [(refused.label, refused.launch_joins, refused.variables) for refused in plan.refused],
+                [("fleet --join openarm_v2:bravo without GEMINI_API_KEY, OPENROUTER_API_KEY",
+                  ["openarm_v2"], ["GEMINI_API_KEY", "OPENROUTER_API_KEY"])])
+            self.assertEqual(
+                combinations.launch_command(plan.refused[0]),
+                ["peppy", "stack", "launch", "fleet", "--join", "openarm_v2:bravo",
+                 "--node-build-idle-timeout-secs", "900"])
+
+    def test_a_launcher_whose_combinations_need_no_launch_variable_has_no_refused_launch(self):
+        with planned_whole({"sim": simulation_launcher("mujoco")}) as (_, plan, summary, outputs):
+            self.assertEqual(plan.refused, [])
+            self.assertEqual([launch.launch_variables for launch in plan.launches], [[]])
+            self.assertNotIn("Launches without their launch variables", summary)
+            self.assertEqual(outputs, "launches=true\n")
+
+    def test_a_launcher_with_no_planned_launch_has_no_refused_launch(self):
+        launchers = {"sim": simulation_launcher("mujoco")}
+        answers = {("sim.json5", "", "", ""): needing(resolved_plan("sim_mujoco:v1"), "GEMINI_API_KEY")}
+        with planned_whole(launchers, answers, CHANGED, launchers, answers) as (_, plan, _summary, outputs):
+            self.assertEqual(plan, combinations.Plan([], []))
+            self.assertEqual(outputs, "launches=false\n")
+
+
+#: What `peppy stack launch` of a launcher whose brain takes GEMINI_API_KEY
+#: prints on stdout when the launch environment does not hold the key.
+LAUNCH_REFUSAL = (
+    "[ERROR] Error: Launch failed (rejected): the launch needs `GEMINI_API_KEY`, and the launch "
+    "environment does not hold it: `brain_inst` of option `openarm_sim` takes it from the launch, "
+    "and stack.join through `framework_controls_inst` can add a copy of `openarm_sim`\n"
+)
+
+
 class FakePeppy:
     """Stands in for the `peppy` commands of a launch: every command exits 0
     unless `failing` holds its first words, `stack list --json` answers
     `copies`, copy name to the instances it minted, with every instance
     running and healthy but for `states`, instance id to the state peppy
     reports, and `unhealthy`, the running instances whose health probe
-    failed; the commands are kept in order. Its clock reads the seconds the
-    commands took, each `stack` command taking `seconds` of its verb."""
+    failed, on the daemon's own node. A launch run without a variable adds
+    the nodes `adds` names to the stack, then prints `refusal` and exits 4,
+    or comes up like any launch where `refusal` is None. The commands are
+    kept in order, and `without` keeps the variables each one ran without.
+    Its clock reads the seconds the commands took, each `stack` command
+    taking `seconds` of its verb."""
 
-    def __init__(self, failing=(), copies=None, states=None, unhealthy=(), seconds=None):
+    def __init__(self, failing=(), copies=None, states=None, unhealthy=(), seconds=None,
+                 refusal=LAUNCH_REFUSAL, adds=()):
         self.failing = [list(words) for words in failing]
         self.copies = {combinations.COPY_NAME: JOINED_INSTANCES} if copies is None else copies
         self.states = states or {}
         self.unhealthy = set(unhealthy)
         self.seconds = seconds or {}
+        self.refusal = refusal
+        self.adds = list(adds)
+        self.added = []
         self.now = 0.0
         self.commands = []
+        self.without = []
 
     def clock(self):
         return self.now
 
-    def __call__(self, argv, capture=False):
+    def __call__(self, argv, capture=False, without=()):
         self.commands.append(argv)
+        self.without.append(tuple(without))
         self.now += self.seconds.get(argv[2], 0.0)
+        if argv[:3] == ["peppy", "stack", "launch"] and without:
+            self.added += self.adds
+            if self.refusal is not None:
+                return completed(self.refusal if capture else "", returncode=4)
         failed = any(argv[: len(words)] == words for words in self.failing)
         instances = [
             {
@@ -3114,19 +3296,30 @@ class FakePeppy:
             "copies": [
                 {"name": name, "instance_ids": instance_ids} for name, instance_ids in self.copies.items()
             ],
-            "stack": {"nodes": [{"instances": instances}]},
+            "stack": {"nodes": [
+                {"name": "ci-launchers", "tag": "dev", "instances": instances},
+                *({"name": node, "tag": "v1", "instances": []} for node in self.added),
+            ]},
         }]})
         return completed(listing if capture else "", returncode=1 if failed else 0)
 
 
 def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False, launch_joins=(),
-             launch_stands=(), join_stands=()):
+             launch_stands=(), join_stands=(), launch_variables=()):
     label = combinations.combination_label(launcher, words, join_option, join_words, local, launch_joins)
     join_name = combinations.COPY_NAME if join_option else ""
     return combinations.Launch(
         label, launcher, words, join_option, join_name, join_words, local,
         JOINED_INSTANCES if join_option or launch_joins else [], list(launch_joins),
-        list(launch_stands), list(join_stands),
+        list(launch_stands), list(join_stands), list(launch_variables),
+    )
+
+
+def a_refused_launch(launcher="simulation_mcp", words="", launch_joins=(), variables=("GEMINI_API_KEY",)):
+    label = combinations.combination_label(launcher, words, "", "", False, launch_joins)
+    return combinations.RefusedLaunch(
+        f"{label} without {', '.join(variables)}", launcher, words, False, list(launch_joins),
+        list(variables),
     )
 
 
@@ -3258,6 +3451,55 @@ class LaunchTests(unittest.TestCase):
         launched([a_launch(join_option="openarm_v2")], peppy)
         self.assertIn(["peppy", "stack", "join", "openarm_v2:bravo", *IDLE], peppy.commands)
 
+    def test_a_join_runs_without_the_launch_variables_of_its_launcher(self):
+        # The instances the join starts take them from the values the daemon
+        # kept from the launch, which runs with them.
+        peppy = FakePeppy()
+        outcomes, _ = launched([a_launch(join_option="openarm_v2", launch_variables=["GEMINI_API_KEY"])], peppy)
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
+        self.assertEqual(
+            [(argv[2], without) for argv, without in zip(peppy.commands, peppy.without) if without],
+            [("join", ("GEMINI_API_KEY",))])
+
+    def test_a_launch_without_its_launch_variables_is_refused_before_any_build(self):
+        peppy = FakePeppy()
+        outcomes, log = launched([a_refused_launch(launch_joins=("openarm_sim",))], peppy)
+        self.assertEqual(list(zip(peppy.commands, peppy.without)), [
+            (["peppy", "stack", "list", "--json"], ()),
+            (["peppy", "stack", "launch", "simulation_mcp", "--join", "openarm_sim:bravo", *IDLE],
+             ("GEMINI_API_KEY",)),
+            (["peppy", "stack", "list", "--json"], ()),
+            (["peppy", "stack", "reset"], ()),
+        ])
+        self.assertEqual(outcomes, [combinations.Outcome(
+            "simulation_mcp --join openarm_sim:bravo without GEMINI_API_KEY", combinations.Status.REFUSED)])
+        # The job's log holds what peppy said.
+        self.assertIn(LAUNCH_REFUSAL, log)
+
+    def test_a_launch_that_comes_up_without_its_launch_variables_fails(self):
+        peppy = FakePeppy(refusal=None)
+        outcomes, _ = launched([a_refused_launch()], peppy)
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
+        self.assertEqual(
+            outcomes[0].detail,
+            f"`peppy stack launch simulation_mcp {' '.join(IDLE)}` without GEMINI_API_KEY exited 0; "
+            "a launch without the launch variables it needs is refused before it builds anything")
+        self.assertEqual(peppy.commands[-1], ["peppy", "stack", "reset"])
+
+    def test_a_refusal_that_does_not_name_each_launch_variable_fails(self):
+        outcomes, _ = launched([a_refused_launch(variables=("GEMINI_API_KEY", "OPENROUTER_API_KEY"))], FakePeppy())
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
+        self.assertEqual(
+            outcomes[0].detail,
+            f"`peppy stack launch simulation_mcp {' '.join(IDLE)}` was refused, and its message does "
+            "not name `OPENROUTER_API_KEY`")
+
+    def test_a_refusal_after_the_launch_added_a_node_fails(self):
+        outcomes, _ = launched([a_refused_launch()], FakePeppy(adds=["waldo"]))
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
+        self.assertIn("was refused after it changed the nodes of the stack, from ci-launchers:dev to "
+                      "ci-launchers:dev, waldo:v1", outcomes[0].detail)
+
     def test_a_failed_launch_is_named_reset_and_followed_by_the_next(self):
         peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]])
         outcomes, log = launched([a_launch("fleet"), a_launch("rust_robot")], peppy)
@@ -3349,10 +3591,10 @@ class LaunchTests(unittest.TestCase):
                       "87.3 s | 50% |", summary)
         self.assertIn("A stand is cold when it is the first stand of its model in its engine", summary)
 
-    def run_command(self, peppy, launches):
+    def run_command(self, peppy, launches, refused=()):
         with tempfile.TemporaryDirectory() as directory:
             plan, summary = Path(directory) / "plan.json", Path(directory) / "summary.md"
-            combinations.write_plan(launches, plan)
+            combinations.write_plan(combinations.Plan(list(refused), launches), plan)
             with patch.object(combinations, "run_peppy", peppy), \
                     patch.dict(combinations.os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
                     contextlib.redirect_stdout(io.StringIO()):
@@ -3366,7 +3608,7 @@ class LaunchTests(unittest.TestCase):
     def test_the_job_passes_when_every_launch_comes_up(self):
         code, summary = self.run_command(FakePeppy(), [a_launch("fleet"), a_launch("rust_robot")])
         self.assertEqual(code, 0)
-        self.assertIn("2 of 2 launches came up start to end.", summary)
+        self.assertIn("2 of 2 launches went as planned.", summary)
         self.assertIn("| rust_robot | ✅ launched |", summary)
         # No launch stood a robot, so no stand time is reported.
         self.assertNotIn("Stand times", summary)
@@ -3375,8 +3617,31 @@ class LaunchTests(unittest.TestCase):
         peppy = FakePeppy(failing=[["peppy", "stack", "launch", "fleet"]])
         code, summary = self.run_command(peppy, [a_launch("fleet"), a_launch("rust_robot")])
         self.assertEqual(code, 1)
-        self.assertIn("1 of 2 launches came up start to end.", summary)
+        self.assertIn("1 of 2 launches went as planned.", summary)
         self.assertIn("| fleet | ❌ failed `peppy stack launch fleet", summary)
+
+    def test_the_refused_launches_run_first_and_count_in_the_summary(self):
+        peppy = FakePeppy()
+        code, summary = self.run_command(peppy, [a_launch("fleet")], refused=[a_refused_launch()])
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            [argv[3] for argv in peppy.commands if argv[2] == "launch"], ["simulation_mcp", "fleet"])
+        self.assertIn("2 of 2 launches went as planned.", summary)
+        self.assertIn("| simulation_mcp without GEMINI_API_KEY | ✅ refused before any build |", summary)
+
+    def test_a_command_run_without_variables_does_not_see_them(self):
+        environment = {"GEMINI_API_KEY": "placeholder", "PATH": "/bin"}
+        with patch.object(combinations.subprocess, "run", return_value=completed("{}")) as run, \
+                patch.dict(combinations.os.environ, environment), \
+                contextlib.redirect_stdout(io.StringIO()) as log:
+            combinations.run_peppy(["peppy", "stack", "join", "openarm_sim:bravo"], without=("GEMINI_API_KEY",))
+            self.assertNotIn("GEMINI_API_KEY", run.call_args.kwargs["env"])
+            self.assertEqual(run.call_args.kwargs["env"]["PATH"], "/bin")
+            self.assertNotIn("RUST_LOG", run.call_args.kwargs["env"])
+            combinations.run_peppy(["peppy", "stack", "launch", "simulation_mcp"], True, ("GEMINI_API_KEY",))
+            self.assertNotIn("GEMINI_API_KEY", run.call_args.kwargs["env"])
+            self.assertEqual(run.call_args.kwargs["env"]["RUST_LOG"], "error")
+        self.assertIn("$ peppy stack join openarm_sim:bravo  # without GEMINI_API_KEY\n", log.getvalue())
 
     def test_a_captured_command_holds_peppys_logging_to_errors(self):
         with patch.object(combinations.subprocess, "run", return_value=completed("{}")) as run, \
@@ -3394,11 +3659,15 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(log.getvalue(), "::error title=a%2Cb%3Ac%0A::100%25%0A::group::x\n")
 
     def test_the_plan_reaches_the_launch_job_whole(self):
-        launches = [a_launch(words="simulation=mujoco", join_option="openarm_v2", local=True,
-                             launch_stands=[MUJOCO_OPENARM], join_stands=[MUJOCO_SO101])]
+        plan = combinations.Plan(
+            [a_refused_launch(launch_joins=("openarm_sim",))],
+            [a_launch(words="simulation=mujoco", join_option="openarm_v2", local=True,
+                      launch_stands=[MUJOCO_OPENARM], join_stands=[MUJOCO_SO101],
+                      launch_variables=["GEMINI_API_KEY"])],
+        )
         with tempfile.TemporaryDirectory() as directory:
-            combinations.write_plan(launches, Path(directory) / "plan.json")
-            self.assertEqual(combinations.read_plan(Path(directory) / "plan.json"), launches)
+            combinations.write_plan(plan, Path(directory) / "plan.json")
+            self.assertEqual(combinations.read_plan(Path(directory) / "plan.json"), plan)
 
 
 if __name__ == "__main__":

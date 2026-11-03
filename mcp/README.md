@@ -62,7 +62,7 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   listed when the join returns and gone when the remove returns. `--with robot_control=none` launches
   `simulation_mcp` without it, and a rig whose only consumer is the
   endpoint is refused wherever the endpoint is off, with its reason.
-- **The framework's endpoint** comes with the robots' endpoint, on the `robot_control` option of every launcher with robots ([fragments/framework_controls.json5](fragments/framework_controls.json5)), so `--with robot_control=none` switches both off on `simulation_mcp`. Its two targets, `stack` and `fleet`, are daemon targets: the peppy daemon that started the server serves them and no node implements them, so the server takes no link, and it runs on the coordinator. The fragment gives the `fleet` target its scope, `list` and `halt`, the members that `fleet.list` and `fleet.halt` call, so a client of every launcher with robots can halt the stack, and no MCP client clears a halt: the server serves no `fleet.clear_halt`, and the operator clears the halt with `peppy fleet clear-halt`. `physical`, `openarm_simulation` and `so101_simulation` give the `stack` target the vacant scope, with the reason: their robots join from the command line, so their endpoint serves no `stack` tool. `simulation_mcp` gives the `stack` target its scope with a top-level `set_daemon_scopes` adjustment on `framework_controls_inst`: the robot options a client can add, `openarm_sim` and `so101_sim`, each with its `model`, the model its robot initializer names (`openarm_v2`, `so101`), with one line that says what the robot is and how it stands and with the features it offers, and `max_copies`, the most robots of these options on the stack, four. A feature selects one option of one of the robot's own axes that brings a node, with one line that says what it adds: `openarm_sim` offers `ai_brain`, its brain `ai_brain_vla`, and `so101_sim`, which has no brain axis, offers none. A feature names one option of an axis, so the OpenArm's other brain, `vlm_router_brain`, is selected on the command line (`--with alpha.vlm_router_brain`). No description in the scope names a model id: only the `model` of an option does. The CI fails a scope whose `model` is not the model that a plain join of the option adds. Every robot it adds is listed on the robots' endpoint, so the framework's endpoint comes with that endpoint alone, under Waldo, MuJoCo and Isaac Sim alike, and needs no constraint.
+- **The framework's endpoint** comes with the robots' endpoint, on the `robot_control` option of every launcher with robots ([fragments/framework_controls.json5](fragments/framework_controls.json5)), so `--with robot_control=none` switches both off on `simulation_mcp`. Its two targets, `stack` and `fleet`, are daemon targets: the peppy daemon that started the server serves them and no node implements them, so the server takes no link, and it runs on the coordinator. The fragment gives the `fleet` target its scope, `list` and `halt`, the members that `fleet.list` and `fleet.halt` call, so a client of every launcher with robots can halt the stack, and no MCP client clears a halt: the server serves no `fleet.clear_halt`, and the operator clears the halt with `peppy fleet clear-halt`. `physical`, `openarm_simulation` and `so101_simulation` give the `stack` target the vacant scope, with the reason: their robots join from the command line, so their endpoint serves no `stack` tool. `simulation_mcp` gives the `stack` target its scope with a top-level `set_daemon_scopes` adjustment on `framework_controls_inst`: the robot options a client can add, `openarm_sim` and `so101_sim`, each with its `model`, the model its robot initializer names (`openarm_v2`, `so101`), and with one line that says what the robot is and how it stands, and `max_copies`, the most robots of these options on the stack, four. No option offers a feature: a robot comes up as the entry of its option selects it, so every OpenArm has its brain ([The brain of each OpenArm](#the-brain-of-each-openarm)), which the line of `openarm_sim` says. No description in the scope names a model id: only the `model` of an option does. The CI fails a scope whose `model` is not the model that a plain join of the option adds. Every robot it adds is listed on the robots' endpoint, so the framework's endpoint comes with that endpoint alone, under Waldo, MuJoCo and Isaac Sim alike, and needs no constraint.
 - **The simulated world's endpoint** is the `world_control` axis of
   `simulation_mcp` ([fragments/world_control.json5](fragments/world_control.json5)),
   deployed by the file, with a `none` option that switches it off. It binds
@@ -133,6 +133,48 @@ stack refuses a client's move on it with the failure kind `leased`, naming
 the headset; the headset releases the lease after the release burst of the
 last hand, once no posture move of its own runs.
 
+### The brain of each OpenArm
+
+Every OpenArm of this launcher runs
+[vlm_router_brain](../openarm/fragments/vlm_router_brain.json5), the brain
+whose models are hosted vision-language models: the entry of `openarm_sim`
+selects it, at launch and in each join, so no client adds an OpenArm
+without a brain. The launcher sets both of its models to Gemini
+Robotics-ER, `gemini-robotics-er-2-preview`: the perception model, which
+finds the items, and the manipulation model, which aligns the grab and the
+place. `brain.get_model` on the robots' endpoint reports it for both roles.
+The launcher writes the perception model although it is the node's own
+default, so a change of that default does not change the brain of this
+stack.
+
+The key of that model, `GEMINI_API_KEY`, comes from the shell that launches
+the stack. The launcher names it as a launch variable of the brain, with
+`set_env_from_launch`, so the daemon keeps its value for the life of the
+stack and gives it to the brain of each OpenArm that the launch or a later
+join starts: a `stack.join` of the framework's endpoint and a `peppy stack
+join` alike, and a `peppy stack join` whose shell exports the key gives its
+own value. No other node receives it.
+
+- A launch that can start an OpenArm needs the key: a launch with the
+  robots' endpoint, whose `stack.join` adds OpenArms, and a launch with an
+  OpenArm in `--join`. Without it the launch is refused before it builds
+  anything, with a message that names `GEMINI_API_KEY`, the brain
+  `brain_inst` of the option `openarm_sim`, and `framework_controls_inst`
+  and `sim_harness_inst`, whose `stack.join` can add an OpenArm.
+- A launch with `--with robot_control=none` and no OpenArm in `--join`
+  starts no brain and needs no key. A `peppy stack join` of an OpenArm onto
+  it needs the key in the shell that joins, or in the shell that launched.
+- The brain takes a launch variable, so it runs on the coordinator: an
+  OpenArm on another machine joins with its router brain on the
+  coordinator, `--with vlm_router_brain@self`, and `stack.join` adds an
+  OpenArm on `this_core_node` only.
+- The word `ai_brain_vla` in a `peppy stack join` replaces the router brain
+  with the brain whose models run on the GPU of its machine. The launch does
+  not build `ai_brain_vla`, so that join builds it.
+- `brain.list_models` also lists the models of the brain's catalog that it
+  reaches through OpenRouter. The launcher gives the brain no other key, so
+  `brain.switch_model` to one of them fails with `resource_unavailable`.
+
 `peppy stack list` reports, for the bare launch:
 
 | Node | Instance | Endpoint |
@@ -177,29 +219,27 @@ endpoint, then stands it at a work surface on the simulated world's:
    `options`: `openarm_sim` and `so101_sim`, each with its `model`, of which
    `scene.preview_asset` on the simulated world's endpoint shows a picture
    as `robot/<model>`, the line of the scope that says what the robot is and
-   how it stands, and its `features`, each with its line: `ai_brain` on
-   `openarm_sim`, none on `so101_sim`. It reports the machines a robot or a
-   feature can run on: `this_core_node`, the machine of this stack, and
+   how it stands, and its `features`, none on either option. It reports the
+   machines a robot can run on: `this_core_node`, the machine of this stack, and
    `core_nodes`, that machine and every live machine of the federation, read
    again on every call. It also reports the robots of these options on the
    stack, under `copies`, which `stack.remove` can remove, each with its
-   `name`, `option`, `core_node` and `features`, each feature with the
-   `core_node` it runs on, and `max_copies`, four.
+   `name`, `option`, `core_node` and `features`, and `max_copies`, four.
 2. `stack.join` with a `name`, an `option`, a `core_node` and `features`
-   adds a robot, as `peppy stack join OPTION:NAME@CORE_NODE` does with the
-   word of each feature: the launcher's entry for the option gives it the
-   rendered rig and no commander of its own, so the headset leads it, and
-   each feature adds the option it selects, on the machine the feature
-   names. Every field is required:
-   `features` is empty for the robot of the launcher's entry, and a feature
-   that runs with the robot names the robot's machine. Every `copies` item
-   of `stack.list` is a `stack.join` input, and for a robot that
-   `stack.join` added, that input adds the same robot on the same machines.
+   adds a robot, as `peppy stack join OPTION:NAME@CORE_NODE` does: the
+   launcher's entry for the option gives it the rendered rig and no
+   commander of its own, so the headset leads it, and an OpenArm the router
+   brain. Every field is required, and `features` is empty, since no option
+   offers one. An OpenArm runs on `this_core_node` only: its brain takes
+   `GEMINI_API_KEY` from the launch, so the addition of an OpenArm on
+   another machine is refused. Every `copies` item of `stack.list` is a
+   `stack.join` input, and for a robot that `stack.join` added, that input
+   adds the same robot on the same machine.
    Progress messages report each step. The launch built the software of
-   every robot and feature of the scope on the stack's machine, so an
-   addition there builds nothing; a robot or a feature on another machine
-   builds its software there, which can take minutes the first time, and so
-   can fetching a robot's files into the simulation.
+   every robot of the scope on the stack's machine, so an addition there
+   builds nothing; a robot on another machine builds its software there,
+   which can take minutes the first time, and so can fetching a robot's
+   files into the simulation.
    The call completes only once the simulation stands the robot, on a free
    spot of the floor that the simulation chooses, a robot clamped on a table
    edge too. `robot.list` on the robots' endpoint and
@@ -221,10 +261,9 @@ endpoint, then stands it at a work surface on the simulated world's:
    a launch named or `peppy stack join` added included.
 
 The launch of `simulation_mcp` builds on its machine the nodes of each
-robot option of the scope with each set of its features before it starts
-the stack: `openarm_backbone`, `robot_initializer`, `sim_rgb_camera`,
-`sim_rgbd_camera`, `so101_backbone` and the OpenArm's brain
-`ai_brain_vla`. It starts none of them, and `peppy stack list`
+robot option of the scope before it starts the stack: `openarm_backbone`,
+`robot_initializer`, `sim_rgb_camera`, `sim_rgbd_camera`, `so101_backbone`
+and the OpenArm's brain `vlm_router_brain`. It starts none of them, and `peppy stack list`
 shows them `Ready` with no instance. So the first launch after a peppy
 upgrade, after a hub change of a robot node or on a new machine takes
 longer, and each addition on that machine then adds and starts the robot's
@@ -234,7 +273,8 @@ built: launch again for newer ones. `peppy stack launch simulation_mcp
 builds its robot's software; `--with robot_control=none` deploys no
 framework endpoint, so it builds no robot either. A `peppy stack join` of
 one of these options on this machine builds nothing too, unless a `--with`
-word selects a part that no feature offers, such as `web_commander`.
+word selects a part that the entry of its option does not select, such as
+`web_commander` or `ai_brain_vla`.
 
 A cancel of a call stops the addition or the removal at the step it
 reached, and the stack ends it as a failure at that step ends it: an
@@ -251,12 +291,13 @@ progress window, and the call or the task fails.
 ### One robot, two, many
 
 ```sh
+export GEMINI_API_KEY=...                                                          # the key of the brain of each OpenArm
 peppy stack launch simulation_mcp                                                  # Waldo and the four endpoints, no robot listed
 peppy stack launch simulation_mcp --join openarm_sim:alpha                         # alpha, an OpenArm v2
 peppy stack launch simulation_mcp --join openarm_sim:alpha --join so101_sim:charlie   # alpha and an SO-101
 peppy stack join openarm_sim:bravo                                                 # a second OpenArm, listed when the join returns
 peppy stack join so101_sim:foxtrot                                                 # another SO-101, with its wrist camera
-peppy stack join openarm_sim:delta --with ai_brain_vla                                 # an OpenArm with a brain, its brain tools on the same URL
+peppy stack join openarm_sim:delta --with ai_brain_vla                             # an OpenArm with ai_brain_vla in place of the router brain, which this join builds
 peppy stack join openarm_sim:echo --with web_commander                             # one under the browser panel, which the headset does not lead
 peppy stack remove bravo                                                           # gone from the listing when the remove returns
 peppy stack remove alpha                                                           # the endpoints keep running, listing the rest
@@ -310,27 +351,30 @@ from the command line; the limit holds for that endpoint alone.
 
 A robot runs on the machine its name is placed on, the coordinator unless
 `OPTION:NAME@CORE_NODE` names another, and each part of it, the instances
-one of its own axes brings, runs where the word that selects it says. So a
-brain can run on a machine with an NVIDIA GPU while its robot runs beside
-the simulation:
+one of its own axes brings, runs where the word that selects it says. So
+`ai_brain_vla` can run on a machine with an NVIDIA GPU while its robot runs
+beside the simulation. The router brain takes `GEMINI_API_KEY` from the
+launch, so it runs on the coordinator, and an OpenArm on another machine
+places it there:
 
 ```sh
-peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box                       # delta here, its brain on cn-gpu-box
+peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box                       # delta here, ai_brain_vla on cn-gpu-box
 peppy stack launch simulation_mcp --join openarm_sim:xiaozhu --with xiaozhu.ai_brain_vla@cn-gpu-box   # the same at launch
-peppy stack join openarm_sim:golf@cn-jetson-1 --with ai_brain_vla@self                  # golf on cn-jetson-1, its brain on the coordinator
+peppy stack join openarm_sim:golf@cn-jetson-1 --with ai_brain_vla@self                  # golf on cn-jetson-1, ai_brain_vla on the coordinator
+peppy stack join openarm_sim:hotel@cn-jetson-1 --with vlm_router_brain@self             # hotel on cn-jetson-1, its router brain on the coordinator
 ```
 
 A machine is the core node name a daemon runs under, and `self` names the
-coordinator. On the framework's endpoint, `stack.join` with `name: delta`,
-`option: openarm_sim`, the `this_core_node` of `stack.list` as `core_node`
-and `features: [{ feature: "ai_brain", core_node: "cn-gpu-box" }]` adds
-the robot of the first line. `peppy stack list` prints each robot with its
-machine and its selections, `brain=ai_brain_vla@cn-gpu-box` for a brain on
-another machine, in the words that `stack join` takes to add it again. A
-robot on another machine than the simulation's streams its cameras to and
-from the simulation's machine. A brain runs its perception models on the
-NVIDIA GPU of its machine, or slowly on the CPU of a machine without one,
-and its first load on a machine downloads about 7 GB of weights there. A
+coordinator. The scope of the framework's endpoint offers no feature, so
+`stack.join` places no brain on its own machine: it adds an OpenArm with
+its router brain on `this_core_node`. `peppy stack list` prints each robot
+with its machine and its selections, `brain=ai_brain_vla@cn-gpu-box` for a
+brain on another machine, in the words that `stack join` takes to add it
+again. A robot on another machine than the simulation's streams its
+cameras to and from the simulation's machine. `ai_brain_vla` runs its
+perception models on the NVIDIA GPU of its machine, or slowly on the CPU of
+a machine without one, and its first load on a machine downloads about
+7 GB of weights there. A
 removal stops the robot on each of its machines, and warns for a machine
 that is not live, whose instances stay there until `peppy stack reset` runs
 on it.

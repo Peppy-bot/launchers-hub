@@ -109,7 +109,7 @@
               add_links: { recorder: ["recorder_inst"] } },
             // The panel streams the live cap the simulated backbone starts on.
             { target: "commander_inst", when: { robot_commander: "web_commander" },
-              set_arguments: { max_ee_velocity_m_s: 0.5 } },
+              set_arguments: { max_stream_ee_velocity_m_s: 0.5 } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },

@@ -1376,17 +1376,17 @@ class CombinationsTests(unittest.TestCase):
                         self.assertEqual(set(entry), {"target", "when", "add_links"})
                         self.assertEqual(set(links), {"motor_health", "alerts"})
         cap = instance_of(combinations.load_json5(root / ROBOT_FILES["openarm_sim"], "openarm_sim"),
-                          "backbone_inst")["arguments"]["max_ee_velocity_m_s"]
+                          "backbone_inst")["arguments"]["max_stream_ee_velocity_m_s"]
         for path in SIMULATION_LAUNCHERS:
             document = combinations.load_json5(root / path, path)
             for robot in ROBOT_LAUNCHERS[path]:
                 with self.subTest(path=path, robot=robot):
                     entries = robot_option(document, robot)["adjustments"]
                     self.assertEqual([a for a in entries if "motor_health" in a.get("add_links", {})], [])
-                    caps = [a for a in entries if "max_ee_velocity_m_s" in a.get("set_arguments", {})]
+                    caps = [a for a in entries if "max_stream_ee_velocity_m_s" in a.get("set_arguments", {})]
                     self.assertEqual(caps, [{
                         "target": "commander_inst", "when": {"robot_commander": "web_commander"},
-                        "set_arguments": {"max_ee_velocity_m_s": cap}}] if family_of(robot) == "openarm" else [])
+                        "set_arguments": {"max_stream_ee_velocity_m_s": cap}}] if family_of(robot) == "openarm" else [])
 
     def test_the_rig_reaches_the_recorder_in_its_declared_order(self):
         root = Path(__file__).resolve().parents[2]

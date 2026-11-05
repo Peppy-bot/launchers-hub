@@ -1,10 +1,11 @@
-// An OpenArm v2's motion planner: the node that serves motion_planning,
-// arm paths planned around what the chest camera sees. It keeps a map of the
-// chest camera's depth frames in the robot frame, with the arms cut out at
-// the joint positions the backbone measured at each frame, and plans on it.
-// It moves nothing: a caller runs a plan with the backbone's
-// execute_joint_path. A v2 copy selects it on its motion_planner axis; the
-// launcher binds the rig's chest camera when the copy selects one.
+// An OpenArm v2's motion planner: the node that serves motion_planning, arm
+// paths planned around what the chest camera sees and the objects of its
+// planning scene. It keeps a map of the chest camera's depth frames in the
+// robot frame, with the arms cut out at the joint positions the backbone
+// measured at each frame, and plans on it. It moves nothing: a caller runs a
+// plan with the backbone's execute_joint_path. A v2 copy selects it on its
+// motion_planner axis; the launcher binds the rig's chest camera when the copy
+// selects one.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -35,6 +36,9 @@
             // min_clearance_m from never falls inside the cut-out; at least the
             // offset of the arm's own depth points from its model, 21.1 mm in
             // Waldo, the real ZED's measured at AC6. MoveIt's tutorial sets 0.1.
+            // The cut-out grows each object of the planning scene by the same
+            // padding, as MoveIt's depth filter does, so an item smaller than
+            // 0.04 m resting on an object is avoided only as an object itself.
             padding_offset_m: 0.04,
             // Of 0.02 and 0.025 m, the voxel whose replays of the Waldo AC1
             // case plan faster on a Jetson AGX Thor at these values: 902 ms at
@@ -63,11 +67,10 @@
             // after the joints that cover it. The cameras give 15. MoveIt's
             // tutorial sets 1.
             max_update_rate_hz: 5.0,
-            // The count at which public-peppy-libs' goal_coverage test holds
-            // the generic sampler to reaching every branch srs_model finds on
-            // 95% of drawn poses; it reaches them on 199 and 200 of 200 poses
-            // of two drawn sets. MoveIt draws up to 10 while it plans.
-            goal_samples: 64,
+            // MoveIt's max_goal_samples default, the most goals its goal
+            // sampler adds to a plan (moveit2 2.15.2
+            // planning_context_manager.cpp:258).
+            goal_samples: 10,
             // The iteration bound of public-peppy-libs' arm planning parity
             // scenario, under which an `any` plan's success rate lies within
             // MoveIt's; MoveIt bounds a plan by its time alone.
@@ -88,7 +91,7 @@
             workspace: "backbone_inst",
             // The rig's chest camera: its depth frames and their geometry.
             // Without a rig the map stays empty, and a plan keeps clear of
-            // the robot's own body only.
+            // the robot's own body and the planning scene's objects alone.
             camera: { vacant: "select the camera rig, cameras or cameras_sim, to give the planner the chest camera" },
             geometry: { vacant: "select the camera rig, cameras or cameras_sim, to give the planner the chest camera's geometry" },
           },

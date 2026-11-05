@@ -132,8 +132,8 @@ class FakeResolve:
         return answers.get(key, resolved_plan())
 
 
-EVERYTHING = combinations.Scope(combinations.ScopeKind.EVERYTHING, "a test of every combination")
-CHANGED = combinations.Scope(combinations.ScopeKind.CHANGED, "a test of a launcher change")
+EVERYTHING = combinations.Scope(combinations.ScopeKind.EVERYTHING, "a test of every combination", ())
+CHANGED = combinations.Scope(combinations.ScopeKind.CHANGED, "a test of a launcher change", ("sim.json5",))
 
 
 @contextlib.contextmanager
@@ -3080,6 +3080,16 @@ class ScopeTests(unittest.TestCase):
         self.assertIs(self.kind(["openarm/fragments/mujoco.json5"]), combinations.ScopeKind.CHANGED)
         self.assertIs(self.kind(["fleet.json5", "Readme.md"]), combinations.ScopeKind.CHANGED)
 
+    def test_a_changed_scope_keeps_the_launcher_files_the_change_reaches(self):
+        scope = combinations.classify_scope(["fleet.json5", "Readme.md"], self.LAUNCHER_FILES)
+        self.assertEqual(scope.changed, ("fleet.json5",))
+        self.assertEqual(self.kind(["Readme.md"]), combinations.ScopeKind.NOTHING)
+        self.assertEqual(combinations.classify_scope(None, self.LAUNCHER_FILES).changed, ())
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scope.json"
+            combinations.write_scope(scope, path)
+            self.assertEqual(combinations.read_scope(path), scope)
+
     def test_documentation_alone_covers_nothing(self):
         self.assertIs(self.kind(["Readme.md", "openarm/README.MD"]), combinations.ScopeKind.NOTHING)
 
@@ -3129,6 +3139,20 @@ class ScopeTests(unittest.TestCase):
             self.assertEqual(labels, ["sim (simulation=waldo)"])
             self.assertIn("1 launchable combinations resolve to the plan the base tree gives them", summary)
             self.assertIn("- sim (simulation=mujoco)", summary)
+
+    def test_the_base_tree_resolves_the_launchers_the_change_reaches_alone(self):
+        # A launcher made of unchanged files resolves in the base tree as it
+        # resolves here, so the base tree's resolve covers the changed
+        # launcher's combinations alone and the other launcher's are left out.
+        launchers = {"sim": simulation_launcher("mujoco", "waldo"), "other": simulation_launcher("isaac")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v2")}
+        base_answers = {("sim.json5", "simulation=waldo", "", ""): resolved_plan("waldo:v1")}
+        with planned(launchers, answers, CHANGED, launchers, base_answers) as (resolve, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=waldo)"])
+            base_calls = sorted({
+                argv[3] for argv, kwargs in resolve.calls if Path(kwargs["cwd"]).name == "base"
+            })
+            self.assertEqual(base_calls, ["sim.json5"])
 
     def test_a_change_of_the_launch_variables_alone_launches_the_combination(self):
         # A launch that needs a variable it did not need is refused without

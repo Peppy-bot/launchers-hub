@@ -997,6 +997,9 @@ class ScopeKind(enum.Enum):
 class Scope:
     kind: ScopeKind
     reason: str
+    #: The launcher files the pull request changes, for a changed scope: the
+    #: launchers whose files hold one are the ones the change reaches.
+    changed: tuple
 
 
 def classify_scope(changed_files, launcher_files):
@@ -1011,22 +1014,24 @@ def classify_scope(changed_files, launcher_files):
     Markdown file, which nothing launches.
     """
     if changed_files is None:
-        return Scope(ScopeKind.EVERYTHING, "no pull request diff narrows this run")
+        return Scope(ScopeKind.EVERYTHING, "no pull request diff narrows this run", ())
     if not changed_files:
-        return Scope(ScopeKind.EVERYTHING, "the pull request's diff names no file")
+        return Scope(ScopeKind.EVERYTHING, "the pull request's diff names no file", ())
     outside = [file for file in changed_files if file not in launcher_files]
     unknown = [file for file in outside if not file.lower().endswith(".md")]
     if unknown:
-        return Scope(ScopeKind.EVERYTHING, f"`{unknown[0]}` is outside every launcher")
+        return Scope(ScopeKind.EVERYTHING, f"`{unknown[0]}` is outside every launcher", ())
     if len(outside) == len(changed_files):
         return Scope(
             ScopeKind.NOTHING,
             "this pull request changes only documentation outside every launcher",
+            (),
         )
     return Scope(
         ScopeKind.CHANGED,
         "this pull request changes launcher files alone, so only the combinations "
         "whose resolved plan differs from the base tree's can behave differently",
+        tuple(file for file in changed_files if file in launcher_files),
     )
 
 
@@ -1039,13 +1044,16 @@ def read_changed_files(path):
 
 def write_scope(scope, path):
     with open(path, "w", encoding="utf-8") as handle:
-        json.dump({"kind": scope.kind.value, "reason": scope.reason}, handle)
+        json.dump(
+            {"kind": scope.kind.value, "reason": scope.reason, "changed": list(scope.changed)},
+            handle,
+        )
 
 
 def read_scope(path):
     with open(path, encoding="utf-8") as handle:
         document = json.load(handle)
-    return Scope(ScopeKind(document["kind"]), document["reason"])
+    return Scope(ScopeKind(document["kind"]), document["reason"], tuple(document["changed"]))
 
 
 SCOPE_HEADLINES = {
@@ -1709,17 +1717,25 @@ def read_plan(path):
     )
 
 
-def candidates_in_scope(scope, candidates, resolutions, base_root, skips):
-    """The combinations a run of this scope plans."""
+def candidates_in_scope(scope, inventory, resolutions, base_root, skips):
+    """The combinations a run of this scope plans. A changed scope reaches the
+    launchers whose files hold a changed file: the base tree resolves those
+    launchers alone, since a launcher made of unchanged files resolves in the
+    base tree as it resolves here."""
+    candidates = [candidate for launcher in inventory for candidate in launcher.candidates]
     if scope.kind is ScopeKind.EVERYTHING:
         return candidates
     if scope.kind is ScopeKind.NOTHING:
         return []
     if base_root is None:
         raise SystemExit("a run scoped to what changed needs --base-root to compare against")
-    base_inventory = read_base_inventory(base_root)
+    changed = set(scope.changed)
+    reached = [launcher for launcher in inventory if launcher.files & changed]
+    base_inventory = [
+        launcher for launcher in read_base_inventory(base_root) if launcher.files & changed
+    ]
     return changed_candidates(
-        candidates,
+        [candidate for launcher in reached for candidate in launcher.candidates],
         resolutions,
         [candidate for launcher in base_inventory for candidate in launcher.candidates],
         resolve_inventory(base_root, base_inventory, skips),
@@ -1750,7 +1766,7 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
         if drift is not None:
             raise SystemExit(f"{candidate.label}: {drift}")
 
-    in_scope = candidates_in_scope(scope, candidates, resolutions, base_root, skips)
+    in_scope = candidates_in_scope(scope, inventory, resolutions, base_root, skips)
 
     launchable = [
         candidate for candidate in in_scope if resolutions[candidate.key].verdict is Verdict.LAUNCH

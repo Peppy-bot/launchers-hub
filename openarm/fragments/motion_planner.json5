@@ -76,8 +76,9 @@
             // MoveIt's; MoveIt bounds a plan by its time alone.
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts. On the Jetson at these
-            // values, four attempts plan slower (5 of 30 replays past 1 s
-            // against 2) for a 2% shorter path.
+            // values, 30 replays at a 1 s time answered a plan of both arms
+            // within 1665 ms against 2035 ms with four attempts, and a plan of
+            // one arm within 998 ms against 739 ms.
             planning_attempts: 1,
           },
           links: {

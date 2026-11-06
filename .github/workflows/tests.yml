@@ -222,8 +222,11 @@ jobs:
     #
     # The budget covers the cold clone of every hub repository on top of the
     # planner's own work; the trees are a few tens of megabytes between them.
+    # A change to a fragment that every launcher holds resolves every
+    # combination twice, here and on the base tree: 946 s for one pass of 19,959
+    # combinations, so about 32 minutes.
     runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
-    timeout-minutes: 25
+    timeout-minutes: 40
     permissions:
       contents: read
     outputs:

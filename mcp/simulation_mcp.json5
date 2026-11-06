@@ -129,6 +129,10 @@
             // The brain's tools, listed beside the moves.
             { target: "robot_control_inst", when: { brain: ["ai_brain_vla", "vlm_router_brain"] },
               add_links: { item_perception: ["brain_inst"], item_manipulation: ["brain_inst"], brain_model: ["brain_inst"] } },
+            // A world apply and a run wait until the brain can serve its
+            // roles, as its brain_model says.
+            { target: "sim_harness_inst", when: { world_control: "world_control", brain: ["ai_brain_vla", "vlm_router_brain"] },
+              add_links: { brain_model: ["brain_inst"] } },
             // The motion planner's tools, listed beside the moves.
             { target: "robot_control_inst", when: { motion_planner: "motion_planner" },
               add_links: { planner: ["planner_inst"] } },

@@ -7,6 +7,7 @@
     "`peppy stack launch so101_simulation --with mujoco`: the same robot, alone in MuJoCo.",
     "`peppy stack launch so101_simulation --with alpha.so101_leader`: a real leader arm driving the simulated follower; it needs the SO-101 leader arm wired to the machine the robot runs on.",
     "`peppy stack launch so101_simulation --with robot_control,alpha.cameras_sim`: driven over MCP, its wrist camera served.",
+    "`peppy stack launch so101_simulation --with robot_control,alpha.motion_planner`: driven over MCP, its paths planned around the objects of its planning scene.",
     "`peppy stack launch so101_simulation --with workflow_control`: workflows run on alpha.",
     "`peppy stack join openarm_sim:bravo`: an OpenArm v2 beside alpha, with the browser panel.",
     "The robot axis offers every simulated robot, so an OpenArm joins beside the SO-101; every simulation stands as many robots as the machines can run, of any model, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the fourth command above does, and `--with cameras_sim` on a join is refused on a launch without one.",
@@ -185,6 +186,9 @@
               add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
+            // The motion planner's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { motion_planner: "motion_planner" },
+              add_links: { planner: ["planner_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
@@ -206,9 +210,10 @@
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
               add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
-            // The commander and recorder are shared with the physical robot.
+            // The commander, recorder and planner are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },
+            { target: "planner_inst", set_framework: { clock: "simulation" } },
             // Rendering, while this robot films.
             { target: "simulation_inst", when: { camera_rig: "cameras_sim" },
               set_arguments: { cameras_enabled: true } },

@@ -49,6 +49,7 @@ axes:
 | `robot_commander` (`role: "robot_commander"`) | `so101_leader` (deployed), `none` (actions, and the stack's headset when the stack runs one) | `none` (deployed), `so101_leader` | none declared; the leader arm deploys `commander_inst` |
 | `recorder` (`zero_or_one`) | `lerobot_recorder` | `lerobot_recorder` | `recorder_inst` |
 | `camera_rig` (`zero_or_one`) | `cameras` | `cameras_sim` | `wrist` |
+| `motion_planner` (`zero_or_one`) | `motion_planner` | `motion_planner` | `planner_inst` |
 
 ```sh
 peppy stack launch physical
@@ -59,8 +60,21 @@ peppy stack join so101:alpha --with robot_commander=none,lerobot_recorder   # he
 peppy stack join so101:alpha --with robot_commander=none,lerobot_recorder,cameras
 peppy stack launch physical --with robot_control                                   # the robots' and the framework's MCP endpoints
 peppy stack join so101:alpha --with robot_commander=none,cameras         # driven over MCP, its camera served
+peppy stack join so101:alpha --with robot_commander=none,motion_planner  # paths planned around the planning scene's objects
 peppy stack resolve physical --join so101:alpha --with xr_commander,alpha.robot_commander=none   # inspect the flattened stack
 ```
+
+The `motion_planner` axis adds the motion planner, the node `motion_planner`,
+which takes the robot's model from its initializer's identity, serving
+`motion_planning`: arm paths planned around the objects of its planning scene,
+which a caller runs with the backbone's `execute_joint_path`. SO-101 has no depth
+camera, so its map stays empty and it sees only the objects a caller enters. A plan keeps
+the arm's own links apart too, so plan from the ready posture: home folds the arm onto
+itself, and a plan from there is refused. A `move_arm` goal the arm refuses for its
+orientation plans here, with `tolerance_rad` or `free_axis` naming the slack.
+`simulation_mcp` gives every `so101_sim` copy the planner from its entry. The fragment
+states where each of its values comes from. Its tools are listed under the robot's name on
+the `robot_control` endpoint with the prefix `planner.`.
 
 Recording needs a trigger: episodes start via the recorder's
 `record_episode` action, from the button of the stack's headset leading

@@ -432,17 +432,35 @@ class SharedRobotBlockTests(unittest.TestCase):
                 entries = robot_option(document, option).get("adjustments", [])
                 # The simulation is the launcher's own instance: only the MCP
                 # launcher turns its rendering on at the top level. The
-                # models of the router brain are the launcher's own, and
-                # ROUTER_BRAIN_MODELS holds each launcher to them.
+                # applier of worlds is the MCP launcher's alone, and the test
+                # below holds it to its link of the brain. The models of the
+                # router brain are the launcher's own, and ROUTER_BRAIN_MODELS
+                # holds each launcher to them.
                 blocks[option][path] = [
                     entry for entry in entries
-                    if entry["target"] != "simulation_inst" and entry not in ROUTER_BRAIN_MODELS.values()
+                    if entry["target"] not in ("simulation_inst", "sim_harness_inst")
+                    and entry not in ROUTER_BRAIN_MODELS.values()
                 ]
         for option, per_launcher in sorted(blocks.items()):
             first, *rest = sorted(per_launcher)
             for path in rest:
                 with self.subTest(option=option, launcher=path):
                     self.assertEqual(per_launcher[path], per_launcher[first])
+        # The applier of worlds waits for the brain of each OpenArm that runs
+        # one: the MCP launcher links it under the robot, where the brain is
+        # in reach, and no other launcher has an applier.
+        for path in SIMULATION_LAUNCHERS:
+            document = combinations.load_json5(root / path, path)
+            for option in ROBOT_LAUNCHERS[path]:
+                with self.subTest(option=option, launcher=path):
+                    applier = [entry for entry in robot_option(document, option).get("adjustments", [])
+                               if entry["target"] == "sim_harness_inst"]
+                    expected = [{
+                        "target": "sim_harness_inst",
+                        "when": {"world_control": "world_control", "brain": ["ai_brain_vla", "vlm_router_brain"]},
+                        "add_links": {"brain_model": ["brain_inst"]},
+                    }] if (path, option) == ("mcp/simulation_mcp.json5", "openarm_sim") else []
+                    self.assertEqual(applier, expected)
         # Rendering is asked for under the robot whose rig runs, except by
         # the MCP launcher, which turns it on for every copy at the top level.
         for path in SIMULATION_LAUNCHERS:

@@ -203,21 +203,17 @@ No collision governor exists on this single arm; the backbone is the one
 motion authority, and what it limits depends on how the arm is being driven.
 
 **Action goals** (`move_to_home`, `move_to_ready`, `move_arm_joints`,
-`move_arm`) run minimum-jerk trajectories sized by the per-joint velocity
-caps, and Cartesian moves additionally by the end-effector speed caps;
-`execute_joint_path` times its path within the per-joint velocity and
+`move_arm`, `execute_joint_path`) are timed within the per-joint velocity and
 acceleration caps, integrating the speed along the path over a grid of at
 least 1000 cells. A goal outside the URDF joint limits is refused
 outright.
 
-**A joints-led stream** (the SO-101 leader arm) passes through under the
-end-effector speed caps alone, matching the reference teleop: streamed
-targets are deliberately not joint-limit clamped, and the servo EPROM
-position limits are the physical travel guard.
+**A joints-led stream** (the SO-101 leader arm) is clamped into the joint
+limits and rate-stepped per joint at the joint velocity limits, then governed
+by the end-effector speed cap.
 
 **A pose-led stream** (the headset) is clipped into the arm's fitted
-reachable ball before the solver sees it, then limit-clamped and
-rate-stepped per joint, then governed by the same end-effector speed caps.
+reachable ball before the solver sees it, then treated the same.
 
 After any stream gap the backbone re-anchors on the measured position, so a
 leader parked far away walks the follower over rather than snapping it. The

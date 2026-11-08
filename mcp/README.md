@@ -80,8 +80,8 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   `set_daemon_scopes` adjustment targets both. With `--with
   robot_control=none` a robot that joins has no consumer of its cameras, so
   the applier's `stack` target is vacant and `world.get`, `world.check`,
-  `world.apply` and `world.run` refuse; `world.judge` and the scene tools
-  of the endpoint stay.
+  `world.apply`, `world.reset` and `world.run` refuse; `world.judge` and the
+  scene tools of the endpoint stay.
 - **The workflows' endpoint** comes with the simulated world's, on the
   `world_control` option of `simulation_mcp`, and on the `workflow_control`
   axis of `so101_simulation` and `physical`

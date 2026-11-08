@@ -325,8 +325,8 @@
     // Without the robots' endpoint, a robot of these options that joins has
     // no consumer of its cameras, so the applier of worlds leaves the stack
     // as it stands: its stack target is vacant, so world.get, world.check,
-    // world.apply and world.run refuse. world.judge and the scene tools of
-    // the world's endpoint stay.
+    // world.apply, world.reset and world.run refuse. world.judge and the
+    // scene tools of the world's endpoint stay.
     { target: "sim_harness_inst", when: { robot_control: "none" },
       set_daemon_scopes: { stack: {
         vacant: "the robots of this launch join and leave beside the robots' endpoint alone: launch with robot_control to apply a world",

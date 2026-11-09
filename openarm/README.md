@@ -358,8 +358,9 @@ inspector (the `debug_inspector` parameter), and around it every UI element
 of the page, each a Waldo plugin the fragment's `plugins` argument runs: the
 connection badge, the frame rate and its caps, the physics budget, the
 robots' names, the daylight panel, the "Start camera" panel, the headset panel, the pause,
-contact points and dark mode buttons, and the viewer's controls (Waldo's
-`plugins/README.md` says which plugin shows each, and where). With
+contact points and dark mode buttons, the viewer's controls, and the card of
+an object or a robot (Waldo's `plugins/README.md` says which plugin shows
+each, and where). With
 `hand_teleop`, webcam hand tracking drives an arm of the robot
 the panel chooses (the first standing when none is chosen), ahead of that
 robot's pairing while a hand is tracked. With `headset_teleop`, the panel
@@ -374,7 +375,10 @@ writes `<robot>@<core node>` over every robot (`beta@cn-funky-animal` for
 `cn-funky-animal`), which tells the robots of one world apart. With
 `simulation_clock`, a toolbar button pauses and resumes the whole
 simulation, as the `simulation_clock` contract does, and shows every pause
-and resume, whoever asked for it. With `physics_budget`, a panel shows how
+and resume, whoever asked for it. With `object_card`, a click or a tap on
+an object, a riser or a robot in the viewer opens a card beside it: what it
+is, its size, its weight, what it is made of and each other property it
+has, in the units of the browser's language. With `physics_budget`, a panel shows how
 long Waldo's physics thread works for each step against the 2 ms a step
 simulates: past that budget the simulation runs slower than real time, and
 the panel turns red. With `daylight`, a panel sets the date, the hour, the

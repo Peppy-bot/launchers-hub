@@ -108,6 +108,12 @@
       name: "camera_rig", cardinality: "zero_or_one", provides: ["wrist"],
       options: { cameras_sim: "cameras_sim.json5" },
     },
+    // The motion planner: arm paths planned around the objects of the planning
+    // scene, which a caller runs with the backbone's execute_joint_path.
+    {
+      name: "motion_planner", cardinality: "zero_or_one", provides: ["planner_inst"],
+      options: { motion_planner: "motion_planner.json5" },
+    },
   ],
 
   constraints: [

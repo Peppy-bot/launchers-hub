@@ -218,6 +218,9 @@
               add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
+            // The motion planner's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { motion_planner: "motion_planner" },
+              add_links: { planner: ["planner_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
@@ -239,9 +242,10 @@
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
               add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
-            // The commander and recorder are shared with the physical robot.
+            // The commander, recorder and planner are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },
+            { target: "planner_inst", set_framework: { clock: "simulation" } },
           ],
         },
       },
@@ -270,7 +274,7 @@
     },
     {
       robot: "so101_sim",
-      with: { robot_commander: "none", camera_rig: "cameras_sim" },
+      with: { robot_commander: "none", camera_rig: "cameras_sim", motion_planner: "motion_planner" },
     },
   ],
 
@@ -319,7 +323,7 @@
           { option: "openarm_sim", model: "openarm_v2",
             description: "A simulated OpenArm v2 standing on the floor: two 7-joint arms with grippers on a stand, a depth camera on its chest, a camera on each wrist, a brain on a hosted model and a motion planner" },
           { option: "so101_sim", model: "so101",
-            description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist" },
+            description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist, and a motion planner" },
         ],
       } } },
     // Without the robots' endpoint, a robot of these options that joins has

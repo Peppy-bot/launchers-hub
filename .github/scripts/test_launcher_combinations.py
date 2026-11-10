@@ -318,7 +318,8 @@ class FragmentInventoryTests(unittest.TestCase):
                                    "openarm.json5", "openarm_sim.json5", "vlm_router_brain.json5",
                                    "web_commander.json5"}),
             ("so101/fragments", {"cameras.json5", "cameras_sim.json5", "lerobot_recorder.json5",
-                                 "so101.json5", "so101_leader.json5", "so101_sim.json5"}),
+                                 "motion_planner.json5", "so101.json5", "so101_leader.json5",
+                                 "so101_sim.json5"}),
             ("teleop/fragments", {"xr_commander.json5"}),
             ("simulation/fragments", {"isaac_sim.json5", "mujoco.json5", "waldo.json5",
                                       "web_scene_commander.json5"}),
@@ -701,12 +702,12 @@ class CombinationsTests(unittest.TestCase):
         # OpenArm has two hardware versions, three commanders (`none` among
         # them), a recorder, a rig (off or on, `none` being the simulated
         # rig's off), a brain (off, ai_brain_vla or vlm_router_brain) and a
-        # motion planner; an SO-101 two commanders, a recorder and a rig. A selection its
-        # constraints refuse is still enumerated, and reported refused when it
+        # motion planner; an SO-101 two commanders, a recorder, a rig and a motion
+        # planner. A selection its constraints refuse is still enumerated, and reported refused when it
         # resolves. The physical OpenArm has no plain join: its hardware
         # version has no default, so every join names one.
-        openarm, so101 = 2 * 3 * 2 * 2 * 3 * 2, 1 + 2 * 2 * 2
-        openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2
+        openarm, so101 = 2 * 3 * 2 * 2 * 3 * 2, 1 + 2 * 2 * 2 * 2
+        openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2 * 2
         # The physical launcher: the endpoint, the workflows and the headset
         # each unfilled or on, each bare and joined by any physical robot. It
         # lists no robot, so no launch names one.
@@ -729,7 +730,7 @@ class CombinationsTests(unittest.TestCase):
         # selection of its axes (the v2's, or the SO-101's) and joined by any
         # simulated robot.
         stacks = (1 + 2 + 2) * 2 * 2
-        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 3 * 2, 2 * 2 * 2
+        alpha_openarm, alpha_so101 = 2 * 3 * 2 * 2 * 3 * 2, 2 * 2 * 2 * 2
         sim = combos("openarm_simulation")
         self.assertEqual(len(sim), stacks * (alpha_openarm + openarm_sim + so101_sim))
         self.assertIn(["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "", "", "-"], sim)
@@ -1366,8 +1367,8 @@ class CombinationsTests(unittest.TestCase):
             for robot in ROBOT_LAUNCHERS[path]:
                 with self.subTest(path=path, robot=robot):
                     clocked = [a for a in robot_option(document, robot)["adjustments"] if "set_framework" in a]
-                    expected = ["commander_inst", "recorder_inst"] + (
-                        ["brain_inst", "planner_inst"] if family_of(robot) == "openarm" else [])
+                    expected = ["commander_inst", "recorder_inst", "planner_inst"] + (
+                        ["brain_inst"] if family_of(robot) == "openarm" else [])
                     self.assertCountEqual(
                         clocked, [{"target": target, "set_framework": {"clock": "simulation"}} for target in expected])
 
@@ -2227,7 +2228,8 @@ class CombinationsTests(unittest.TestCase):
             {"robot": "openarm_sim",
              "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "brain": "vlm_router_brain",
                       "motion_planner": "motion_planner"}},
-            {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim"}},
+            {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim",
+                                            "motion_planner": "motion_planner"}},
         ])
         launcher = combinations.read_launcher(root, path)
         self.assertEqual(launcher.copies, [])

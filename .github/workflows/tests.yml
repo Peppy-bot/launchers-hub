@@ -455,17 +455,37 @@ jobs:
     # the run is green without booting a daemon; so does a change that moves
     # no launchable combination's plan.
     if: needs.discover.outputs.launches == 'true'
-    # 8 vCPU with 16 or 32 GB (a full launch peaks near 10 GB) on the AMD
-    # families c8a, c7a, m8a and m7a, where one vCPU is a full core. The
-    # launches run one after the other: with the node images in the cache a
-    # run keeps 2 cores busy on average and 3 at its peak, and a run that
-    # rebuilds the images keeps 5 busy on average and 12 at its peak, which
-    # 8 full cores serve about as fast as 16 Intel hyperthreads. Four
-    # families in each zone give enough spot pools that a spot instance is
-    # found at once. The 50 GB root disk holds apptainer's build scratch (a
-    # full launch writes near 18 GB there), and the sticky disk holds the
-    # caches named below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8/ram=16+32/family=c8a+c7a+m8a+m7a/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    # An instance with 8 physical cores and 16 to 64 GB (a full launch peaks
+    # near 10 GB), of one of 9 types: the 2xlarge of the AMD families c7a,
+    # m7a and r7a, where one vCPU is a full core, and the 4xlarge of the
+    # Intel families c6i, m6i, c7i, m7i, c8i and m8i, where two vCPU share a
+    # core. The launches run one after the other: with the node images in the
+    # cache a run keeps 2 cores busy on average and 3 at its peak, and a run
+    # that rebuilds the images keeps 5 busy on average and 12 at its peak,
+    # which 8 full cores serve about as fast as 16 Intel hyperthreads.
+    #
+    # `family` holds one wildcard for each generation with its size, because
+    # a family name alone selects by vCPU count, and 8 vCPU of an Intel
+    # family are 4 cores. cpu and ram give the range that holds the 9 types;
+    # the 64 GB limit keeps out the Intel 4xlarge with 128 GB that the
+    # wildcards also match. The wildcards keep the label short: RunsOn gives
+    # no runner to a job whose label, with the run id and `/spot=false` in
+    # it, is longer than 255 characters. The 8a generation of AMD is not in
+    # the label: AWS interrupts its 2xlarge about three times as often as the
+    # 2xlarge of the 7a generation.
+    #
+    # The job has 9 types to take a spot instance from because it is the
+    # longest of the workflow, and AWS can interrupt a spot instance for as
+    # long as it runs. AWS interrupts an instance to take back capacity from
+    # its pool, which is its type in its zone. The org runner asks for the
+    # capacity-optimized allocation strategy, so each request gets the pool
+    # with the most free capacity among the 9 types in each zone. An
+    # on-demand instance is the type with the lowest price, c7a.2xlarge.
+    #
+    # The 50 GB root disk holds apptainer's build scratch (a full launch
+    # writes near 18 GB there), and the sticky disk holds the caches named
+    # below.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8+16/ram=16+64/family=*7a.2xlarge+*6i.4xlarge+*7i.4xlarge+*8i.4xlarge/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once

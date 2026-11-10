@@ -9,14 +9,17 @@
 // the pinned contract documents (contract), the leases (lease) and the move
 // check before each call that moves a robot (check_move). allowed_contracts
 // names the contracts that runs may command and observe: the skills of the
-// robots of the hubs. The director declares no core_node, so it runs on the
-// coordinator, as an instance serving a daemon target must. It keeps the
-// journal of each run in journal_root, a directory of the coordinator's
-// disk that outlives its container and each launch.
+// robots of the hubs. limb_motion is not one of them: a workflow commands the
+// skills of a robot, not its arm and gripper moves. A launcher whose robots
+// have no brain sets its own list, with limb_motion. The director declares no
+// core_node, so it runs on the coordinator, as an instance serving a daemon
+// target must. It keeps the journal of each run in journal_root, a directory
+// of the coordinator's disk that outlives its container and each launch.
 //
 // simulation_mcp deploys it with the world's endpoint, on its world_control
 // option, and binds the director to the simulation's clock; so101_simulation
-// and physical serve it with `--with workflow_control`.
+// and physical serve it with `--with workflow_control`, and each sets its own
+// allowed_contracts.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -27,7 +30,7 @@
         {
           instance_id: "workflow_director_inst",
           arguments: {
-            allowed_contracts: "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, item_perception:v1, item_manipulation:v1",
+            allowed_contracts: "robot_identity:v1, limb_state:v1, postures:v1, workspace:v1, item_perception:v1, item_manipulation:v1",
             poll_s: 0.5,
             cancel_timeout_s: 10,
             journal_root: "/var/tmp/peppy_workflow_director",

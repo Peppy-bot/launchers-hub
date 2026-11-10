@@ -175,6 +175,9 @@
               add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
+            // The motion planner's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { motion_planner: "motion_planner" },
+              add_links: { planner: ["planner_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
@@ -196,9 +199,10 @@
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
               add_links: { camera: ["wrist"], camera_profile: ["wrist"], camera_geometry: ["wrist"] } },
-            // The commander and recorder are shared with the physical robot.
+            // The commander, recorder and planner are shared with the physical robot.
             { target: "commander_inst", set_framework: { clock: "simulation" } },
             { target: "recorder_inst", set_framework: { clock: "simulation" } },
+            { target: "planner_inst", set_framework: { clock: "simulation" } },
             // Rendering, while this robot films.
             { target: "simulation_inst", when: { camera_rig: "cameras_sim" },
               set_arguments: { cameras_enabled: true } },

@@ -163,6 +163,9 @@
             // stack's headset shows them too.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
               add_links: { motor_health: ["follower_inst"], alerts: ["follower_inst"] } },
+            // The motion planner's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { motion_planner: "motion_planner" },
+              add_links: { planner: ["planner_inst"] } },
             // An episode also starts from the MCP endpoint.
             { target: "robot_control_inst", when: { recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },

@@ -1,6 +1,6 @@
 // The KER leader: joint-led teleop from enactic's motorless bimanual leader
 // arm, whose joints mirror OpenArm v2 1:1; it clamps to the joint limits of
-// the hardware version it leads. Each limb pairs into the backbone's matching
+// the model it leads. Each limb pairs into the backbone's matching
 // leader socket; an arm engages when its trigger is
 // squeezed to engage_trigger_opening, having first read back above it, and
 // then tracks the KER. The KER produces no governor control, so the
@@ -15,7 +15,7 @@
         {
           instance_id: "commander_inst",
           arguments: {
-            hardware_version: "v2",
+            model: "openarm_v2",
             command_rate_hz: 100,
             // An arm engages once its trigger is squeezed down to a fifth
             // open, deep enough that a hand resting on the trigger cannot

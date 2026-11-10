@@ -53,6 +53,9 @@
             start_tolerance_rad: 0.05,
           },
           links: {
+            // The description of the robot's model, which the backbone holds
+            // to the one it was built with before it starts.
+            robot_identity: "init_inst",
             // The backbone leads the simulation's limb slots, one per kind of
             // limb: governed commands flow down each pair and this robot's
             // measured state returns on it. The simulation tells a pair's

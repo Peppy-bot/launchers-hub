@@ -198,9 +198,9 @@
     // wired to, so its stack target stays vacant.
     { target: "framework_controls_inst",
       set_daemon_scopes: { stack: { vacant: "physical robots join from the command line, on the machine their hardware is wired to" } } },
-    // A run on the physical robots commands their postures, arm moves and
-    // perception, and no brain sequence: item_manipulation is not an
-    // allowed contract here.
+    // A run on the physical robots commands no brain sequence, so a workflow
+    // moves the arms through limb_motion alone: limb_motion is an allowed
+    // contract here, and item_manipulation is not.
     { target: "workflow_director_inst",
       set_arguments: { allowed_contracts: "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, item_perception:v1" } },
   ],

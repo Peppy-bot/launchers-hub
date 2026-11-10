@@ -285,6 +285,33 @@ def pinned_waldo_arguments_written(document):
                    for argument in WALDO_PINNED_ARGUMENTS & set(adjustment.get("set_arguments", {}))})
 
 
+def adjustments_anywhere(document):
+    """Every adjustment a document writes, at its top level and under its
+    options."""
+    found = list(document.get("adjustments") or [])
+    for axis in document.get("components") or []:
+        for spec in (axis.get("options") or {}).values():
+            if isinstance(spec, dict):
+                found.extend(adjustments_anywhere(spec))
+    return found
+
+
+def director_contracts_set(document):
+    """The contract lists that the adjustments of a launcher set on the
+    workflow director, one per adjustment."""
+    def targets(adjustment):
+        target = adjustment["target"]
+        return [target] if isinstance(target, str) else target
+    return [contracts_of(adjustment["set_arguments"]) for adjustment in adjustments_anywhere(document)
+            if DIRECTOR in targets(adjustment) and "allowed_contracts" in adjustment.get("set_arguments", {})]
+
+
+def contracts_of(arguments):
+    """The contracts that the `allowed_contracts` argument of a workflow
+    director names, in its order."""
+    return [contract.strip() for contract in arguments["allowed_contracts"].split(",")]
+
+
 def writes_link(adjustment, slot):
     """Whether an adjustment sets, adds to or unsets the link `slot`."""
     return (slot in adjustment.get("set_links", {}) or slot in adjustment.get("add_links", {})
@@ -1538,15 +1565,24 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(instance["daemon_scopes"], {"fleet": {"members": ["list", "contract", "changes", "lease", "check_move"]}})
         self.assertNotIn("links", instance)
         self.assertNotIn("core_node", instance)
-        self.assertIn("item_manipulation:v1", instance["arguments"]["allowed_contracts"])
-        # A run on the physical robots calls every contract of the fragment
-        # but the brain's manipulation.
-        allowed = [contract.strip() for contract in instance["arguments"]["allowed_contracts"].split(",")]
+        # A run in a simulation commands the skills of a robot, the brain's
+        # manipulation among them, and no arm or gripper move of limb_motion.
+        self.assertEqual(contracts_of(instance["arguments"]), [
+            "robot_identity:v1", "limb_state:v1", "postures:v1", "workspace:v1",
+            "item_perception:v1", "item_manipulation:v1"])
+        self.assertNotIn("adjustments", fragment)
+        # No simulation launcher sets the contracts of its director, so the
+        # director of each simulation launch allows those of the fragment.
+        for path in DIRECTOR_ON_THE_SIMULATION_CLOCK:
+            with self.subTest(path=path):
+                self.assertEqual(director_contracts_set(combinations.load_json5(root / path, path)), [])
+        # A run on the physical robots commands no brain sequence: its
+        # director allows limb_motion, the one way a workflow moves the arms
+        # there, and no manipulation of the brain.
         physical = combinations.load_json5(root / "physical.json5", "physical.json5")
-        on_hardware, = [a for a in physical["adjustments"] if a.get("target") == DIRECTOR]
-        self.assertEqual(
-            [contract.strip() for contract in on_hardware["set_arguments"]["allowed_contracts"].split(",")],
-            [contract for contract in allowed if contract != "item_manipulation:v1"])
+        self.assertEqual(director_contracts_set(physical), [[
+            "robot_identity:v1", "limb_state:v1", "limb_motion:v1", "postures:v1", "workspace:v1",
+            "item_perception:v1"]])
         self.assertEqual(endpoint["source"], {"exposures": ["workflow_controls:v1"]})
         server, = endpoint["instances"]
         self.assertEqual((server["instance_id"], server["arguments"], server["links"]),

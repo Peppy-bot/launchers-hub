@@ -21,7 +21,7 @@ table and the copy semantics.
 | Family | Endpoint | Exposure | Bound to | On the physical robots |
 |---|---|---|---|---|
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one, the fleet of the stack, and the halt of the stack | the peppy daemon that started the server, within the scope the launcher gives each target | the fleet and the halt; `physical.json5` leaves the `stack` target vacant, so a client adds no robot there |
-| Workflows | `http://127.0.0.1:8904/workflow_controls/v1/mcp` | `workflow_controls:v1`: the robots a workflow can bind, the check of a workflow, its runs with their confirmations, suspensions, resumes and aborts, and the state and the journal of each run | the workflow director, `workflow_director_inst` | yes, with `--with workflow_control`; a run there calls no `item_manipulation` |
+| Workflows | `http://127.0.0.1:8904/workflow_controls/v1/mcp` | `workflow_controls:v1`: the robots a workflow can bind, the check of a workflow, its runs with their confirmations, suspensions, resumes and aborts, and the state and the journal of each run | the workflow director, `workflow_director_inst` | yes, with `--with workflow_control`; a run there calls `limb_motion` and no `item_manipulation`, and a run in a simulation calls `item_manipulation` and no `limb_motion` |
 | Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, its cameras and their depth, where its design lets it work, its brain, its recorder and its motion planner | each robot's initializer, backbone, rig, brain, recorder and motion planner | yes |
 | Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the check and the apply of a world, a workflow run in one and the judges that check it | the simulation, and for its worlds the applier of worlds, `sim_harness_inst` | no |
 
@@ -91,9 +91,14 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   listing: its `fleet` target gives it `list`, `contract`, `changes`,
   `lease` and `check_move`, so it takes no link to a robot and runs on the
   coordinator. Its `allowed_contracts` are the skills of the robots of the
-  hubs; `physical` leaves `item_manipulation:v1` out. `simulation_mcp` and
-  `so101_simulation` bind it to the simulation's clock. Each run keeps its
-  journal under `/var/tmp/peppy_workflow_director` on the coordinator.
+  hubs. The directors of the simulation launchers allow no `limb_motion:v1`:
+  a workflow there commands the skills of a robot, not its arm and gripper
+  moves. The director of `physical` allows `limb_motion:v1` and leaves
+  `item_manipulation:v1` out: a run there commands no brain sequence, so a
+  workflow moves the arms through `limb_motion` alone. `simulation_mcp` and
+  `so101_simulation` bind the director to the simulation's clock. Each run
+  keeps its journal under `/var/tmp/peppy_workflow_director` on the
+  coordinator.
 
 The robots' and the simulated world's endpoints bind the simulation or
 nothing, the framework's binds no node, and the workflows' binds the

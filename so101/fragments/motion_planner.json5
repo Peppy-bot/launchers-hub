@@ -57,8 +57,8 @@
             // planning_context_manager.cpp:258).
             goal_samples: 10,
             // The iteration limit of a plan. Under it, SO-101's success rate in
-            // public-peppy-libs' arm planning parity scenario matches MoveIt's,
-            // which limits a plan by time alone.
+            // public-peppy-libs' arm planning parity scenario is at least
+            // MoveIt's, which limits a plan by time alone.
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts.
             planning_attempts: 1,

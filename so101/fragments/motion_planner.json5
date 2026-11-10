@@ -1,8 +1,8 @@
-// An SO-101's motion planner: the node that serves motion_planning, arm paths
-// planned around the objects of its planning scene and clear of the arm's own
-// links. SO-101 has no depth camera, so its map stays empty. It moves nothing: a
-// caller runs a plan with the backbone's execute_joint_path. A copy selects it on
-// its motion_planner axis.
+// An SO-101's motion planner. It plans arm paths around the objects of the
+// planning scene and keeps the arm's links apart. It moves nothing: a caller runs
+// a plan with the backbone's execute_joint_path. SO-101 has no depth camera, so
+// the planner's map stays empty and the scene's objects are all it plans around.
+// A copy selects this fragment on its motion_planner axis.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -13,43 +13,52 @@
         {
           instance_id: "planner_inst",
           arguments: {
-            // The most a run strays from its plan: on a real SO-101 the grasp
-            // point strayed 18.8 mm at most from the rounded path over three
-            // runs, a plan around a box, the plan back and a goal with a
-            // tolerance. SO-101 has no guard to stand above. MoveIt pads the
-            // world by 0.
-            min_clearance_m: 0.02,
-            // The backbone's start_tolerance_rad, so a start the backbone
-            // accepts for a path can be planned from.
+            // How far a plan keeps the arm from the scene's objects, and the
+            // arm's links from each other. MoveIt's default: it pads neither
+            // (moveit2 2.15.2: default_robot_padding, planning_scene_monitor.cpp:1672;
+            // pad_self_collisions, collision_common.hpp:157). Every state of a
+            // plan keeps 1 mm more, 2 mm between two links, so the planner can
+            // prove the motion between states clear.
+            min_clearance_m: 0.0,
+            // How far a start may sit outside a joint limit: the backbone's
+            // start_tolerance_rad, so every start the backbone runs a path
+            // from can be planned from.
             start_tolerance_rad: 0.05,
-            // No depth frame reaches this planner, so its map stays empty and
-            // no frame is cut out: padding_scale, max_range_m and
-            // max_update_rate_hz are OpenArm's, for the node's parse.
+            // Depth camera settings. They do nothing on SO-101, which has no
+            // depth camera; the node needs a value for each. padding_scale,
+            // max_range_m and max_update_rate_hz are OpenArm's.
             padding_scale: 1.0,
-            // At most the clearance, as OpenArm's fragment holds it.
-            padding_offset_m: 0.02,
-            // The empty map's grid, which the map's bounds below round out to.
-            voxel_size_m: 0.02,
+            // Does nothing on SO-101, which has no depth camera; the node needs a
+            // value. On a robot with one, the planner erases the depth points
+            // within this distance of the robot's own body, so the camera's view
+            // of the arm is not mapped as an obstacle. It is at most
+            // min_clearance_m, so the erased band never hides an obstacle a plan
+            // keeps clear of.
+            padding_offset_m: 0.0,
             max_range_m: 1.36,
             max_update_rate_hz: 5.0,
-            // The extent of the arm's collision meshes over 30000 drawn
-            // configurations inside its limits, for each of three seeds (x
-            // -0.3473 to 0.4863, y -0.4467 to 0.4481, z -0.2338 to 0.5362; the
-            // seeds agree within 5.9 mm), grown by the clearance a checked state
-            // keeps (min_clearance_m + 1 mm) and rounded out to the voxel grid.
-            map_min_x_m: -0.38,
-            map_min_y_m: -0.48,
-            map_min_z_m: -0.26,
-            map_max_x_m: 0.52,
-            map_max_y_m: 0.48,
-            map_max_z_m: 0.56,
-            // MoveIt's max_goal_samples default, the most goals its goal
-            // sampler adds to a plan (moveit2 2.15.2
+            // The edge of the map's voxels. The map's bounds below are whole
+            // voxels.
+            voxel_size_m: 0.02,
+            // The box the map covers: everywhere the arm's collision meshes
+            // reach within its joint limits, grown by min_clearance_m plus the
+            // 1 mm a planned state keeps, and rounded out to whole voxels. The
+            // reach is x -0.3473 to 0.4863 m, y -0.4467 to 0.4481 m and z
+            // -0.2338 to 0.5362 m, over 30000 random configurations for each of
+            // three seeds, which agree within 5.9 mm.
+            map_min_x_m: -0.36,
+            map_min_y_m: -0.46,
+            map_min_z_m: -0.24,
+            map_max_x_m: 0.50,
+            map_max_y_m: 0.46,
+            map_max_z_m: 0.54,
+            // The most goal configurations the goal sampler adds to a plan:
+            // MoveIt's max_goal_samples default (moveit2 2.15.2
             // planning_context_manager.cpp:258).
             goal_samples: 10,
-            // The iteration bound of public-peppy-libs' arm planning parity
-            // scenario of SO-101, under which a plan's success rate lies within
-            // MoveIt's; MoveIt bounds a plan by its time alone.
+            // The iteration limit of a plan. Under it, SO-101's success rate in
+            // public-peppy-libs' arm planning parity scenario matches MoveIt's,
+            // which limits a plan by time alone.
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts.
             planning_attempts: 1,

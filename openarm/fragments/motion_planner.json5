@@ -71,11 +71,10 @@
             // sampler adds to a plan (moveit2 2.15.2
             // planning_context_manager.cpp:258).
             goal_samples: 10,
-            // The iteration bound of public-peppy-libs' arm planning parity
-            // scenario, under which an `rrt_connect` plan's success rate lies
-            // within MoveIt's; MoveIt bounds a plan by its time alone. An
-            // `rrt_star` plan takes no iteration bound and plans until its time
-            // ends.
+            // The iteration limit of an `rrt_connect` plan, under which its
+            // success rate holds in public-peppy-libs' arm planning parity
+            // scenario. An `rrt_star` plan takes no iteration limit and plans
+            // until its time ends.
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts. On the Jetson at these
             // values, 30 replays at a 1 s time answered a plan of both arms

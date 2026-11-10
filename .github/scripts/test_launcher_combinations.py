@@ -215,6 +215,12 @@ DIRECTOR = "workflow_director_inst"
 #: The launchers whose director and its endpoint read the simulation's clock.
 DIRECTOR_ON_THE_SIMULATION_CLOCK = ["mcp/simulation_mcp.json5", "so101_simulation.json5"]
 DIRECTOR_CLOCK = {"target": [DIRECTOR, "workflow_controls_inst"], "set_framework": {"clock": "simulation"}}
+#: What so101_simulation writes for the contracts of its director: the skills
+#: of the fragment and limb_motion, which moves an SO-101, a robot with no
+#: brain.
+SO101_DIRECTOR_CONTRACTS = {"target": DIRECTOR, "set_arguments": {"allowed_contracts": (
+    "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, "
+    "item_perception:v1, item_manipulation:v1")}}
 #: What every simulation launcher writes at its top level for the headset:
 #: its clock, and Waldo's panel showing it.
 HEADSET_WIRING = [
@@ -1518,6 +1524,7 @@ class CombinationsTests(unittest.TestCase):
                     ([RENDERING_ON] if path == "mcp/simulation_mcp.json5" else [])
                     + [SERVER_CLOCK]
                     + ([DIRECTOR_CLOCK] if path in DIRECTOR_ON_THE_SIMULATION_CLOCK else [])
+                    + ([SO101_DIRECTOR_CONTRACTS] if path == "so101_simulation.json5" else [])
                     + HEADSET_WIRING
                 )
                 self.assertEqual(
@@ -1571,11 +1578,18 @@ class CombinationsTests(unittest.TestCase):
             "robot_identity:v1", "limb_state:v1", "postures:v1", "workspace:v1",
             "item_perception:v1", "item_manipulation:v1"])
         self.assertNotIn("adjustments", fragment)
-        # No simulation launcher sets the contracts of its director, so the
-        # director of each simulation launch allows those of the fragment.
-        for path in DIRECTOR_ON_THE_SIMULATION_CLOCK:
-            with self.subTest(path=path):
-                self.assertEqual(director_contracts_set(combinations.load_json5(root / path, path)), [])
+        # The MCP launcher does not set the contracts of its director, which
+        # allows those of the fragment: the robots that a chat adds there
+        # work through their skills.
+        mcp_launcher = combinations.load_json5(root / "mcp/simulation_mcp.json5", "mcp/simulation_mcp.json5")
+        self.assertEqual(director_contracts_set(mcp_launcher), [])
+        # The SO-101 of so101_simulation has no brain: its director allows
+        # limb_motion, the one way a workflow moves that arm and that
+        # gripper, beside the skills that an OpenArm with a brain answers.
+        so101_launcher = combinations.load_json5(root / "so101_simulation.json5", "so101_simulation.json5")
+        self.assertEqual(director_contracts_set(so101_launcher), [[
+            "robot_identity:v1", "limb_state:v1", "limb_motion:v1", "postures:v1", "workspace:v1",
+            "item_perception:v1", "item_manipulation:v1"]])
         # A run on the physical robots commands no brain sequence: its
         # director allows limb_motion, the one way a workflow moves the arms
         # there, and no manipulation of the brain.

@@ -12,7 +12,7 @@
     "`peppy stack join openarm_sim:bravo`: an OpenArm v2 beside alpha, with the browser panel.",
     "The robot axis offers every simulated robot, so an OpenArm joins beside the SO-101; every simulation stands as many robots as the machines can run, of any model, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the fourth command above does, and `--with cameras_sim` on a join is refused on a launch without one.",
     "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the SO-101's arm and gripper and sees through its wrist camera, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
-    "`--with workflow_control` runs the workflow director and its MCP endpoint, http://127.0.0.1:8904/workflow_controls/v1/mcp, where a client checks workflows and runs them on the robots.",
+    "`--with workflow_control` runs the workflow director and its MCP endpoint, http://127.0.0.1:8904/workflow_controls/v1/mcp, where a client checks workflows and runs them on the robots. An SO-101 has no brain, so a workflow moves its arm and its gripper through limb_motion, which the director of this launcher allows.",
     "`--with xr_commander` runs the stack's headset, which leads the SO-101 with the right hand.",
   ],
 
@@ -239,6 +239,12 @@
     // the bounds of a run count simulated time; its endpoint reads the same
     // clock as the director it binds.
     { target: ["workflow_director_inst", "workflow_controls_inst"], set_framework: { clock: "simulation" } },
+    // alpha is an SO-101, which has no brain: a workflow moves its arm and
+    // its gripper through limb_motion alone. So limb_motion is an allowed
+    // contract here, beside the skills of the fragment, which an OpenArm
+    // that joins with a brain answers.
+    { target: "workflow_director_inst",
+      set_arguments: { allowed_contracts: "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, item_perception:v1, item_manipulation:v1" } },
     // The framework's endpoint serves its fleet target alone: this file
     // offers an MCP client no robot to add, so its stack target stays
     // vacant, and every robot joins from the command line.

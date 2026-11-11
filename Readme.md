@@ -159,7 +159,7 @@ launcher itself, as `simulation_mcp` does. A robot joined to a plain
 `openarm_simulation` or `so101_simulation` has no rendered camera, an
 SO-101's `wrist` included, while one joined to `simulation_mcp` has its
 rig and motion planner; a v1 OpenArm joins it with
-`--with openarm_v1,camera_rig=none,motion_planner=none`. The [planner](.github/scripts/launcher_combinations.py) reports such
+`--with openarm_v1,camera_rig=none`. The [planner](.github/scripts/launcher_combinations.py) reports such
 copies as file-only.
 
 ### How a robot reaches a simulation

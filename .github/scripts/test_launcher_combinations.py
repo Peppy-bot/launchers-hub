@@ -1237,8 +1237,8 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # Every launcher lists the planner's tools whenever it runs and gives
         # it the chest camera of the rig the copy selects; the planner takes
-        # the robot's model from the copy's initializer, and plans for a v2,
-        # so every OpenArm refuses it on a v1.
+        # the robot's model from the copy's initializer, so no model of
+        # OpenArm refuses it.
         planner = combinations.load_json5(root / "openarm/fragments/motion_planner.json5", "motion_planner")
         self.assertNotIn("adjustments", planner)
         [[instance]] = [d["instances"] for d in planner["deployments"]]
@@ -1246,9 +1246,8 @@ class CombinationsTests(unittest.TestCase):
         for path in ["openarm/fragments/openarm.json5", "openarm/fragments/openarm_sim.json5"]:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
-                self.assertIn({"when": {"motion_planner": "motion_planner"}, "requires": [{"model": "openarm_v2"}],
-                               "reason": "the motion planner plans for a v2 alone; select openarm_v2, or motion_planner=none"},
-                              document["constraints"])
+                self.assertFalse([c for c in document["constraints"]
+                                  if c["when"] == {"motion_planner": "motion_planner"}])
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:

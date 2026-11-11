@@ -168,10 +168,6 @@
     { when: { robot_commander: "ker_commander" },
       requires: [{ model: "openarm_v2" }],
       reason: "ker_commander is offered on a v2 alone; select openarm_v2, or another commander" },
-    // The motion planner plans for an openarm_v2.
-    { when: { motion_planner: "motion_planner" },
-      requires: [{ model: "openarm_v2" }],
-      reason: "the motion planner plans for a v2 alone; select openarm_v2, or motion_planner=none" },
   ],
 
   adjustments: [

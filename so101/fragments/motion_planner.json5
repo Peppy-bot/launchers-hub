@@ -57,9 +57,10 @@
             // planning_context_manager.cpp:258).
             goal_samples: 10,
             // The iteration limit of an `rrt_connect` plan, under which SO-101's
-            // success rate holds in public-peppy-libs' arm planning parity
-            // scenario. An `rrt_star` plan takes no iteration limit and plans
-            // until its time ends.
+            // success rate in public-peppy-libs' arm planning parity scenario
+            // lies within the reference's 95% interval or above it. An
+            // `rrt_star` plan takes no iteration limit and plans until its time
+            // ends.
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts.
             planning_attempts: 1,

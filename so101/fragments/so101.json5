@@ -68,8 +68,9 @@
             start_tolerance_rad: 0.05,
           },
           links: {
-            // The description of the robot's model, which the backbone holds
-            // to the one it was built with before it starts.
+            // The robot's model and its description, which the backbone holds
+            // to so101 and to the description it was built with once it
+            // serves, ending when either differs.
             robot_identity: "init_inst",
             // The exclusive command loops with the follower: governed-shape
             // setpoints stream down each pair, measured state streams back.

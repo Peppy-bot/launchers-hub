@@ -205,11 +205,12 @@ option needs the leader's share of them.
    Each writes `<id>.json` under lerobot's own calibration directory. Place
    or symlink both under `/var/lib/so101/calibration/`, which is the host
    path this fragment bind-mounts and where the nodes look for `<id>.json`.
-3. **Postures**: `move_to_home` targets the collapsed park pose the arm
-   rests in, and `move_to_ready` the working posture where work starts, the
-   arm out level with the wrist camera above the jaw; both are
-   `so101_description` constants, validated at startup against the
-   kinematics URDF that same description embeds (no host URDF to fetch).
+3. **Postures**: `move_to_home` targets the arm's `home` state, where it
+   rests, and `move_to_ready` its `ready` state, the working posture where
+   work starts, the arm out level with the wrist camera above the jaw; both
+   are states of the arm in SO-101's SRDF in `robot_description`, which holds
+   each within the joint limits of the same model's URDF (no host URDF to
+   fetch).
 
 ## Safety model
 

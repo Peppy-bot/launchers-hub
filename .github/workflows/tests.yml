@@ -153,15 +153,15 @@ name: Tests
 # job's runs-on label. A pull request from a fork runs on the same runners, so
 # what holds fork code is the repository's fork-PR approval gate.
 #
-# Each job runs on a RunsOn spot instance in attempts 1 and 2 of its run, and
-# on an on-demand instance from attempt 3. When AWS interrupts a spot
-# instance, RunsOn runs the failed jobs again in the next attempt, but only
-# after attempt 1 or 2. A re-run is also an attempt, and the merge-set bot of
-# peppy re-runs this workflow to test a new commit of another branch of its
-# set. So each runs-on label adds spot=false from attempt 3, and AWS cannot
-# interrupt a job that RunsOn does not run again. A run the peppy release
-# dispatches is on demand from attempt 1: the release reads that run's first
-# conclusion and publishes nothing on a failure, so it has no retry to wait for.
+# Each job runs on a RunsOn spot instance in attempt 1 of its run, and on an
+# on-demand instance from attempt 2. When AWS interrupts a spot instance,
+# RunsOn runs the failed jobs again in the next attempt. A re-run is also an
+# attempt, and the merge-set bot of peppy re-runs this workflow to test a new
+# commit of another branch of its set. So each runs-on label adds spot=false
+# from attempt 2, and AWS interrupts the jobs of a run in one attempt at
+# most. A run the peppy release dispatches is on demand from attempt 1: the
+# release reads that run's first conclusion and publishes nothing on a
+# failure, so it has no retry to wait for.
 on:
   push:
     branches: [main]
@@ -196,7 +196,7 @@ jobs:
   wait-for-peppy:
     name: Wait for the peppy dev build
     # The smallest RunsOn runner, 1 vCPU: the job only looks for the build.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=1/ram=2+4/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=1/ram=2+4/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 2 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
     # The action stops its wait after 20 minutes.
     timeout-minutes: 25
     permissions:
@@ -225,7 +225,15 @@ jobs:
     # A change to a fragment that every launcher holds resolves every
     # combination twice, here and on the base tree: 946 s for one pass of 19,959
     # combinations, so about 32 minutes.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    #
+    # An instance with 4 physical cores and 8 to 32 GB, of one of 9 types: the
+    # xlarge of the AMD families c7a, m7a and r7a and the 2xlarge of the Intel
+    # families c6i, m6i, c7i, m7i, c8i and m8i. The job can run for half an
+    # hour, so it takes its spot instance from the same generations as the
+    # launch job below, whose comment gives the reasons for the wildcards and
+    # for the absence of the 8a generation of AMD. The 32 GB limit keeps out
+    # the Intel 2xlarge with 64 GB that the wildcards also match.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4+8/ram=8+32/family=*7a.xlarge+*6i.2xlarge+*7i.2xlarge+*8i.2xlarge${{ (fromJSON(github.run_attempt) >= 2 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
     timeout-minutes: 40
     permissions:
       contents: read
@@ -485,7 +493,7 @@ jobs:
     # The 50 GB root disk holds apptainer's build scratch (a full launch
     # writes near 18 GB there), and the sticky disk holds the caches named
     # below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8+16/ram=16+64/family=*7a.2xlarge+*6i.4xlarge+*7i.4xlarge+*8i.4xlarge/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8+16/ram=16+64/family=*7a.2xlarge+*6i.4xlarge+*7i.4xlarge+*8i.4xlarge/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ (fromJSON(github.run_attempt) >= 2 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once
@@ -776,7 +784,7 @@ jobs:
     # cancelled job would leave this check unreported instead of red.
     if: always()
     # The smallest RunsOn runner: the job reads the results of the others.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 2 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
     timeout-minutes: 5
     permissions: {}
 

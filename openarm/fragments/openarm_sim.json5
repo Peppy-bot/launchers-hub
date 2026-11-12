@@ -18,9 +18,8 @@
         {
           instance_id: "backbone_inst",
           framework: { clock: "simulation" },
-          // The governor band is a required node argument, as are the
-          // model, set below per model, and the startup EE-speed cap; the web
-          // panel streams live caps.
+          // The governor band is a required node argument, as is the
+          // startup EE-speed cap; the web panel streams live caps.
           arguments: {
             // Joint-led command pairings; the headset adjustment selects pose mode.
             upstream_mode: "joints",
@@ -41,8 +40,8 @@
           },
           links: {
             robot_init: "init_inst",
-            // The description of the robot's model, which the backbone holds
-            // to the one it was built with before it starts.
+            // The robot's model, whose description the backbone builds its
+            // arms from, and holds to the one it was built with.
             robot_identity: "init_inst",
             // The simulation stands the limbs: each slot holds any number of
             // pairs, so one engine stands as many robots as it can run.
@@ -171,10 +170,6 @@
   ],
 
   adjustments: [
-    { target: "backbone_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1" } },
-    { target: "backbone_inst", when: { model: "openarm_v2" },
-      set_arguments: { model: "openarm_v2" } },
     // Isaac steps its physics slower than the others.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },
       set_arguments: { follower_state_rate_hz: 60 } },

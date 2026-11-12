@@ -1,6 +1,6 @@
 // The browser command panel: joint-led teleop from any device with a
-// browser. It loads the description of the model it leads; the governor band
-// and launch cap mirror the backbone's.
+// browser. It loads the description of the model the robot's initializer
+// names; the governor band and launch cap mirror the backbone's.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -19,9 +19,11 @@
             d_stop: 0.005,
             d_safe: 0.02,
             max_stream_ee_velocity_m_s: 0.25,
-            model: "openarm_v2",
           },
           links: {
+            // The robot's model, whose description gives the panel its arm
+            // models, joint ranges and postures.
+            robot_identity: "init_inst",
             // The collision_status proximity feed, served by the backbone.
             collision_status: "backbone_inst",
             // The discrete moves of Actions mode, served by the backbone.
@@ -53,8 +55,5 @@
     // The record button: the recorder fills this slot when both run.
     { target: "commander_inst", when: { recorder: "lerobot_recorder" },
       add_links: { recorder: ["recorder_inst"] } },
-    // Leading a v1, it loads the v1 model.
-    { target: "commander_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1" } },
   ],
 }

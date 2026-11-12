@@ -10,8 +10,8 @@ a copy of the physical robot names and a simulated copy stands as
 robot commander, the recorder, the camera rig, the brain and the motion
 planner. `model` is an option written in place: each deploys the
 initializer, `robot_initializer`, which every robot runs, naming its model;
-the physical file deploys the four CAN drivers as a v2 and sets a v1's
-frames and interfaces on them per model, and the simulated one joins the
+the physical file deploys the four CAN drivers on a v2's interfaces and
+sets a v1's interfaces on them, and the simulated one joins the
 initializer to the simulation. A fragment writes only the
 instances it deploys, so the robot's connections to the stack, its
 commander's sockets and tuning, the headset's slots, its recorder's rig and
@@ -76,11 +76,13 @@ after startup. `stack remove alpha` stops every instance owned by alpha;
 robot_identity answers. On hardware it has no default: a join names
 `openarm_v1` or `openarm_v2`, and a join naming neither is refused with both
 spellings. The simulated OpenArm stands an `openarm_v2` unless a word says
-otherwise. The axis selects everything that differs between the rigs: the
-initializer's `model`, the drivers' frames and CAN interfaces, and the
-`model` argument of the drivers, the backbone, the browser panel and the
-KER. The bare word works because no other axis in reach names `openarm_v1`
-or `openarm_v2`; `model=openarm_v1` is the explicit spelling.
+otherwise. The axis selects the initializer's `model` and the drivers' CAN
+interfaces, and the initializer hands the model to every other node of the
+robot: to the arm and gripper drivers with `component_ready`'s `set_model`, and to
+the backbone, the browser panel and the KER over the `robot_identity` link
+each has to `init_inst`. The bare word works because no other axis in reach
+names `openarm_v1` or `openarm_v2`; `model=openarm_v1` is the explicit
+spelling.
 
 ```sh
 peppy stack launch physical

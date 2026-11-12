@@ -1,9 +1,10 @@
 // A physical OpenArm: its four CAN drivers, the backbone that governs them,
 // and the robot's own axes: its model, the commander that leads it, the
 // recorder that films it, its camera rig, its brain and its motion planner.
-// The `model` axis carries the initializer, which names the model; a v1's
-// frames and interfaces are set on the drivers by this
-// file's own adjustments.
+// The `model` axis carries the initializer, which names the model to every
+// other node of the robot: the drivers with component_ready's set_model, the
+// backbone, the commander and the motion planner over robot_identity. A v1's
+// CAN interfaces are set on the drivers by this file's own adjustments.
 //
 // CAN topology: left arm + left gripper share one interface, right arm +
 // right gripper the other: the host's left_arm and right_arm on a v2, can0
@@ -17,17 +18,17 @@
 
   deployments: [
     // The four CAN drivers, a v2 rig on the host's left_arm and right_arm
-    // interfaces; a v1 is set below per model.
+    // interfaces; a v1's are set below.
     {
       source: { name: "openarm_arm", tag: "v1" },
       instances: [
         {
           instance_id: "left_arm_inst",
-          arguments: { arm_id: 0, model: "openarm_v2", can_interface: "left_arm", control_rate_hz: 100, state_rate_hz: 100 },
+          arguments: { arm_id: 0, can_interface: "left_arm", control_rate_hz: 100, state_rate_hz: 100 },
         },
         {
           instance_id: "right_arm_inst",
-          arguments: { arm_id: 1, model: "openarm_v2", can_interface: "right_arm", control_rate_hz: 100, state_rate_hz: 100 },
+          arguments: { arm_id: 1, can_interface: "right_arm", control_rate_hz: 100, state_rate_hz: 100 },
         },
       ],
     },
@@ -36,11 +37,11 @@
       instances: [
         {
           instance_id: "left_gripper_inst",
-          arguments: { gripper_id: 0, model: "openarm_v2", can_interface: "left_arm", control_rate_hz: 100, state_rate_hz: 100 },
+          arguments: { gripper_id: 0, can_interface: "left_arm", control_rate_hz: 100, state_rate_hz: 100 },
         },
         {
           instance_id: "right_gripper_inst",
-          arguments: { gripper_id: 1, model: "openarm_v2", can_interface: "right_arm", control_rate_hz: 100, state_rate_hz: 100 },
+          arguments: { gripper_id: 1, can_interface: "right_arm", control_rate_hz: 100, state_rate_hz: 100 },
         },
       ],
     },
@@ -49,9 +50,8 @@
       instances: [
         {
           instance_id: "backbone_inst",
-          // The governor band is a required node argument, as are the
-          // model, set below per model, and the startup EE-speed cap; the web
-          // panel streams live caps.
+          // The governor band is a required node argument, as is the
+          // startup EE-speed cap; the web panel streams live caps.
           arguments: {
             // Joint-led command pairings; the headset adjustment selects pose mode.
             upstream_mode: "joints",
@@ -72,8 +72,8 @@
           },
           links: {
             robot_init: "init_inst",
-            // The description of the robot's model, which the backbone holds
-            // to the one it was built with before it starts.
+            // The robot's model, whose description the backbone builds its
+            // arms from, and holds to the one it was built with.
             robot_identity: "init_inst",
             // The limbs either model deploys, under the same ids.
             left_arm: "left_arm_inst",
@@ -114,8 +114,8 @@
     {
       // Which OpenArm this is, named by every copy since the gripper settings
       // differ per rig: each option deploys the initializer that names its
-      // model and answers for the drivers' readiness; a v1's interfaces and
-      // frames are set on the drivers below.
+      // model and answers for the drivers' readiness; a v1's CAN interfaces
+      // are set on the drivers below.
       name: "model", provides: ["init_inst"],
       options: {
         openarm_v1: {
@@ -201,26 +201,20 @@
   ],
 
   adjustments: [
-    // A v1 rig: v1 frames and base links with prismatic parallel-jaw
-    // grippers, on can0 and can1.
+    // A v1 rig's drivers sit on can0 and can1.
     { target: "left_arm_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1", can_interface: "can0" } },
+      set_arguments: { can_interface: "can0" } },
     { target: "right_arm_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1", can_interface: "can1" } },
+      set_arguments: { can_interface: "can1" } },
     { target: "left_gripper_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1", can_interface: "can0" } },
+      set_arguments: { can_interface: "can0" } },
     { target: "right_gripper_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1", can_interface: "can1" } },
+      set_arguments: { can_interface: "can1" } },
     // The rig's chest camera, a ZED Mini, serves its geometry, so a v2's
     // workspace answers check what it sees, whatever else the copy selects.
     // A v1's design carries no perception camera to bind.
     { target: "backbone_inst", when: { camera_rig: "cameras", model: "openarm_v2" },
       set_links: { perception_geometry: "chest" } },
-    // The model the backbone clamps to, which picks its joint limits.
-    { target: "backbone_inst", when: { model: "openarm_v1" },
-      set_arguments: { model: "openarm_v1" } },
-    { target: "backbone_inst", when: { model: "openarm_v2" },
-      set_arguments: { model: "openarm_v2" } },
     // The panel streams joint setpoints into the four leader sockets,
     // released here for it to pair into, and supplies the operator's
     // governor toggle.

@@ -36,7 +36,6 @@
       // The initializer every robot runs: it answers robot_identity with
       // the so101 model, the id a simulation's catalogue carries it under,
       // and robot_ready once everything that answers for the robot is up.
-      // so101_backbone does not wait on it.
       source: { name: "robot_initializer", tag: "v1" },
       instances: [
         {
@@ -69,6 +68,10 @@
             start_tolerance_rad: 0.05,
           },
           links: {
+            // The robot's model and its description, which the backbone holds
+            // to so101 and to the description it was built with once it
+            // serves, ending when either differs.
+            robot_identity: "init_inst",
             // The exclusive command loops with the follower: governed-shape
             // setpoints stream down each pair, measured state streams back.
             arm: "follower_inst",

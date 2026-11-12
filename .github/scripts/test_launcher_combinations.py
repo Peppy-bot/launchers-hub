@@ -384,7 +384,7 @@ def constraints_anywhere(document):
 class ConstraintFormTests(unittest.TestCase):
     """Every rule in the hub is written as a requirement. `forbids` names the
     options that exist today and says nothing about one the axis gains later,
-    so a rule written that way would admit a new hardware version or a new rig
+    so a rule written that way would admit a new model or a new rig
     without a word. Two options of two optional axes that cannot run together
     are the case `requires` cannot state; the first of those in this hub
     narrows this test."""
@@ -408,21 +408,21 @@ class DatasetIdentityTests(unittest.TestCase):
     """What a recorded episode is filed under. The recorder is one fragment
     per family, shared by the physical and the simulated robot, so the
     launcher names the dataset under the robot: a physical OpenArm's by its
-    version, a simulated one's by version and engine, an SO-101's by
-    the engine alone."""
+    model, a simulated one's by model and engine, an SO-101's by the engine
+    alone."""
 
     ENGINES = [("mujoco", "mujoco"), ("isaac_sim", "isaac"), ("waldo", "waldo")]
 
     def test_every_dataset_is_named_under_the_robot_that_films_it(self):
         root = Path(__file__).resolve().parents[2]
         openarm_sim = {
-            (("hardware_version", gen), ("simulation", engine)): (f"openarm_{gen}_{label}", f"/tmp/lerobot_openarm_{label}")
+            (("model", f"openarm_{gen}"), ("simulation", engine)): (f"openarm_{gen}_{label}", f"/tmp/lerobot_openarm_{label}")
             for gen in ("v1", "v2") for engine, label in self.ENGINES
         }
         so101_sim = {(("simulation", engine),): (f"so101_{label}", f"/tmp/lerobot_so101_{label}")
                      for engine, label in self.ENGINES}
         expected = {
-            "openarm": {(("hardware_version", gen),): (f"openarm_{gen}", f"/tmp/lerobot_openarm_{gen}") for gen in ("v1", "v2")},
+            "openarm": {(("model", f"openarm_{gen}"),): (f"openarm_{gen}", f"/tmp/lerobot_openarm_{gen}") for gen in ("v1", "v2")},
             "so101": {(): ("so101", "/tmp/lerobot_so101")},
             "openarm_sim": openarm_sim,
             "so101_sim": so101_sim,
@@ -688,11 +688,11 @@ class CombinationsTests(unittest.TestCase):
         # An option with no axis of its own joins plain alone.
         self.assertEqual(combinations.join_selections([]), [[]])
         # A `one` axis without a default is named by every join: no plain join.
-        version = combinations.Axis("hardware_version", "one", ["v1", "v2"])
+        model = combinations.Axis("model", "one", ["openarm_v1", "openarm_v2"])
         self.assertEqual(
-            [combinations.render_words(selection) for selection in combinations.join_selections([version, recorder])],
-            ["hardware_version=v1,recorder=lerobot_recorder", "hardware_version=v1",
-             "hardware_version=v2,recorder=lerobot_recorder", "hardware_version=v2"],
+            [combinations.render_words(selection) for selection in combinations.join_selections([model, recorder])],
+            ["model=openarm_v1,recorder=lerobot_recorder", "model=openarm_v1",
+             "model=openarm_v2,recorder=lerobot_recorder", "model=openarm_v2"],
         )
 
     def test_a_one_axis_with_a_single_option_is_no_choice(self):
@@ -732,13 +732,13 @@ class CombinationsTests(unittest.TestCase):
             return [line.split("\t") for line in lines if line.startswith(f"combo\t{launcher}\t")]
 
         # A join is plain (1) or under any selection of the robot's axes: an
-        # OpenArm has two hardware versions, three commanders (`none` among
+        # OpenArm has two models, three commanders (`none` among
         # them), a recorder, a rig (off or on, `none` being the simulated
         # rig's off), a brain (off, ai_brain_vla or vlm_router_brain) and a
         # motion planner; an SO-101 two commanders, a recorder, a rig and a motion
         # planner. A selection its constraints refuse is still enumerated, and reported refused when it
-        # resolves. The physical OpenArm has no plain join: its hardware
-        # version has no default, so every join names one.
+        # resolves. The physical OpenArm has no plain join: its model has no
+        # default, so every join names one.
         openarm, so101 = 2 * 3 * 2 * 2 * 3 * 2, 1 + 2 * 2 * 2 * 2
         openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2 * 2
         # The physical launcher: the endpoint, the workflows and the headset
@@ -753,7 +753,7 @@ class CombinationsTests(unittest.TestCase):
             physical,
         )
         self.assertIn(
-            ["combo", "physical", "robot_control=robot_control,teleop=xr_commander", "", "openarm", "hardware_version=v2,robot_commander=none,camera_rig=cameras,brain=ai_brain_vla", "-"],
+            ["combo", "physical", "robot_control=robot_control,teleop=xr_commander", "", "openarm", "model=openarm_v2,robot_commander=none,camera_rig=cameras,brain=ai_brain_vla", "-"],
             physical,
         )
         self.assertEqual([c for c in physical if c[3]], [])
@@ -768,7 +768,7 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual(len(sim), stacks * (alpha_openarm + openarm_sim + so101_sim))
         self.assertIn(["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "", "", "-"], sim)
         self.assertIn(
-            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control,alpha.hardware_version=v2,alpha.robot_commander=none,alpha.camera_rig=cameras_sim", "", "", "", "-"],
+            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control,alpha.model=openarm_v2,alpha.robot_commander=none,alpha.camera_rig=cameras_sim", "", "", "", "-"],
             sim,
         )
         self.assertIn(["combo", "openarm_simulation", "simulation=waldo,robot_control=robot_control", "", "so101_sim", "", "-"], sim)
@@ -777,11 +777,11 @@ class CombinationsTests(unittest.TestCase):
             sim,
         )
         self.assertIn(
-            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "openarm_sim", "hardware_version=v2,robot_commander=none,camera_rig=cameras_sim", "-"],
+            ["combo", "openarm_simulation", "simulation=mujoco,robot_control=robot_control", "", "openarm_sim", "model=openarm_v2,robot_commander=none,camera_rig=cameras_sim", "-"],
             sim,
         )
         self.assertIn(
-            ["combo", "openarm_simulation", "simulation=isaac_sim,teleop=xr_commander", "", "openarm_sim", "hardware_version=v2,robot_commander=none,recorder=lerobot_recorder,camera_rig=cameras_sim", "-"],
+            ["combo", "openarm_simulation", "simulation=isaac_sim,teleop=xr_commander", "", "openarm_sim", "model=openarm_v2,robot_commander=none,recorder=lerobot_recorder,camera_rig=cameras_sim", "-"],
             sim,
         )
         references = next(line for line in lines if line.startswith("launcher\topenarm_simulation\t"))
@@ -811,7 +811,7 @@ class CombinationsTests(unittest.TestCase):
             so101_launcher,
         )
         self.assertIn(
-            ["combo", "so101_simulation", "simulation=isaac_sim,robot_control=robot_control,teleop=xr_commander", "", "openarm_sim", "hardware_version=v2,robot_commander=none,camera_rig=none", "-"],
+            ["combo", "so101_simulation", "simulation=isaac_sim,robot_control=robot_control,teleop=xr_commander", "", "openarm_sim", "model=openarm_v2,robot_commander=none,camera_rig=none", "-"],
             so101_launcher,
         )
         # The simulation_mcp launcher: the same stacks with the world's
@@ -838,7 +838,7 @@ class CombinationsTests(unittest.TestCase):
             robot_control,
         )
         self.assertIn(
-            ["combo", "simulation_mcp", stack, "", "openarm_sim", "hardware_version=v2,robot_commander=none,camera_rig=cameras_sim,brain=ai_brain_vla", "-"],
+            ["combo", "simulation_mcp", stack, "", "openarm_sim", "model=openarm_v2,robot_commander=none,camera_rig=cameras_sim,brain=ai_brain_vla", "-"],
             robot_control,
         )
         self.assertIn(
@@ -1237,8 +1237,8 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # Every launcher lists the planner's tools whenever it runs and gives
         # it the chest camera of the rig the copy selects; the planner takes
-        # the robot's model from the copy's initializer, and plans for a v2,
-        # so every OpenArm refuses it on a v1.
+        # the robot's model from the copy's initializer, so no model of
+        # OpenArm refuses it.
         planner = combinations.load_json5(root / "openarm/fragments/motion_planner.json5", "motion_planner")
         self.assertNotIn("adjustments", planner)
         [[instance]] = [d["instances"] for d in planner["deployments"]]
@@ -1246,9 +1246,8 @@ class CombinationsTests(unittest.TestCase):
         for path in ["openarm/fragments/openarm.json5", "openarm/fragments/openarm_sim.json5"]:
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
-                self.assertIn({"when": {"motion_planner": "motion_planner"}, "requires": [{"hardware_version": "v2"}],
-                               "reason": "the motion planner plans for a v2 alone; select v2, or motion_planner=none"},
-                              document["constraints"])
+                self.assertFalse([c for c in document["constraints"]
+                                  if c["when"] == {"motion_planner": "motion_planner"}])
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:
@@ -1329,7 +1328,7 @@ class CombinationsTests(unittest.TestCase):
         # A v1's design carries no perception camera, so hardware binds the
         # chest on a v2 alone; no simulation renders a rig on v1 links.
         for robot, when, rig_file, chest_node in [
-            ("openarm", {"camera_rig": "cameras", "hardware_version": "v2"}, "cameras.json5", "zed_camera"),
+            ("openarm", {"camera_rig": "cameras", "model": "openarm_v2"}, "cameras.json5", "zed_camera"),
             ("openarm_sim", {"camera_rig": "cameras_sim"}, "cameras_sim.json5", "sim_rgbd_camera"),
         ]:
             with self.subTest(robot=robot):
@@ -1388,7 +1387,7 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual([a for a in document["adjustments"] if a["target"] == SERVER], [])
                 self.assertEqual([a for a in document["adjustments"] if "set_framework" in a], [])
                 simulated = robot.endswith("_sim")
-                # An OpenArm's initializer is its hardware version option's; the
+                # An OpenArm's initializer is its model option's; the
                 # initializer test holds those to the same clock.
                 own = ["backbone_inst"] + (["init_inst"] if family_of(robot) == "so101" else [])
                 for instance_id in own:
@@ -1828,7 +1827,7 @@ class CombinationsTests(unittest.TestCase):
                 # The rig's streams need a consumer: the recorder, the robots'
                 # endpoint, or the stack's headset leading the robot.
                 consumer, = [c for c in robot["constraints"]
-                             if c.get("when") == {"camera_rig": rig} and "hardware_version" not in str(c["requires"])]
+                             if c.get("when") == {"camera_rig": rig} and "model" not in str(c["requires"])]
                 requires = [{"recorder": "lerobot_recorder"}, {"robot_control": "robot_control"}, HEADSET_LEADS]
                 if path == "openarm/fragments/openarm_sim.json5":
                     # The rendered OpenArm rig also feeds the brain's camera
@@ -1840,8 +1839,8 @@ class CombinationsTests(unittest.TestCase):
 
     def test_the_rendered_rig_is_refused_on_a_v1_first(self):
         root = Path(__file__).resolve().parents[2]
-        # Every commander leads either hardware version; the rendered rig is the one
-        # thing a v1 is refused, written as a requirement so a hardware version the
+        # Every commander leads either model; the rendered rig is the one
+        # thing a v1 is refused, written as a requirement so a model the
         # axis gains later is refused until it is proven to render.
         for path, required in [("openarm/fragments/openarm.json5", False),
                                ("openarm/fragments/openarm_sim.json5", True)]:
@@ -1850,7 +1849,7 @@ class CombinationsTests(unittest.TestCase):
                 generation_rules = [
                     constraint for constraint in robot["constraints"]
                     if constraint.get("when") == {"camera_rig": "cameras_sim"}
-                    and [{"hardware_version": "v2"}] == constraint.get("requires")
+                    and [{"model": "openarm_v2"}] == constraint.get("requires")
                 ]
                 if not required:
                     self.assertEqual(generation_rules, [])
@@ -1860,7 +1859,7 @@ class CombinationsTests(unittest.TestCase):
                 # First in the file, so a v1 asking for the rig reads this
                 # refusal before the consumer rule's.
                 self.assertIs(robot["constraints"][0], rule)
-                self.assertIn("select v2, or camera_rig=none", rule["reason"])
+                self.assertIn("select openarm_v2, or camera_rig=none", rule["reason"])
 
     def test_the_ker_is_offered_on_a_v2_alone(self):
         root = Path(__file__).resolve().parents[2]
@@ -1868,31 +1867,36 @@ class CombinationsTests(unittest.TestCase):
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
                 rule, = [c for c in robot["constraints"] if c.get("when") == {"robot_commander": "ker_commander"}]
-                self.assertEqual(rule["requires"], [{"hardware_version": "v2"}])
-                self.assertIn("select v2, or another commander", rule["reason"])
+                self.assertEqual(rule["requires"], [{"model": "openarm_v2"}])
+                self.assertIn("select openarm_v2, or another commander", rule["reason"])
 
-    def test_the_hardware_version_reaches_the_backbone_and_the_panel(self):
+    def test_every_node_of_the_robot_takes_the_model_from_the_initializer(self):
         root = Path(__file__).resolve().parents[2]
-        # The backbone takes its hardware version from the robot file, per
-        # hardware version. The browser panel loads the hardware version's model: it
-        # carries v2 and writes v1 on its own instance under the robot's
-        # hardware version axis. The KER is a v2's and carries v2 alone.
-        for robot in ["openarm", "openarm_sim"]:
-            with self.subTest(robot=robot):
-                document = combinations.load_json5(root / ROBOT_FILES[robot], robot)
-                self.assertNotIn("hardware_version", instance_of(document, "backbone_inst")["arguments"])
-                written = [a for a in document["adjustments"]
-                           if a["target"] == "backbone_inst" and "hardware_version" in a.get("set_arguments", {})]
-                self.assertCountEqual(written, [
-                    {"target": "backbone_inst", "when": {"hardware_version": version},
-                     "set_arguments": {"hardware_version": version}} for version in ("v1", "v2")])
-        panel = combinations.load_json5(root / "openarm/fragments/web_commander.json5", "web_commander")
-        self.assertEqual(instance_of(panel, "commander_inst")["arguments"]["hardware_version"], "v2")
-        self.assertIn({"target": "commander_inst", "when": {"hardware_version": "v1"},
-                       "set_arguments": {"hardware_version": "v1"}}, panel["adjustments"])
-        ker = combinations.load_json5(root / "openarm/fragments/ker_commander.json5", "ker_commander")
-        self.assertEqual(instance_of(ker, "commander_inst")["arguments"]["hardware_version"], "v2")
-        self.assertNotIn("adjustments", ker)
+        # The backbone, the browser panel and the KER read the robot's model
+        # from the initializer over robot_identity, so no file writes a model
+        # on them: their instance carries none, no adjustment sets one, and
+        # each links robot_identity to the initializer.
+        for path, instance_id in [(ROBOT_FILES["openarm"], "backbone_inst"),
+                                  (ROBOT_FILES["openarm_sim"], "backbone_inst"),
+                                  ("openarm/fragments/web_commander.json5", "commander_inst"),
+                                  ("openarm/fragments/ker_commander.json5", "commander_inst")]:
+            with self.subTest(path=path):
+                document = combinations.load_json5(root / path, path)
+                instance = instance_of(document, instance_id)
+                self.assertNotIn("model", instance["arguments"])
+                self.assertEqual(instance["links"]["robot_identity"], "init_inst")
+                self.assertEqual([a for a in document.get("adjustments", [])
+                                  if a["target"] == instance_id
+                                  and "model" in a.get("set_arguments", {})], [])
+        # The arm and gripper drivers take the model from the initializer's
+        # readiness calls, so the robot file writes no model on them either.
+        document = combinations.load_json5(root / ROBOT_FILES["openarm"], "openarm")
+        for instance_id in ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"]:
+            with self.subTest(driver=instance_id):
+                self.assertNotIn("model", instance_of(document, instance_id)["arguments"])
+                self.assertEqual([a for a in document["adjustments"]
+                                  if a["target"] == instance_id
+                                  and "model" in a.get("set_arguments", {})], [])
         for launcher, robot in [("physical.json5", "openarm"),
                                 ("openarm_simulation.json5", "openarm_sim"),
                                 ("so101_simulation.json5", "openarm_sim"),
@@ -1900,7 +1904,7 @@ class CombinationsTests(unittest.TestCase):
             with self.subTest(launcher=launcher):
                 document = combinations.load_json5(root / launcher, launcher)
                 self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
-                                  if "hardware_version" in a.get("set_arguments", {})], [])
+                                  if "model" in a.get("set_arguments", {})], [])
 
     def test_isaac_slows_the_simulated_backbones_state_rate(self):
         root = Path(__file__).resolve().parents[2]
@@ -2047,25 +2051,21 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         vacancy = "vacant"
         # Every robot deploys the one initializer where its model is known:
-        # an OpenArm's hardware version options each deploy theirs in place, and
+        # an OpenArm's model options each deploy theirs in place, and
         # the axis provides the node; every SO-101 is the one model, named
         # in the robot file. On hardware the simulation slot is vacant and
         # the robot's drivers answer for its limbs; in a simulation the
         # simulation answers for them, and the limbs slot, `zero_or_more`, is
         # left out.
         def generation_body(path, option):
-            return axis_of(combinations.load_json5(root / path, path), "hardware_version")["options"][option]
-        # The park poses (robot_guide:v1) a launcher writes beside the model,
-        # `<arm>:<joint>,...` with `;` between arms: the OpenArm v2 in Waldo
-        # has one for each arm, measured there; no other robot has any yet.
-        openarm_v2_sim_park = ({"left_arm", "right_arm"}, 7)
-        for path, model, links, clock, park in [
-            ("openarm/fragments/openarm.json5:v1", "openarm_v1", {"simulation": vacancy, "limbs": OPENARM_LIMBS}, None, None),
-            ("openarm/fragments/openarm.json5:v2", "openarm_v2", {"simulation": vacancy, "limbs": OPENARM_LIMBS}, None, None),
-            ("openarm/fragments/openarm_sim.json5:v1", "openarm_v1", {"simulation": "simulation_inst"}, {"clock": "simulation"}, None),
-            ("openarm/fragments/openarm_sim.json5:v2", "openarm_v2", {"simulation": "simulation_inst"}, {"clock": "simulation"}, openarm_v2_sim_park),
-            ("so101/fragments/so101.json5", "so101", {"simulation": vacancy, "limbs": ["follower_inst"]}, None, None),
-            ("so101/fragments/so101_sim.json5", "so101", {"simulation": "simulation_inst"}, {"clock": "simulation"}, None),
+            return axis_of(combinations.load_json5(root / path, path), "model")["options"][option]
+        for path, model, links, clock in [
+            ("openarm/fragments/openarm.json5:openarm_v1", "openarm_v1", {"simulation": vacancy, "limbs": OPENARM_LIMBS}, None),
+            ("openarm/fragments/openarm.json5:openarm_v2", "openarm_v2", {"simulation": vacancy, "limbs": OPENARM_LIMBS}, None),
+            ("openarm/fragments/openarm_sim.json5:openarm_v1", "openarm_v1", {"simulation": "simulation_inst"}, {"clock": "simulation"}),
+            ("openarm/fragments/openarm_sim.json5:openarm_v2", "openarm_v2", {"simulation": "simulation_inst"}, {"clock": "simulation"}),
+            ("so101/fragments/so101.json5", "so101", {"simulation": vacancy, "limbs": ["follower_inst"]}, None),
+            ("so101/fragments/so101_sim.json5", "so101", {"simulation": "simulation_inst"}, {"clock": "simulation"}),
         ]:
             with self.subTest(path=path):
                 file, _, option = path.partition(":")
@@ -2074,14 +2074,7 @@ class CombinationsTests(unittest.TestCase):
                                    if deployment.get("source") == {"name": "robot_initializer", "tag": "v1"})
                 instance, = initializer["instances"]
                 self.assertEqual(instance["instance_id"], "init_inst")
-                self.assertEqual(set(instance["arguments"]), {"model"} if park is None else {"model", "park_poses"})
-                self.assertEqual(instance["arguments"]["model"], model)
-                if park is not None:
-                    arms, joints = park
-                    entries = [entry.split(":") for entry in instance["arguments"]["park_poses"].split(";")]
-                    self.assertEqual({arm for arm, _ in entries}, arms)
-                    for arm, positions in entries:
-                        self.assertEqual(len([float(position) for position in positions.split(",")]), joints, arm)
+                self.assertEqual(instance["arguments"], {"model": model})
                 self.assertEqual(set(instance["links"]), set(links))
                 for slot, target in links.items():
                     if target == vacancy:
@@ -2093,24 +2086,24 @@ class CombinationsTests(unittest.TestCase):
         for path in ["openarm/fragments/openarm.json5", "openarm/fragments/openarm_sim.json5"]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
-                version = axis_of(robot, "hardware_version")
-                self.assertEqual(list(version["options"]), ["v1", "v2"])
-                self.assertEqual(version["provides"], ["init_inst"])
+                model = axis_of(robot, "model")
+                self.assertEqual(list(model["options"]), ["openarm_v1", "openarm_v2"])
+                self.assertEqual(model["provides"], ["init_inst"])
                 # A simulated OpenArm stands a v2 unless a word says otherwise;
-                # a physical one has no default, so a copy names its hardware version.
+                # a physical one has no default, so a copy names its model.
                 entries = combinations.option_entries(robot, path)
                 if path.endswith("openarm_sim.json5"):
-                    self.assertEqual(entries["hardware_version"], "v2")
+                    self.assertEqual(entries["model"], "openarm_v2")
                 else:
-                    self.assertNotIn("hardware_version", entries)
-                self.assertEqual(instance_of(robot, "backbone_inst")["links"]["robot_init"], "init_inst")
+                    self.assertNotIn("model", entries)
+                links = instance_of(robot, "backbone_inst")["links"]
+                self.assertEqual((links["robot_init"], links["robot_identity"]), ("init_inst", "init_inst"))
 
     def test_a_backbone_names_its_downstream_links_after_its_limbs(self):
         root = Path(__file__).resolve().parents[2]
         openarm = ["left_arm", "right_arm", "left_gripper", "right_gripper"]
         # On hardware each limb link pairs with its driver, which the robot
-        # file deploys as a v2 and sets to a v1's interfaces and frames per
-        # hardware version.
+        # file deploys on a v2's interfaces and sets to a v1's.
         for path, links in [
             ("openarm/fragments/openarm.json5", {limb: f"{limb}_inst" for limb in openarm}),
             ("so101/fragments/so101.json5", {"arm": "follower_inst", "gripper": "follower_inst"}),
@@ -2127,9 +2120,9 @@ class CombinationsTests(unittest.TestCase):
         for driver, interface in interfaces.items():
             with self.subTest(driver=driver):
                 arguments = instance_of(physical, driver)["arguments"]
-                self.assertEqual((arguments["hardware_version"], arguments["can_interface"]), ("v2", interface))
-                self.assertIn({"target": driver, "when": {"hardware_version": "v1"},
-                               "set_arguments": {"hardware_version": "v1", "can_interface": v1_interfaces[driver]}},
+                self.assertEqual(arguments["can_interface"], interface)
+                self.assertIn({"target": driver, "when": {"model": "openarm_v1"},
+                               "set_arguments": {"can_interface": v1_interfaces[driver]}},
                               physical["adjustments"])
         # A simulation holds one slot per kind of limb, any number of pairs
         # on each: it tells a pair's robot by its copy and its limb by the
@@ -2180,7 +2173,9 @@ class CombinationsTests(unittest.TestCase):
                 instance, = backbone["instances"]
                 self.assertEqual(instance["instance_id"], "backbone_inst")
                 self.assertEqual(instance["arguments"]["upstream_mode"], "joints")
-                self.assertEqual(set(instance["links"]), {"arm", "gripper", "leader_arm", "leader_gripper", "leader_pose"})
+                self.assertEqual(set(instance["links"]),
+                                 {"robot_identity", "arm", "gripper", "leader_arm", "leader_gripper", "leader_pose"})
+                self.assertEqual(instance["links"]["robot_identity"], "init_inst")
         self.assertEqual(instance_of(simulated, "backbone_inst")["arguments"],
                          instance_of(real, "backbone_inst")["arguments"])
         # The follower is the real robot's alone: the engine plays the
@@ -2718,7 +2713,7 @@ class ScopeModelTests(unittest.TestCase):
         # A join with words of its own adds another robot than a client
         # adds; an option the scope does not list, and a combination that
         # joins nothing, have no model to compare.
-        for candidate in (self.candidate("arm_sim", "hardware_version=v1"),
+        for candidate in (self.candidate("arm_sim", "model=openarm_v1"),
                           self.candidate("other_sim"),
                           self.candidate()):
             with self.subTest(candidate=candidate.label):

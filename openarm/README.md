@@ -4,15 +4,15 @@ An OpenArm is one fragment: [fragments/openarm.json5](fragments/openarm.json5)
 drives the physical robot over CAN and
 [fragments/openarm_sim.json5](fragments/openarm_sim.json5) joins a
 simulation that stands its limbs. Each deploys the robot's backbone and
-declares the robot's own axes: its hardware version, which a copy of the
-physical robot names and a simulated copy stands as `v2` unless its `with`
-or `--with v1` says otherwise, the robot commander, the recorder, the camera
-rig, the brain and the motion planner. `hardware_version` is an option
-written in place: each
-deploys the initializer, `robot_initializer`, which every robot runs, naming
-its model, `openarm_v1` or `openarm_v2`; the physical file deploys the four
-CAN drivers as a v2 and sets a v1's frames and interfaces on them per
-hardware version, and the simulated one joins the initializer to the simulation. A fragment writes only the
+declares the robot's own axes: its model, `openarm_v1` or `openarm_v2`, which
+a copy of the physical robot names and a simulated copy stands as
+`openarm_v2` unless its `with` or `--with openarm_v1` says otherwise, the
+robot commander, the recorder, the camera rig, the brain and the motion
+planner. `model` is an option written in place: each deploys the
+initializer, `robot_initializer`, which every robot runs, naming its model;
+the physical file deploys the four CAN drivers on a v2's interfaces and
+sets a v1's interfaces on them, and the simulated one joins the
+initializer to the simulation. A fragment writes only the
 instances it deploys, so the robot's connections to the stack, its
 commander's sockets and tuning, the headset's slots, its recorder's rig and
 dataset and its listing on the MCP endpoint, are written in each launcher
@@ -51,14 +51,14 @@ sudo ip link set right_arm up type can bitrate 1000000 dbitrate 5000000 fd on
 ```
 
 For v1, use `can0` and `can1` in those commands. Check the actual adapters
-and hardware version before enabling the buses.
+and the model before enabling the buses.
 
 ```sh
 peppy repo refresh
 peppy stack launch physical
-peppy stack join openarm:alpha --with v2                 # a v2 with the browser panel, on this machine
-peppy stack join openarm:alpha@jetson-1 --with v2        # a v2 on the machine jetson-1
-peppy stack join openarm:bravo@jetson-2 --with v1        # a v1 on the machine jetson-2
+peppy stack join openarm:alpha --with openarm_v2                 # a v2 with the browser panel, on this machine
+peppy stack join openarm:alpha@jetson-1 --with openarm_v2        # a v2 on the machine jetson-1
+peppy stack join openarm:bravo@jetson-2 --with openarm_v1        # a v1 on the machine jetson-2
 peppy stack list
 peppy stack remove alpha
 peppy stack reset --federated
@@ -70,35 +70,38 @@ URLs under `Web pages:`, one per address of the host running it, and
 after startup. `stack remove alpha` stops every instance owned by alpha;
 `stack reset --federated` tears down the stack.
 
-## Selecting the hardware version
+## Selecting the model
 
-`hardware_version` is the OpenArm's own axis. On hardware it has no default: a
-join names `v1` or `v2`, and a join naming neither is refused with both
-spellings. The simulated OpenArm stands a v2 unless a word says otherwise.
-The axis selects everything that differs between the rigs: the
-initializer's `model` (`openarm_v1` or `openarm_v2`), the drivers' frames
-and CAN interfaces, and the `hardware_version` argument of the backbone, the
-browser panel and the KER. The bare word works because no other axis in
-reach names `v1` or `v2`; `hardware_version=v1` is the explicit spelling.
+`model` is the OpenArm's own axis: the robot's model id, the one
+robot_identity answers. On hardware it has no default: a join names
+`openarm_v1` or `openarm_v2`, and a join naming neither is refused with both
+spellings. The simulated OpenArm stands an `openarm_v2` unless a word says
+otherwise. The axis selects the initializer's `model` and the drivers' CAN
+interfaces, and the initializer hands the model to every other node of the
+robot: to the arm and gripper drivers with `component_ready`'s `set_model`, and to
+the backbone, the browser panel and the KER over the `robot_identity` link
+each has to `init_inst`. The bare word works because no other axis in reach
+names `openarm_v1` or `openarm_v2`; `model=openarm_v1` is the explicit
+spelling.
 
 ```sh
 peppy stack launch physical
-peppy stack join openarm:bravo --with v1                                # a joined copy
-peppy stack join openarm:bravo --with hardware_version=v1                     # the explicit spelling
-peppy stack launch openarm_simulation --with alpha.v1                   # the copy the file lists
-peppy stack launch physical --join openarm:foxtrot --with foxtrot.v1  # a copy named at launch
+peppy stack join openarm:bravo --with openarm_v1                              # a joined copy
+peppy stack join openarm:bravo --with model=openarm_v1                        # the explicit spelling
+peppy stack launch openarm_simulation --with alpha.openarm_v1                 # the copy the file lists
+peppy stack launch physical --join openarm:foxtrot --with foxtrot.openarm_v1  # a copy named at launch
 ```
 
-In a launcher file, on an entry or a copy: `with: { hardware_version: "v1" }`.
+In a launcher file, on an entry or a copy: `with: { model: "openarm_v1" }`.
 A mismatched gripper setting has
 these physical consequences:
 
 | Rig | Incorrect setting | Consequence |
 |---|---|---|
-| v1 left | `v2` | drives backwards into the closed stop |
-| v1 right | `v2` | drives 50% past the open stop |
-| v2 left | `v1` | drives backwards into the closed stop |
-| v2 right | `v1` | opens two thirds of the way and reports fully open |
+| v1 left | `openarm_v2` | drives backwards into the closed stop |
+| v1 right | `openarm_v2` | drives 50% past the open stop |
+| v2 left | `openarm_v1` | drives backwards into the closed stop |
+| v2 right | `openarm_v1` | opens two thirds of the way and reports fully open |
 
 The same setting selects MIT hold for v1 and POS_FORCE control for v2.
 Select the option matching the physical robot.
@@ -111,10 +114,10 @@ the stack's, one for every robot, selected at launch:
 
 ```sh
 peppy stack launch physical --with xr_commander   # the stack's headset
-peppy stack join openarm:bravo --with v2,robot_commander=none,lerobot_recorder,cameras
-peppy stack join openarm:charlie@jetson-2 --with v1,robot_commander=none,cameras
-peppy stack join openarm:delta --with v2,web_commander,ai_brain_vla
-peppy stack join openarm:echo --with v2,ker_commander
+peppy stack join openarm:bravo --with openarm_v2,robot_commander=none,lerobot_recorder,cameras
+peppy stack join openarm:charlie@jetson-2 --with openarm_v1,robot_commander=none,cameras
+peppy stack join openarm:delta --with openarm_v2,web_commander,ai_brain_vla
+peppy stack join openarm:echo --with openarm_v2,ker_commander
 ```
 
 The default web commander streams joint setpoints. `robot_commander=none` gives the robot no commander of its own. If the stack runs the headset, the headset drives the robot, streaming end-effector poses to the backbone in pose mode; otherwise only actions move it. The `robot_commander` axis declares `role: "robot_commander"`, so the fleet listing gives the option of each copy as the robot commander of that robot: the browser panel or the KER drives its robot outside the leases and the halt of the stack. The headset is not a robot commander. The headset drives one robot at a time: the one chosen on its page or, until one is chosen, the first robot that paired, which it keeps until that robot leaves. MCP drives the robot by name, under any commander, on the stack's `robot_control:v1` endpoint, the robots' own surface, where every call names its robot: the robot's identity, the backbone's discrete motion actions, its limb state and collision readout, where its design lets it work, on a physical robot its drivers' motor health and alerts as resources, and the cameras of the copy's rig, their latest frames and the chest's depth as resources and their stream info, exposure, gain and white balance as tools.
@@ -137,7 +140,7 @@ design carries no perception camera, the answers check reach alone. No
 simulation renders a rig on v1 links, so `cameras_sim` on a simulated v1 is
 refused; a physical v1 films with `cameras`.
 
-The KER leader, on either hardware version (physical or simulated), streams joint
+The KER leader, on either model (physical or simulated), streams joint
 setpoints from enactic's motorless leader arm.
 
 The robots' endpoint is `http://127.0.0.1:8900/robot_control/v1/mcp`, the
@@ -153,7 +156,7 @@ What exists only because the world is simulated, the scene's objects, its lighti
 peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:charlie@jetson-2 --with v1,cameras
+peppy stack join openarm:charlie@jetson-2 --with openarm_v1,cameras
 ```
 
 A copy's `brain` axis adds a brain, the environment aware action layer
@@ -201,7 +204,7 @@ Its tools are listed under the robot's name on the `robot_control` endpoint with
 the prefix `planner.`:
 
 ```sh
-peppy stack join openarm:foxtrot@jetson-1 --with v2,cameras,motion_planner
+peppy stack join openarm:foxtrot@jetson-1 --with openarm_v2,cameras,motion_planner
 peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim,alpha.motion_planner
 ```
 
@@ -253,7 +256,7 @@ For two robots on one host, assign the second copy's CAN interfaces,
 commander port, and dataset directory:
 
 ```sh
-peppy stack join openarm:bravo --with v2,lerobot_recorder \
+peppy stack join openarm:bravo --with openarm_v2,lerobot_recorder \
   --set-arguments 'left_arm_inst.can_interface="bravo_left"' \
   --set-arguments 'left_gripper_inst.can_interface="bravo_left"' \
   --set-arguments 'right_arm_inst.can_interface="bravo_right"' \
@@ -305,7 +308,7 @@ The `robot` axis offers every simulated robot, so an SO-101
 ```sh
 peppy stack launch openarm_simulation --with isaac_sim,xr_commander   # with the stack's headset
 peppy stack join openarm_sim:bravo --with robot_commander=none        # bravo, led by the headset
-peppy stack join openarm_sim:charlie --with v1
+peppy stack join openarm_sim:charlie --with openarm_v1
 peppy stack join so101_sim:charlo                                     # an SO-101 beside the OpenArm alpha
 peppy stack join openarm_sim:delta --with ker_commander               # the KER against a simulated follower
 peppy stack remove bravo
@@ -316,7 +319,7 @@ Every simulation stands any number of robots, so a join comes up beside
 join, as `stack join` is, and a join cannot turn rendering on, so a robot
 joined to a launch whose listed copy selects no rig has no rendered camera.
 
-Every simulation stands a v1 or a v2, the model the `hardware_version` option
+Every simulation stands a v1 or a v2, the model the `model` option
 names: MuJoCo and Isaac Sim from their own images, Waldo from its catalogue
 (from private-nodes-hub), which carries both, so a v1 and a v2 share one
 Waldo world. For rendered wrist/chest streams and recording, the launch
@@ -330,7 +333,7 @@ Rendered cameras require v2: `openarm_sim` declares the rig,
 [fragments/cameras_sim.json5](fragments/cameras_sim.json5), off unless a
 copy selects it, and refuses it on a v1, so where a launcher's entry
 selects the rig for every copy, as `simulation_mcp` does, a v1 joins with
-`--with v1,camera_rig=none`; the camera
+`--with openarm_v1,camera_rig=none`; the camera
 geometry lives in the simulation's OpenArm configuration and matches the v2
 link layout. Real camera devices remain configured in
 [fragments/cameras.json5](fragments/cameras.json5).
@@ -398,7 +401,7 @@ machine.
 
 ```sh
 peppy stack resolve openarm_simulation --with mujoco
-peppy stack resolve physical --join openarm:bravo --with xr_commander,bravo.v1,bravo.robot_commander=none
+peppy stack resolve physical --join openarm:bravo --with xr_commander,bravo.openarm_v1,bravo.robot_commander=none
 peppy stack resolve openarm_simulation --with isaac_sim,web_scene_commander,xr_commander --join openarm_sim:bravo --with bravo.robot_commander=none
 peppy stack resolve simulation_mcp --join openarm_sim:alpha --with web_scene_commander
 peppy node add /path/to/ws/nodes-hub/robot_initializer -sb

@@ -201,8 +201,8 @@ When the copy also runs `vlm_router_brain`, each launcher binds the planner to
 the brain's `motion_planning` slot, and the brain plans the arm's transit to the
 point above an item and above the spot of a place with it; the brain's fragment
 writes that slot vacant otherwise, and the brain moves by the backbone's lines.
-Its tools are listed under the robot's name on the `robot_control` endpoint with
-the prefix `planner.`:
+The planner's tools are listed under the robot's name on the `robot_control`
+endpoint with the prefix `planner.`:
 
 ```sh
 peppy stack join openarm:foxtrot@jetson-1 --with v2,cameras,motion_planner

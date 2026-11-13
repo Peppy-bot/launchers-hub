@@ -225,7 +225,19 @@ jobs:
     # A change to a fragment that every launcher holds resolves every
     # combination twice, here and on the base tree: 946 s for one pass of 19,959
     # combinations, so about 32 minutes.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    #
+    # An instance with 4 physical cores and 8 to 32 GB, of one of 9 types: the
+    # xlarge of the AMD families c7a, m7a and r7a and the 2xlarge of the Intel
+    # families c6i, m6i, c7i, m7i, c8i and m8i. The job can run for half an
+    # hour, so it takes its spot instance from the same generations as the
+    # launch job below, whose comment gives the reasons for the wildcards and
+    # for the absence of the 8a generation of AMD. The 32 GB limit keeps out
+    # the Intel 2xlarge with 64 GB that the wildcards also match. `spot=pco`
+    # asks for the price-capacity-optimized allocation strategy in place of
+    # the capacity-optimized one of the org runner: among the pools with
+    # enough free capacity, each request gets the one with the lowest price.
+    # An on-demand instance is the type with the lowest price, c7a.xlarge.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4+8/ram=8+32/family=*7a.xlarge+*6i.2xlarge+*7i.2xlarge+*8i.2xlarge${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '/spot=pco' }}  # custom Peppy AMI
     timeout-minutes: 40
     permissions:
       contents: read

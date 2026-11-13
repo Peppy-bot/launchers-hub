@@ -1267,14 +1267,18 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # Either brain is brain_inst on the same links with the same limbs
         # and camera, so every rule that names brain_inst holds for both;
-        # each starts on its node's default perception model.
+        # each starts on its node's default perception model. The router
+        # brain alone has the motion planner's slot, written vacant: a
+        # launcher binds it when the copy selects the planner.
         local, router = (
             combinations.load_json5(root / f"openarm/fragments/{option}.json5", option)["deployments"] for option in BRAINS
         )
         [[local_instance]], [[router_instance]] = [d["instances"] for d in local], [d["instances"] for d in router]
         self.assertEqual([d["source"] for d in local + router], [{"name": "ai_brain_vla", "tag": "v1"}, {"name": "vlm_router_brain", "tag": "v1"}])
         self.assertEqual(local_instance["instance_id"], router_instance["instance_id"])
-        self.assertEqual(local_instance["links"], router_instance["links"])
+        router_links = dict(router_instance["links"])
+        self.assertIn("vacant", router_links.pop("motion_planning"))
+        self.assertEqual(local_instance["links"], router_links)
         self.assertEqual(local_instance["arguments"], {"limbs": "left_arm:left_gripper,right_arm:right_gripper", "camera_name": "chest"})
         self.assertEqual(router_instance["arguments"], local_instance["arguments"])
 
@@ -1288,8 +1292,9 @@ class CombinationsTests(unittest.TestCase):
         # keeps the catalogue's name; that is a condition of the simulation,
         # and the robot's brain names by words alone, with no gallery. The
         # router brain also gets the rig's two wrist cameras, through which
-        # its aligning model looks before a grasp, and starts on the models
-        # its launcher sets (ROUTER_BRAIN_MODELS).
+        # its aligning model looks before a grasp, starts on the models its
+        # launcher sets (ROUTER_BRAIN_MODELS), and plans its transits with the
+        # copy's motion planner when the copy selects one.
         def sees(path, rig, enrols):
             writes = []
             if enrols:
@@ -1300,6 +1305,8 @@ class CombinationsTests(unittest.TestCase):
             writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain", "camera_rig": rig},
                            "add_links": {"wrist_cameras": ["wrist_left", "wrist_right"]}})
             writes.append(ROUTER_BRAIN_MODELS[path])
+            writes.append({"target": "brain_inst", "when": {"brain": "vlm_router_brain", "motion_planner": "motion_planner"},
+                           "set_links": {"motion_planning": "planner_inst"}})
             return writes
 
         for path, robots in ROBOT_LAUNCHERS.items():

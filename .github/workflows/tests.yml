@@ -238,7 +238,7 @@ jobs:
       # dispatched run carries, else the pull request's head, else the pushed
       # commit. The launch job checks out the commit this job resolved.
       - id: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.set && fromJSON(inputs.set).hubs['launchers-hub'].commit || github.event.pull_request.head.sha || github.sha }}
           # Full history: the scoping step diffs the pull request against
@@ -495,7 +495,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           # The commit the discover job planned from. Nothing here diffs
           # history; the launcher is resolved by name through the registry
@@ -531,7 +531,7 @@ jobs:
       # spans many launches, and the next run too when the launches of a run
       # do not complete it: the snapshot of the disk carries the partial
       # file. The launches and runs after that find the weights.
-      - uses: runs-on/action@17b59092eb37ebfdbb034460892887c09100eaa3 # v2.5.0
+      - uses: runs-on/action@v2.5.0
         with:
           sticky_cache: custom,path=~/.cache/launchers-hub-ci
 
@@ -767,11 +767,43 @@ jobs:
         if: failure()
         run: tail -n 300 "$RUNNER_TEMP/peppy-serve.log" || true
 
+  # The lockfile, .github/workflows/actions.lock, holds the commit of each
+  # action that the workflows of this repository use, and GitHub Actions runs
+  # that commit only. This job fails when the lockfile does not agree with
+  # the `uses:` lines of the workflows and of the actions they use, or when a
+  # commit of the lockfile is not in the history of its tag or branch.
+  # `gh actions-lock` writes the lockfile.
+  lockfile:
+    name: Verify the lockfile of the actions
+    # The smallest RunsOn runner: the job asks the GitHub API about each
+    # commit of the lockfile and builds nothing.
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # Nothing here pushes, so the job has no use for a writable
+          # credential sitting in .git/config for every later step to inherit.
+          persist-credentials: false
+
+      # The release of the extension is pinned, so every run verifies with
+      # the same program.
+      - name: Install the gh actions-lock extension
+        run: gh extension install github/gh-actions-lock --pin v0.4.1
+
+      - name: Verify the lockfile
+        run: gh actions-lock --verify
+
   # The one status check the org ruleset requires on main. It is green only
   # when every job above succeeded or was skipped, so a red job blocks the
   # merge whichever job it ran in.
   test:
-    needs: [wait-for-peppy, discover, launch]
+    needs: [wait-for-peppy, discover, launch, lockfile]
     # Runs whatever happened above: on the default condition a failed or
     # cancelled job would leave this check unreported instead of red.
     if: always()

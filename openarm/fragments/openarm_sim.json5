@@ -1,8 +1,8 @@
 // A simulated OpenArm: the backbone that governs the limbs the simulation
-// stands, and the robot's own axes: its hardware version, the commander that
-// leads it, the recorder that films it, its camera rig, its brain and its
-// motion planner. The `hardware_version` axis carries the initializer, which
-// names the model the simulation stands.
+// stands, and the robot's own axes: its model, the commander that leads it,
+// the recorder that films it, its camera rig, its brain and its motion
+// planner. The `model` axis carries the initializer, which names the model
+// the simulation stands.
 //
 // This file writes only the backbone it deploys. The launcher's simulation
 // axis supplies simulation_inst, and the launcher that selects this robot
@@ -18,9 +18,8 @@
         {
           instance_id: "backbone_inst",
           framework: { clock: "simulation" },
-          // The governor band is a required node argument, as are the
-          // hardware version, set below per hardware version, and the startup
-          // EE-speed cap; the web panel streams live caps.
+          // The governor band is a required node argument, as is the
+          // startup EE-speed cap; the web panel streams live caps.
           arguments: {
             // Joint-led command pairings; the headset adjustment selects pose mode.
             upstream_mode: "joints",
@@ -41,6 +40,9 @@
           },
           links: {
             robot_init: "init_inst",
+            // The robot's model, whose description the backbone builds its
+            // arms from, and holds to the one it was built with.
+            robot_identity: "init_inst",
             // The simulation stands the limbs: each slot holds any number of
             // pairs, so one engine stands as many robots as it can run.
             left_arm: "simulation_inst/arms",
@@ -73,7 +75,7 @@
     },
     // What this robot deploys on its own axes unless a copy's `with` says
     // otherwise.
-    { hardware_version: "v2" },
+    { model: "openarm_v2" },
     { robot_commander: "web_commander" },
     { camera_rig: "none" },
   ],
@@ -82,9 +84,9 @@
     {
       // Which OpenArm the simulation stands: each option deploys the
       // initializer that names its model and joins the engine.
-      name: "hardware_version", provides: ["init_inst"],
+      name: "model", provides: ["init_inst"],
       options: {
-        v1: {
+        openarm_v1: {
           deployments: [{
             source: { name: "robot_initializer", tag: "v1" },
             instances: [{
@@ -95,20 +97,13 @@
             }],
           }],
         },
-        v2: {
+        openarm_v2: {
           deployments: [{
             source: { name: "robot_initializer", tag: "v1" },
             instances: [{
               instance_id: "init_inst",
               framework: { clock: "simulation" },
-              arguments: {
-                model: "openarm_v2",
-                // The robot's park poses (robot_guide:v1), measured in
-                // Waldo. Each holds the arm up and out to its side, the
-                // grasp point at x 0.25, y +-0.35, z 0.65, and a joint move
-                // reaches it from the rest posture.
-                park_poses: "left_arm:0.0584,-0.4923,-1.0367,1.7119,-0.4582,-0.1219,-1.1645;right_arm:-0.4474,0.7605,0.8815,1.6469,0.8363,-0.2129,0.9232",
-              },
+              arguments: { model: "openarm_v2" },
               links: { simulation: "simulation_inst" },
             }],
           }],
@@ -154,8 +149,8 @@
   constraints: [
     // The simulations render a rig on v2 links only.
     { when: { camera_rig: "cameras_sim" },
-      requires: [{ hardware_version: "v2" }],
-      reason: "the simulations render a rig on a v2 only; select v2, or camera_rig=none" },
+      requires: [{ model: "openarm_v2" }],
+      reason: "the simulations render a rig on a v2 only; select openarm_v2, or camera_rig=none" },
     // The rig's streams need a consumer; a brain is one, looking through
     // the chest camera the launcher binds to it.
     { when: { camera_rig: "cameras_sim" },
@@ -170,19 +165,11 @@
       requires: [{ robot_commander: "web_commander" }, { teleop: "xr_commander", robot_commander: "none" }, { robot_control: "robot_control" }],
       reason: "the recorder needs a trigger: select web_commander (its record button), or select robot_commander=none and launch with xr_commander (the headset's record button), or launch with robot_control (recorder.record_episode on the MCP endpoint)" },
     { when: { robot_commander: "ker_commander" },
-      requires: [{ hardware_version: "v2" }],
-      reason: "ker_commander is offered on a v2 alone; select v2, or another commander" },
-    // The motion planner plans for an openarm_v2.
-    { when: { motion_planner: "motion_planner" },
-      requires: [{ hardware_version: "v2" }],
-      reason: "the motion planner plans for a v2 alone; select v2, or motion_planner=none" },
+      requires: [{ model: "openarm_v2" }],
+      reason: "ker_commander is offered on a v2 alone; select openarm_v2, or another commander" },
   ],
 
   adjustments: [
-    { target: "backbone_inst", when: { hardware_version: "v1" },
-      set_arguments: { hardware_version: "v1" } },
-    { target: "backbone_inst", when: { hardware_version: "v2" },
-      set_arguments: { hardware_version: "v2" } },
     // Isaac steps its physics slower than the others.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },
       set_arguments: { follower_state_rate_hz: 60 } },

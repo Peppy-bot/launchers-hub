@@ -128,7 +128,7 @@ or a join of a simulated robot returns only once the simulation stands the
 robot. The launcher turns the simulation's rendering on itself, which a
 join cannot, so every robot joined onto it gets its rig; a v1 OpenArm,
 which the simulations render no rig for, joins with `--with
-v1,camera_rig=none`.
+openarm_v1,camera_rig=none`.
 
 The headset is the file's `teleop` axis; `--with teleop=none` switches it
 off. It drives one robot at a time: the one chosen on its page or, until one
@@ -394,7 +394,7 @@ The robots' endpoint is the same document, `robot_control:v1`, whether a backbon
 
 ```sh
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha@jetson-1 --with v2,cameras,motion_planner
+peppy stack join openarm:alpha@jetson-1 --with openarm_v2,cameras,motion_planner
 peppy stack join so101:bravo --with robot_commander=none,cameras
 ```
 
@@ -504,7 +504,7 @@ peppy stack launch simulation_mcp --join openarm_sim:alpha --with mujoco,world_c
 peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch so101_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:alpha --with v2,cameras,motion_planner
+peppy stack join openarm:alpha --with openarm_v2,cameras,motion_planner
 ```
 
 The first is the browser scene commander on Waldo with `alpha` under the browser panel: the scene panel, the lighting, daylight and materials panels the scene commander binds to Waldo, and no MCP endpoint. The second is this launcher's four endpoints, the headset and `alpha`, named at launch, with no browser panel. The third adds the browser scene commander beside them, and with the rendered rig running its page carries the camera panel too, listing the same three relays the robots' endpoint serves. The fourth is the robots' and the framework's endpoints, under MuJoCo. The fifth is the same robot on the `openarm_simulation` launcher, selected by launch words and under its browser panel: the robots' endpoint and the fleet and the halt of the framework's, since the simulated world's axis, the robots that the framework's endpoint adds and the deployed headset are this launcher's. The sixth is a simulated SO-101 on its own launcher, its arm and wrist camera on the robots' endpoint. The last two are the real robot, the robots' endpoint with the three physical cameras behind it, and the fleet and the halt of the framework's endpoint.

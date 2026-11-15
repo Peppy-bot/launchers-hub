@@ -200,8 +200,12 @@ robot's own body and the planning scene's objects alone. Its clearance,
 `min_clearance_m`, covers how far a full-speed run strays from its plan and
 stands above the backbone's `d_safe_m`, so the backbone's guard does not slow an
 arm on a planned path. The fragment states where each of its values comes from.
-Its tools are listed under the robot's name on the `robot_control` endpoint with
-the prefix `planner.`:
+When the copy also runs `vlm_router_brain`, each launcher binds the planner to
+the brain's `motion_planning` slot, and the brain plans the arm's transit to the
+point above an item and above the spot of a place with it; the brain's fragment
+writes that slot vacant otherwise, and the brain moves by the backbone's lines.
+The planner's tools are listed under the robot's name on the `robot_control`
+endpoint with the prefix `planner.`:
 
 ```sh
 peppy stack join openarm:foxtrot@jetson-1 --with openarm_v2,cameras,motion_planner

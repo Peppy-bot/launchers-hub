@@ -177,6 +177,11 @@
             { target: "brain_inst", when: { brain: "vlm_router_brain" },
               set_arguments: { perception_model: "gemini-robotics-er-2-preview", manipulation_model: "gemini-robotics-er-2-preview" },
               set_env_from_launch: ["GEMINI_API_KEY"] },
+            // The router brain plans the arm's transits with the copy's
+            // motion planner, and keeps the planner's scene equal to what it
+            // holds.
+            { target: "brain_inst", when: { brain: "vlm_router_brain", motion_planner: "motion_planner" },
+              set_links: { motion_planning: "planner_inst" } },
             // The planner maps what the rig's chest camera sees.
             { target: "planner_inst", when: { motion_planner: "motion_planner", camera_rig: "cameras_sim" },
               set_links: { camera: "chest", geometry: "chest" } },

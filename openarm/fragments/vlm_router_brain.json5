@@ -63,6 +63,10 @@
             // the backbone answers it for every camera the robot's design
             // carries, and the brain reads the chest camera's.
             camera_mounts: "backbone_inst",
+            // The robot's motion planner, optional on the node: a launcher
+            // binds the copy's planner here when the copy selects one;
+            // without it the brain moves by the backbone's lines alone.
+            motion_planning: { vacant: "select motion_planner=motion_planner to plan the brain's transits around what the chest camera sees" },
           },
         },
       ],

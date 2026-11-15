@@ -18,14 +18,6 @@ name: Tests
 # the sibling changes made on a branch of the same name. The job summary names
 # the hub commits that ran.
 #
-# The peppy release starts this workflow too, through workflow_dispatch, with
-# two inputs: the peppy release run whose archive the action installs, and
-# the set of hub commits the release recorded, which the action pins in place
-# of the branch lookup. `discover` and `launch` then check out the
-# launchers-hub commit of that set, because main can move between the moment
-# the release records the set and the moment this run starts, and every
-# combination is planned.
-#
 # Every combination is resolved on every run; a subset is launched. A launch
 # proves that each node instance it deploys builds, starts and signals ready
 # as configured, beside the instances it runs with, and most combinations
@@ -42,9 +34,8 @@ name: Tests
 # exactly the combinations whose resolved plan differs from the one the base
 # tree gives them, and only those are planned. A change outside every
 # launcher (this workflow, the skips file, the repository index, ...) plans
-# every combination, as does every push to main and every run the peppy
-# release dispatches; a Markdown file outside every launcher is the one
-# exception, planning nothing.
+# every combination, as does every push to main; a Markdown file outside
+# every launcher is the one exception, planning nothing.
 #
 # Two jobs do the work. `discover` enumerates the launchers and every
 # combination of their axes (printed to its log and the run summary), scopes
@@ -159,31 +150,16 @@ name: Tests
 # after attempt 1 or 2. A re-run is also an attempt, and the merge-set bot of
 # peppy re-runs this workflow to test a new commit of another branch of its
 # set. So each runs-on label adds spot=false from attempt 3, and AWS cannot
-# interrupt a job that RunsOn does not run again. A run the peppy release
-# dispatches is on demand from attempt 1: the release reads that run's first
-# conclusion and publishes nothing on a failure, so it has no retry to wait for.
+# interrupt a job that RunsOn does not run again.
 on:
   push:
     branches: [main]
   pull_request:
-  # The run the peppy release starts. For every other event both inputs are
-  # empty, and the action resolves the hubs by branch name.
-  workflow_dispatch:
-    inputs:
-      peppy-run-id:
-        description: The peppy release run whose release archive artifact is the peppy to install
-        type: string
-        required: true
-      set:
-        description: 'The hub commits the peppy release recorded, as {"hubs": {"<hub>": {"ref": "<label>", "commit": "<40 hex>"}, ...}}'
-        type: string
-        required: true
 
 # A pull request's new push cancels its previous run, and a push to main the
-# run of the push before it. A dispatched run's group is its own run id, so it
-# is never cancelled and cancels nothing.
+# run of the push before it.
 concurrency:
-  group: tests-${{ github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
+  group: tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -191,27 +167,22 @@ jobs:
   # are pushed at the same time, peppy's CI uploads that build several
   # minutes after this run starts. This job waits for it (see `wait-only` in
   # the hub-ci-peppy action), and each job that installs peppy needs this
-  # job, so that only this small runner waits. A job whose peppy is a
-  # release build waits for nothing.
+  # job, so that only this small runner waits. A job whose peppy is the
+  # latest release waits for nothing.
   wait-for-peppy:
     name: Wait for the peppy dev build
     # The smallest RunsOn runner, 1 vCPU: the job only looks for the build.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=1/ram=2+4/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=1/ram=2+4/family=c8a+c7a+m8a+m7a${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
     # The action stops its wait after 20 minutes.
     timeout-minutes: 25
     permissions:
       contents: read
 
     steps:
-      # The inputs of a run the peppy release dispatches, as in the jobs
-      # below: such a run installs the archive of its release run, so it
-      # waits for nothing.
       - name: Wait for the peppy dev build of the set
         uses: Peppy-bot/peppy/.github/actions/hub-ci-peppy@dev
         with:
           wait-only: true
-          peppy-run-id: ${{ inputs.peppy-run-id }}
-          set: ${{ inputs.set }}
 
   discover:
     name: Discover and plan the launcher combinations
@@ -225,7 +196,7 @@ jobs:
     # A change to a fragment that every launcher holds resolves every
     # combination twice, here and on the base tree: 946 s for one pass of 19,959
     # combinations, so about 32 minutes.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=4/ram=8+16/family=c8a+c7a+m8a+m7a${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
     timeout-minutes: 40
     permissions:
       contents: read
@@ -234,13 +205,12 @@ jobs:
       launches: ${{ steps.plan.outputs.launches }}
       commit: ${{ steps.checkout.outputs.commit }}
     steps:
-      # The commit under test: the launchers-hub commit of the set a
-      # dispatched run carries, else the pull request's head, else the pushed
+      # The commit under test: the pull request's head, else the pushed
       # commit. The launch job checks out the commit this job resolved.
       - id: checkout
         uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.set && fromJSON(inputs.set).hubs['launchers-hub'].commit || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history: the scoping step diffs the pull request against
           # its base to decide which launchers to run.
           fetch-depth: 0
@@ -289,10 +259,9 @@ jobs:
       # combinations in both and keep the ones that differ. The launcher
       # files of both trees count, so a fragment the pull request deletes is
       # still a launcher file. The comparison fails open: a base that cannot
-      # be found or read scopes the run to every combination, as does every
-      # other event: a push to main, or a run the peppy release dispatches.
-      # The decision and its reason are written to the run summary, so a
-      # scoped run never silently reads as full coverage.
+      # be found or read scopes the run to every combination, as does a push
+      # to main. The decision and its reason are written to the run summary,
+      # so a scoped run never silently reads as full coverage.
       - name: Scope the run to what the change can reach
         id: scope
         env:
@@ -318,8 +287,7 @@ jobs:
       # under PEPPY_HOME, and the action exports a PEPPY_HOME under
       # RUNNER_TEMP, beside everything else the job writes, holding the
       # registry the daemon started below refreshes into those caches before
-      # the plan step resolves. peppy-run-id and set are the inputs of a run
-      # the peppy release dispatches, and empty for every other event.
+      # the plan step resolves.
       #
       # The link rules the resolve holds each flat plan to are checked
       # against the manifest of every node the plan deploys, read out of this
@@ -340,8 +308,6 @@ jobs:
         uses: Peppy-bot/peppy/.github/actions/hub-ci-peppy@dev
         with:
           private-nodes-hub-deploy-key: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
-          peppy-run-id: ${{ inputs.peppy-run-id }}
-          set: ${{ inputs.set }}
 
       # The committed index against the repository, and with it every
       # launcher's whole selection space: an unlisted launcher, a moved
@@ -485,7 +451,7 @@ jobs:
     # The 50 GB root disk holds apptainer's build scratch (a full launch
     # writes near 18 GB there), and the sticky disk holds the caches named
     # below.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8+16/ram=16+64/family=*7a.2xlarge+*6i.4xlarge+*7i.4xlarge+*8i.4xlarge/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=8+16/ram=16+64/family=*7a.2xlarge+*6i.4xlarge+*7i.4xlarge+*8i.4xlarge/volume=50gb:gp3:500mbs:6000iops/sticky=launches:200gb:lazy-init${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
     # One job runs every planned launch. A cold run pulls the mujoco
     # simulation image, compiles the openarm Rust nodes, and resolves the
     # lerobot recorder's tree (torch included) inside its image build, once
@@ -602,8 +568,6 @@ jobs:
         uses: Peppy-bot/peppy/.github/actions/hub-ci-peppy@dev
         with:
           private-nodes-hub-deploy-key: ${{ secrets.PRIVATE_NODES_HUB_DEPLOY_KEY }}
-          peppy-run-id: ${{ inputs.peppy-run-id }}
-          set: ${{ inputs.set }}
 
       # The daemon refuses to boot unless the apptainer install it resolves
       # is ready for unprivileged use: `newuidmap` on PATH, and on a kernel
@@ -777,7 +741,7 @@ jobs:
     name: Verify the lockfile of the actions
     # The smallest RunsOn runner: the job asks the GitHub API about each
     # commit of the lockfile and builds nothing.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
     timeout-minutes: 5
     permissions:
       contents: read
@@ -808,7 +772,7 @@ jobs:
     # cancelled job would leave this check unreported instead of red.
     if: always()
     # The smallest RunsOn runner: the job reads the results of the others.
-    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ (fromJSON(github.run_attempt) >= 3 || github.event_name == 'workflow_dispatch') && '/spot=false' || '' }}  # custom Peppy AMI
+    runs-on: runs-on=${{ github.run_id }}/runner=peppy-ci-ubuntu-24.04-x86_64/image=peppy-ubuntu24/cpu=2/ram=4+8/family=c8a+c7a+m8a+m7a${{ fromJSON(github.run_attempt) >= 3 && '/spot=false' || '' }}  # custom Peppy AMI
     timeout-minutes: 5
     permissions: {}
 

@@ -4,16 +4,19 @@ An OpenArm is one fragment: [fragments/openarm.json5](fragments/openarm.json5)
 drives the physical robot over CAN and
 [fragments/openarm_sim.json5](fragments/openarm_sim.json5) joins a
 simulation that stands its limbs. Each deploys the robot's backbone and
-declares the robot's own axes: its model, `openarm_v1` or `openarm_v2`, which
-a copy of the physical robot names and a simulated copy stands as
-`openarm_v2` unless its `with` or `--with openarm_v1` says otherwise, the
-robot commander, the recorder, the camera rig, the brain and the motion
-planner. `model` is an option written in place: each deploys the
-initializer, `robot_initializer`, which every robot runs, naming its model;
-the physical file deploys the four CAN drivers on a v2's interfaces and
-sets a v1's interfaces on them, and the simulated one joins the
-initializer to the simulation. A fragment writes only the
-instances it deploys, so the robot's connections to the stack, its
+`transform_server` (`transforms_inst`), which keeps the robot's tree of
+frames, the fixed joints' transforms the initializer publishes and the
+measured joints' transforms the backbone publishes, and answers lookups in
+it for the nodes that hold no tree, and declares the robot's own axes: its
+model, `openarm_v1` or `openarm_v2`, which a copy of the physical robot
+names and a simulated copy stands as `openarm_v2` unless its `with` or
+`--with openarm_v1` says otherwise, the robot commander, the recorder, the
+camera rig, the brain and the motion planner. `model` is an option written
+in place: each deploys the initializer, `robot_initializer`, which every
+robot runs, naming its model; the physical file deploys the four CAN
+drivers on a v2's interfaces and sets a v1's interfaces on them, and the
+simulated one joins the initializer to the simulation. A fragment writes
+only the instances it deploys, so the robot's connections to the stack, its
 commander's sockets and tuning, the headset's slots, its recorder's rig and
 dataset and its listing on the MCP endpoint, are written in each launcher
 under the option that selects the robot.
@@ -120,14 +123,14 @@ peppy stack join openarm:delta --with openarm_v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with openarm_v2,ker_commander
 ```
 
-The default web commander streams joint setpoints. `robot_commander=none` gives the robot no commander of its own. If the stack runs the headset, the headset drives the robot, streaming end-effector poses to the backbone in pose mode; otherwise only actions move it. The `robot_commander` axis declares `role: "robot_commander"`, so the fleet listing gives the option of each copy as the robot commander of that robot: the browser panel or the KER drives its robot outside the leases and the halt of the stack. The headset is not a robot commander. The headset drives one robot at a time: the one chosen on its page or, until one is chosen, the first robot that paired, which it keeps until that robot leaves. MCP drives the robot by name, under any commander, on the stack's `robot_control:v1` endpoint, the robots' own surface, where every call names its robot: the robot's identity, the backbone's discrete motion actions, its limb state and collision readout, where its design lets it work, on a physical robot its drivers' motor health and alerts as resources, and the cameras of the copy's rig, their latest frames and the chest's depth as resources and their stream info, exposure, gain and white balance as tools.
+The default web commander streams joint setpoints. `robot_commander=none` gives the robot no commander of its own. If the stack runs the headset, the headset drives the robot, streaming end-effector poses to the backbone in pose mode; otherwise only actions move it. The `robot_commander` axis declares `role: "robot_commander"`, so the fleet listing gives the option of each copy as the robot commander of that robot: the browser panel or the KER drives its robot outside the leases and the halt of the stack. The headset is not a robot commander. The headset drives one robot at a time: the one chosen on its page or, until one is chosen, the first robot that paired, which it keeps until that robot leaves. MCP drives the robot by name, under any commander, on the stack's `robot_control:v1` endpoint, the robots' own surface, where every call names its robot: the robot's identity, the backbone's discrete motion actions, its limb state and collision readout, where it carries its sensors and where its frames stand, where its design lets it work, on a physical robot its drivers' motor health and alerts as resources, and the cameras of the copy's rig, their latest frames and the chest's depth as resources and their stream info, exposure, gain and white balance as tools.
 
 The endpoint is the launcher's `robot_control` axis, deployed by `simulation_mcp`
 and selected with `--with robot_control` on the other launchers. Every robot beside
 it is listed with its
-identity, limb state, moves, collision readout, camera mounts, workspace and,
-on the physical robot, its drivers' motor health and alerts under any
-commander, by the launcher's `add_links` on `robot_control_inst`
+identity, limb state, moves, collision readout, sensor mounts, frame
+lookups, workspace and, on the physical robot, its drivers' motor health
+and alerts under any commander, by the launcher's `add_links` on `robot_control_inst`
 under the robot's option, and with its recorder, its brain, its motion
 planner and its rig's cameras whenever they run, `cameras` on a physical
 robot and `cameras_sim` on a simulated one; a robot without a rig is listed
@@ -165,8 +168,9 @@ backbone's `limb_motion`: `ai_brain_vla`, whose models run on the GPU of its
 machine, or `vlm_router_brain`, whose models are hosted vision-language
 models it reaches over the network. Either composes with the selected
 commander: the operator and the brain send the same kind of goal to the
-same producer, and it reads where the chest camera stands from the
-backbone's `camera_mounts`. Every launcher gives either brain its rig's
+same producer, and it places the chest camera at the time of each picture
+by the initializer's `sensor_mounts` and a lookup of the transform server's
+`transform_lookup`. Every launcher gives either brain its rig's
 chest camera. `ai_brain_vla` runs the SAM 3 and SigLIP pipeline, so it names
 what it sees by words from the node's general vocabulary; under Waldo the
 simulation launchers also enrol the catalogue's table objects from the

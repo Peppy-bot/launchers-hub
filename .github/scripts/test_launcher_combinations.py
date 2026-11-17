@@ -1155,17 +1155,19 @@ class CombinationsTests(unittest.TestCase):
         # identity, its guide, how it stands and the moves a model drives it by, the
         # cameras under the rig, and the brain and the recorder whenever they
         # run. None of it is guarded on the server: an entry naming an
-        # instance the launch does not run is skipped. Every robot's backbone
-        # answers where its design lets it work; only the OpenArm's says how
-        # close its arms stand and where its cameras are mounted. Only a real
-        # driver reports per-motor health and operator alerts, so the physical
-        # launcher alone lists them, a report and an alert set per driver.
+        # instance the launch does not run is skipped. Every robot's
+        # initializer says where it carries its sensors, its transform server
+        # where its frames stand, and its backbone where its design lets it
+        # work; only the OpenArm's backbone says how close its arms stand.
+        # Only a real driver reports per-motor health and operator alerts, so
+        # the physical launcher alone lists them, a report and an alert set
+        # per driver.
         readouts_of_every_robot = {
-            "identity": ["init_inst"], "guide": ["init_inst"], "limb_state": ["backbone_inst"], "workspace": ["backbone_inst"],
+            "identity": ["init_inst"], "guide": ["init_inst"], "limb_state": ["backbone_inst"],
+            "sensor_mounts": ["init_inst"], "transform_lookup": ["transforms_inst"], "workspace": ["backbone_inst"],
             "postures": ["backbone_inst"], "limb_motion": ["backbone_inst"]}
         readouts = {
-            "openarm": {**readouts_of_every_robot,
-                        "collision": ["backbone_inst"], "camera_mounts": ["backbone_inst"]},
+            "openarm": {**readouts_of_every_robot, "collision": ["backbone_inst"]},
             "so101": readouts_of_every_robot,
         }
         for path, robots in ROBOT_LAUNCHERS.items():
@@ -1278,7 +1280,8 @@ class CombinationsTests(unittest.TestCase):
         router_links = dict(router_instance["links"])
         self.assertIn("vacant", router_links.pop("motion_planning"))
         self.assertEqual(local_instance["links"], router_links)
-        self.assertEqual(local_instance["arguments"], {"limbs": "left_arm:left_gripper,right_arm:right_gripper", "camera_name": "chest"})
+        self.assertEqual(local_instance["arguments"], {"limbs": "left_arm:left_gripper,right_arm:right_gripper", "camera_name": "chest",
+                                                       "lookup_timeout_s": 0.1})
         self.assertEqual(router_instance["arguments"], local_instance["arguments"])
 
     def test_the_brain_sees_through_its_rigs_chest_camera_and_names_by_words(self):
@@ -1385,9 +1388,9 @@ class CombinationsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         # A robot writes nothing onto the server, and a simulated one declares
         # the simulation's clock on the instances it deploys where it deploys
-        # them; the commander, the recorder, an OpenArm's brain and its
-        # motion planner are shared with the physical robot, so the launcher
-        # binds those.
+        # them, its transform server among them; the commander, the recorder,
+        # an OpenArm's brain and its motion planner are shared with the
+        # physical robot, so the launcher binds those.
         for robot, path in ROBOT_FILES.items():
             with self.subTest(path=path):
                 document = combinations.load_json5(root / path, path)
@@ -1396,7 +1399,7 @@ class CombinationsTests(unittest.TestCase):
                 simulated = robot.endswith("_sim")
                 # An OpenArm's initializer is its model option's; the
                 # initializer test holds those to the same clock.
-                own = ["backbone_inst"] + (["init_inst"] if family_of(robot) == "so101" else [])
+                own = ["backbone_inst", "transforms_inst"] + (["init_inst"] if family_of(robot) == "so101" else [])
                 for instance_id in own:
                     self.assertEqual(
                         instance_of(document, instance_id).get("framework"),
@@ -2106,6 +2109,57 @@ class CombinationsTests(unittest.TestCase):
                 links = instance_of(robot, "backbone_inst")["links"]
                 self.assertEqual((links["robot_init"], links["robot_identity"]), ("init_inst", "init_inst"))
 
+    def test_every_robot_serves_its_tree_of_frames_to_the_nodes_that_read_it(self):
+        root = Path(__file__).resolve().parents[2]
+        # Every robot file deploys one transform server beside its
+        # initializer and its backbone, bound to both: the initializer
+        # publishes the fixed joints' transforms and the backbone the joints
+        # it measures. The server reads the clock of the robot's other
+        # instances.
+        publishers = ["init_inst", "backbone_inst"]
+        for robot, path in ROBOT_FILES.items():
+            with self.subTest(robot=robot):
+                document = combinations.load_json5(root / path, path)
+                servers = [deployment for deployment in document["deployments"]
+                           if deployment.get("source") == {"name": "transform_server", "tag": "v1"}]
+                [[instance]] = [server["instances"] for server in servers]
+                self.assertEqual(instance["instance_id"], "transforms_inst")
+                self.assertEqual(instance["arguments"], {"cache_window_s": 120.0})
+                self.assertEqual(instance["links"], {"transforms": publishers})
+                self.assertEqual(instance.get("framework"),
+                                 {"clock": "simulation"} if robot.endswith("_sim") else None)
+        # Either brain places its camera by the initializer's sensor_mounts
+        # and a lookup of the transform server.
+        for option in BRAINS:
+            with self.subTest(brain=option):
+                brain = combinations.load_json5(root / f"openarm/fragments/{option}.json5", option)
+                links = instance_of(brain, "brain_inst")["links"]
+                self.assertEqual((links["sensor_mounts"], links["transform_lookup"]), ("init_inst", "transforms_inst"))
+        # An OpenArm's planner holds its own tree, bound to every publisher
+        # of it, and reads the frames from the initializer. An SO-101's
+        # planner has no depth camera to place: its sensor_mounts slot is
+        # vacant, its transforms set empty, and its tree's settings are the
+        # OpenArm's.
+        openarm = instance_of(combinations.load_json5(root / "openarm/fragments/motion_planner.json5", "motion_planner"),
+                              "planner_inst")
+        so101 = instance_of(combinations.load_json5(root / "so101/fragments/motion_planner.json5", "motion_planner"),
+                            "planner_inst")
+        self.assertEqual((openarm["links"]["sensor_mounts"], openarm["links"]["transforms"]), ("init_inst", publishers))
+        self.assertEqual(set(so101["links"]["sensor_mounts"]), {"vacant"})
+        self.assertNotIn("transforms", so101["links"])
+        tree_settings = ["cache_window_s", "lookup_timeout_s"]
+        self.assertEqual({key: so101["arguments"][key] for key in tree_settings},
+                         {key: openarm["arguments"][key] for key in tree_settings})
+        # The robot files and the fragments bind the tree; a launcher lists
+        # the robot's sensor mounts and lookups on the stack's server alone.
+        tree_slots = ["transforms", "sensor_mounts", "transform_lookup"]
+        for path, robots in ROBOT_LAUNCHERS.items():
+            document = combinations.load_json5(root / path, path)
+            for robot in robots:
+                with self.subTest(path=path, robot=robot):
+                    self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
+                                      if a["target"] != SERVER and any(writes_link(a, slot) for slot in tree_slots)], [])
+
     def test_a_backbone_names_its_downstream_links_after_its_limbs(self):
         root = Path(__file__).resolve().parents[2]
         openarm = ["left_arm", "right_arm", "left_gripper", "right_gripper"]
@@ -2189,10 +2243,10 @@ class CombinationsTests(unittest.TestCase):
         # follower role toward a simulated robot's backbone.
         self.assertCountEqual(
             [d["source"]["name"] for d in real["deployments"] if "source" in d],
-            ["so101_follower", "robot_initializer", "so101_backbone"])
+            ["so101_follower", "robot_initializer", "so101_backbone", "transform_server"])
         self.assertCountEqual(
             [d["source"]["name"] for d in simulated["deployments"] if "source" in d],
-            ["robot_initializer", "so101_backbone"])
+            ["robot_initializer", "so101_backbone", "transform_server"])
         # The leader arm leads the real robot; the simulated one comes up
         # with no commander of its own, so it needs no SO-101 hardware.
         self.assertEqual(combinations.option_entries(real, "so101")["robot_commander"], "so101_leader")
@@ -2844,7 +2898,7 @@ class SimulatedSo101Tests(unittest.TestCase):
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         launch = combinations.Launch.of(candidate, resolution, ())
         self.assertEqual(launch.launch_joins, ["so101_sim"])
-        self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst", "bravo_wrist"])
+        self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst", "bravo_transforms_inst", "bravo_wrist"])
         self.assertEqual(
             combinations.launch_command(launch)[:8],
             ["peppy", "stack", "launch", "simulation_mcp", "--with", stack, "--join", "so101_sim:bravo"])
@@ -2858,7 +2912,7 @@ class SimulatedSo101Tests(unittest.TestCase):
                 candidate, resolution = self.resolved(answer, words, "so101_sim")
                 self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
                 launch = combinations.Launch.of(candidate, resolution, ())
-                self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst"])
+                self.assertEqual(launch.join_instances, ["bravo_backbone_inst", "bravo_init_inst", "bravo_transforms_inst"])
 
     def test_a_leader_arm_is_skipped_as_hardware_the_runner_lacks_and_a_headset_launches(self):
         answer = so101_stack("waldo", so101_copy("bravo", robot_commander="so101_leader"))
@@ -2882,13 +2936,14 @@ class SimulatedSo101Tests(unittest.TestCase):
             [(d["source"], d["instances"][0]["instance_id"]) for d in robot_control],
             [({"name": "robot_initializer", "tag": "v1"}, "bravo_init_inst"),
              ({"name": "so101_backbone", "tag": "v1"}, "bravo_backbone_inst"),
+             ({"name": "transform_server", "tag": "v1"}, "bravo_transforms_inst"),
              ({"name": "sim_rgb_camera", "tag": "v1"}, "bravo_wrist")])
         _, resolution = self.resolved(
             so101_stack("waldo", robot_control), WALDO_MCP, "so101_sim", "robot_commander=none,camera_rig=cameras_sim")
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         self.assertEqual(
             combinations.copy_instances(resolution.plan, "bravo"),
-            ["bravo_backbone_inst", "bravo_init_inst", "bravo_wrist"])
+            ["bravo_backbone_inst", "bravo_init_inst", "bravo_transforms_inst", "bravo_wrist"])
         # Its rig turns rendering on, which a join cannot: the daemon refuses
         # it as a change to the running simulation, and the planner reports
         # the copy as one only a launcher file deploys.

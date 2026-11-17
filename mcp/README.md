@@ -37,8 +37,9 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   robots fill, so the server takes no link of its own, and the launcher adds
   each robot's instances with `add_links` on `robot_control_inst`, under the
   option that selects the robot: its initializer for its identity and its
-  backbone for its limb state, its moves, where its design lets it work and,
-  on an OpenArm, its collision readout and its camera mounts, and its drivers
+  sensor mounts, its transform server for the lookups in its tree of frames,
+  its backbone for its limb state, its moves, where its design lets it work
+  and, on an OpenArm, its collision readout, and its drivers
   on the physical robots for their motor health and alerts, so every robot
   of the stack is listed with what it is, how it stands and how a model
   moves it, under any commander; its

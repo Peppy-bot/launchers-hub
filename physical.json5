@@ -61,13 +61,13 @@
           fragments: ["openarm/fragments/openarm.json5"],
           adjustments: [
             // Listed on the MCP endpoint: who it is, its guide, what its limbs
-            // measure, how close its arms stand, where its cameras are mounted,
-            // where its design lets it work, the moves a model drives it by,
-            // and its drivers' per-motor health and operator alerts, the same
-            // drivers under both.
+            // measure, how close its arms stand, where it carries its sensors,
+            // where its frames stand, where its design lets it work, the moves
+            // a model drives it by, and its drivers' per-motor health and
+            // operator alerts, the same drivers under both.
             { target: "robot_control_inst",
               add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
-                           camera_mounts: ["backbone_inst"], workspace: ["backbone_inst"],
+                           sensor_mounts: ["init_inst"], transform_lookup: ["transforms_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"],
                            motor_health: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"],
                            alerts: ["left_arm_inst", "right_arm_inst", "left_gripper_inst", "right_gripper_inst"] } },
@@ -149,10 +149,12 @@
           fragments: ["so101/fragments/so101.json5"],
           adjustments: [
             // Listed on the MCP endpoint: who it is, its guide, what its limbs
-            // measure, where its design lets it work, the moves a model drives
-            // it by, and the follower's per-motor health and operator alerts.
+            // measure, where it carries its sensors, where its frames stand,
+            // where its design lets it work, the moves a model drives it by,
+            // and the follower's per-motor health and operator alerts.
             { target: "robot_control_inst",
-              add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], workspace: ["backbone_inst"],
+              add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"],
+                           sensor_mounts: ["init_inst"], transform_lookup: ["transforms_inst"], workspace: ["backbone_inst"],
                            postures: ["backbone_inst"], limb_motion: ["backbone_inst"],
                            motor_health: ["follower_inst"], alerts: ["follower_inst"] } },
             // The stack's headset leads a robot with no commander of its own:

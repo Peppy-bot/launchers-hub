@@ -1,10 +1,10 @@
 // A simulated OpenArm: the backbone that governs the limbs the simulation
-// stands, and the robot's own axes: its model, the commander that leads it,
-// the recorder that films it, its camera rig, its brain and its motion
-// planner. The `model` axis carries the initializer, which names the model
-// the simulation stands.
+// stands, the server of its tree of frames, and the robot's own axes: its
+// model, the commander that leads it, the recorder that films it, its camera
+// rig, its brain and its motion planner. The `model` axis carries the
+// initializer, which names the model the simulation stands.
 //
-// This file writes only the backbone it deploys. The launcher's simulation
+// This file writes only the instances it deploys. The launcher's simulation
 // axis supplies simulation_inst, and the launcher that selects this robot
 // wires it to the stack: the commander's sockets, tuning and clock, the MCP
 // endpoint's slots, and the dataset the recorder files episodes under.
@@ -69,6 +69,24 @@
             // answers check reach alone; the adjustment below binds the
             // rendered chest camera when the copy selects cameras_sim.
             perception_geometry: { vacant: "select cameras_sim to give the backbone the chest camera's geometry: the workspace answers check reach alone" },
+          },
+        },
+      ],
+    },
+    // The robot's tree of frames, served to the nodes that hold none.
+    {
+      source: { name: "transform_server", tag: "v1" },
+      instances: [
+        {
+          instance_id: "transforms_inst",
+          framework: { clock: "simulation" },
+          arguments: {
+            // tf2_ros buffer_server's default.
+            cache_window_s: 120.0,
+          },
+          links: {
+            // Every publisher of the robot's tree.
+            transforms: ["init_inst", "backbone_inst"],
           },
         },
       ],

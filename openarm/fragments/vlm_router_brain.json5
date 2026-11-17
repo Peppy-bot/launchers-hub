@@ -33,8 +33,10 @@
             // them by.
             limbs: "left_arm:left_gripper,right_arm:right_gripper",
             // The camera the brain looks through: the chest camera, fixed
-            // to the torso, as the backbone's camera_mounts names it.
+            // to the torso, as the initializer's sensor_mounts names it.
             camera_name: "chest",
+            // Two limb_states periods: the worst wait measured in Waldo, plus one dropped sample.
+            lookup_timeout_s: 0.1,
             // perception_model: the node's own default applies (see the node's
             // peppy.json5, parameter perception_model) where the launcher does
             // not set it with an adjustment.
@@ -59,10 +61,10 @@
             // rig binds it beside `camera`. Vacant, no pixel can become a
             // position and both searches are refused naming the slot.
             geometry: { vacant: "select a camera rig, cameras or cameras_sim, to give the brain the chest camera's geometry" },
-            // Where that camera stands on the robot, in the robot frame:
-            // the backbone answers it for every camera the robot's design
-            // carries, and the brain reads the chest camera's.
-            camera_mounts: "backbone_inst",
+            // The robot frame and the camera's frame, from the robot's model.
+            sensor_mounts: "init_inst",
+            // Where the camera stands at the time of each picture.
+            transform_lookup: "transforms_inst",
             // The robot's motion planner, optional on the node: a launcher
             // binds the copy's planner here when the copy selects one;
             // without it the brain moves by the backbone's lines alone.

@@ -1,6 +1,7 @@
 // A physical OpenArm: its four CAN drivers, the backbone that governs them,
-// and the robot's own axes: its model, the commander that leads it, the
-// recorder that films it, its camera rig, its brain and its motion planner.
+// the server of its tree of frames, and the robot's own axes: its model, the
+// commander that leads it, the recorder that films it, its camera rig, its
+// brain and its motion planner.
 // The `model` axis carries the initializer, which names the model to every
 // other node of the robot: the drivers with component_ready's set_model, the
 // backbone, the commander and the motion planner over robot_identity. A v1's
@@ -101,6 +102,23 @@
             // reach alone; the adjustment below binds the rig's chest camera
             // when a v2 copy selects cameras.
             perception_geometry: { vacant: "select cameras on a v2 to give the backbone the chest camera's geometry: the workspace answers check reach alone" },
+          },
+        },
+      ],
+    },
+    // The robot's tree of frames, served to the nodes that hold none.
+    {
+      source: { name: "transform_server", tag: "v1" },
+      instances: [
+        {
+          instance_id: "transforms_inst",
+          arguments: {
+            // tf2_ros buffer_server's default.
+            cache_window_s: 120.0,
+          },
+          links: {
+            // Every publisher of the robot's tree.
+            transforms: ["init_inst", "backbone_inst"],
           },
         },
       ],

@@ -429,13 +429,17 @@ framework's endpoint:
    (`model` and the `core_node` hosting it), its `limbs`, its cameras, the
    `tools` it answers and the `resources` it publishes. Then call `scene.get_robots_list` on the simulation
    endpoint: the entry whose `robot` matches is the same robot, with
-   `position`, where its base stands in the simulated world, and `yaw`,
-   which way it faces in radians about +Z. A point `p` in the robot's own
-   frame, the frame `robot.move_arm` poses are written in, stands in the
-   simulated world at `position + Rz(yaw) * p`, which is how something is
-   placed where the robot can reach it: `scene.spawn_object` takes a `yaw`
-   of its own to turn what it places, and `scene.move_robot` takes the
-   robot's.
+   `position`, where its base stands in the simulated world, and
+   `orientation`, which way it faces, `[0, 0, z, w]`, which is
+   `[0, 0, sin(yaw/2), cos(yaw/2)]` for a turn of `yaw = 2 * atan2(z, w)`
+   about +Z, both in the frame `world`. A point `p` in the
+   robot frame, which a `robot.move_arm` target names in `frame` by the name
+   `robot.describe_sensors` gives, stands in the simulated world at
+   `position + Rz(yaw) * p`, which is how something is placed where the
+   robot can reach it: the `target` of `scene.spawn_object` takes an
+   orientation of its own to turn what it places, and the `target` of
+   `scene.move_robot` takes the robot's. Every pose of either endpoint names its `frame` and its
+   `timestamp`, by the frame rule of that endpoint's instructions.
 2. Discover the lights: call `lighting.get_lighting` on the simulation
    endpoint. It lists every light with its id, kind, the properties it
    supports and each property's unit and current value, and, for the lamps
@@ -468,10 +472,10 @@ framework's endpoint:
    action-backed tool. For a client that declares the MCP tasks extension,
    the call returns a task handle and `tasks/get` reports its progress. For
    any other client, the call answers once the move ends. Either way, the
-   result gives `arm_names`, `positions` and `orientations`: where the
-   grasp point of each arm stood in the robot frame when the move ended.
-   The three arrays are empty when the robot has no fresh measured pose of
-   an arm. A completed move does not prove that both arms arrived. An arm
+   result gives `frame`, `timestamp`, `arm_names` and `grasp_points`: where
+   the grasp point of each arm stood in the robot frame when the move
+   ended. `arm_names` and `grasp_points` are empty when the robot has no
+   fresh measured pose of an arm. A completed move does not prove that both arms arrived. An arm
    can stop short of the working posture, against an obstacle or where the
    collision guard holds it, so read the reported poses. A move that the
    robot refuses or that fails ends with an error that gives its failure

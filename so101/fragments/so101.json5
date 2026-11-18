@@ -1,8 +1,8 @@
 // A physical SO-101: the follower arm, the initializer that says who the
-// robot is, the backbone that governs the arm, and the robot's own axes: the
-// command surface that leads it, an optional recorder, and a camera. The
-// leader arm leads unless a launch word or a copy's `with` selects another
-// surface.
+// robot is, the backbone that governs the arm, the server of its tree of
+// frames, and the robot's own axes: the command surface that leads it, an
+// optional recorder, and a camera. The leader arm leads unless a launch word
+// or a copy's `with` selects another surface.
 //
 // This file writes only the instances it deploys. The launcher that selects
 // this robot wires it to the stack: the commander's sockets, tuning and the
@@ -85,6 +85,23 @@
             leader_arm: { vacant: "no leader streams joint commands: actions drive the arm" },
             leader_gripper: { vacant: "no leader streams joint commands: actions drive the gripper" },
             leader_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slot" },
+          },
+        },
+      ],
+    },
+    // The robot's tree of frames, served to the nodes that hold none.
+    {
+      source: { name: "transform_server", tag: "v1" },
+      instances: [
+        {
+          instance_id: "transforms_inst",
+          arguments: {
+            // tf2_ros buffer_server's default.
+            cache_window_s: 120.0,
+          },
+          links: {
+            // Every publisher of the robot's tree.
+            transforms: ["init_inst", "backbone_inst"],
           },
         },
       ],

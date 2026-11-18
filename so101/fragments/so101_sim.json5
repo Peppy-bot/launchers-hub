@@ -1,8 +1,9 @@
 // A simulated SO-101: the initializer that joins the simulation as this
-// robot, the backbone that leads the limbs the simulation stands, and the
-// robot's own axes: an optional command surface, an optional recorder, and a
-// rendered camera. There is no follower node: the engine plays the follower
-// role toward the backbone, on the same pairings the real follower holds.
+// robot, the backbone that leads the limbs the simulation stands, the server
+// of its tree of frames, and the robot's own axes: an optional command
+// surface, an optional recorder, and a rendered camera. There is no follower
+// node: the engine plays the follower role toward the backbone, on the same
+// pairings the real follower holds.
 // Every simulation stands any number of robots at once, of any model.
 //
 // It comes up with no commander of its own, so it runs on a machine with
@@ -73,6 +74,24 @@
             leader_arm: { vacant: "no leader streams joint commands: actions drive the arm" },
             leader_gripper: { vacant: "no leader streams joint commands: actions drive the gripper" },
             leader_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slot" },
+          },
+        },
+      ],
+    },
+    // The robot's tree of frames, served to the nodes that hold none.
+    {
+      source: { name: "transform_server", tag: "v1" },
+      instances: [
+        {
+          instance_id: "transforms_inst",
+          framework: { clock: "simulation" },
+          arguments: {
+            // tf2_ros buffer_server's default.
+            cache_window_s: 120.0,
+          },
+          links: {
+            // Every publisher of the robot's tree.
+            transforms: ["init_inst", "backbone_inst"],
           },
         },
       ],

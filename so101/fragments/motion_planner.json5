@@ -64,7 +64,8 @@
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts.
             planning_attempts: 1,
-            // The OpenArm's lookup wait.
+            // Two of SO-101's limb_states periods: so101_backbone publishes
+            // limb_states every 0.05 s.
             lookup_timeout_s: 0.1,
           },
           links: {

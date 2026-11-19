@@ -101,10 +101,6 @@
       instances: [
         {
           instance_id: "transforms_inst",
-          arguments: {
-            // tf2_ros buffer_server's default.
-            cache_window_s: 120.0,
-          },
           links: {
             // Every publisher of the robot's tree.
             transforms: ["init_inst", "backbone_inst"],

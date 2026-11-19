@@ -2167,7 +2167,7 @@ class CombinationsTests(unittest.TestCase):
                            if deployment.get("source") == {"name": "transform_server", "tag": "v1"}]
                 [[instance]] = [server["instances"] for server in servers]
                 self.assertEqual(instance["instance_id"], "transforms_inst")
-                self.assertEqual(instance["arguments"], {"cache_window_s": 120.0})
+                self.assertNotIn("arguments", instance)
                 self.assertEqual(instance["links"], {"transforms": publishers})
                 self.assertEqual(instance.get("framework"),
                                  {"clock": "simulation"} if robot.endswith("_sim") else None)
@@ -2179,16 +2179,12 @@ class CombinationsTests(unittest.TestCase):
                 links = instance_of(brain, "brain_inst")["links"]
                 self.assertEqual((links["sensor_mounts"], links["transform_lookup"]), ("init_inst", "transforms_inst"))
         # Each planner holds its own tree, which places each goal, request
-        # and object, bound to every publisher of it; an SO-101's tree
-        # settings are the OpenArm's.
+        # and object, bound to every publisher of it.
         openarm = instance_of(combinations.load_json5(root / "openarm/fragments/motion_planner.json5", "motion_planner"),
                               "planner_inst")
         so101 = instance_of(combinations.load_json5(root / "so101/fragments/motion_planner.json5", "motion_planner"),
                             "planner_inst")
         self.assertEqual((openarm["links"]["transforms"], so101["links"]["transforms"]), (publishers, publishers))
-        tree_settings = ["cache_window_s", "lookup_timeout_s"]
-        self.assertEqual({key: so101["arguments"][key] for key in tree_settings},
-                         {key: openarm["arguments"][key] for key in tree_settings})
         # Each backbone places each command's pose by the robot's tree: an
         # OpenArm's holds its own, bound to the tree's other publisher, the
         # initializer, and an SO-101's asks the transform server.

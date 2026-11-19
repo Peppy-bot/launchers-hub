@@ -81,8 +81,6 @@
             // within 1665 ms against 2035 ms with four attempts, and a plan of
             // one arm within 998 ms against 739 ms.
             planning_attempts: 1,
-            // tf2's default buffer, which MoveIt's planning scene monitor keeps.
-            cache_window_s: 10.0,
             // Two limb_states periods: the worst wait measured in Waldo, plus one dropped sample.
             lookup_timeout_s: 0.1,
           },

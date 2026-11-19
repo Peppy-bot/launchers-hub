@@ -64,8 +64,7 @@
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts.
             planning_attempts: 1,
-            // The OpenArm's tree settings.
-            cache_window_s: 10.0,
+            // The OpenArm's lookup wait.
             lookup_timeout_s: 0.1,
           },
           links: {

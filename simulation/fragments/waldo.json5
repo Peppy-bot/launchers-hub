@@ -1,4 +1,4 @@
-// The Waldo simulation. It serves its HTTPS page on viewer_port (8080 by
+// The Waldo simulation. It serves its HTTPS page on viewer_port (23817 by
 // default) with a self-signed certificate: the engine's 3D viewer of the
 // running world, streamed over WebTransport on UDP viewer_port, with the
 // page's controls around it, the name tag over every robot with the button

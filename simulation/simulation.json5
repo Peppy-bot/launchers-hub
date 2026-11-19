@@ -5,7 +5,7 @@
     "`peppy stack launch simulation`: Waldo and its viewer.",
     "`peppy stack launch simulation --with isaac_sim`: Isaac Sim and the browser frontend of its WebRTC livestream.",
     "`peppy stack launch simulation --with web_scene_commander`: the scene panel with it.",
-    "The simulation runs on the machine the launch is sent to: this one, or the one `--core-node` names. Waldo serves its viewer and the hand teleop panel on viewer_port (8080) and Isaac Sim its WebRTC frontend on 8210. The scene panel, on 8766, is the axis each of them declares, so it takes the launch word web_scene_commander: spawn, move and remove objects, and list what stands in the scene.",
+    "The simulation runs on the machine the launch is sent to: this one, or the one `--core-node` names. Waldo serves its viewer and the hand teleop panel on viewer_port (23817) and Isaac Sim its WebRTC frontend on 8210. The scene panel, on 8766, is the axis each of them declares, so it takes the launch word web_scene_commander: spawn, move and remove objects, and list what stands in the scene.",
     "This launcher declares no robot axis, so nothing joins it. A robot stands in a simulation the same launch names, which is what the launchers openarm_simulation, so101_simulation and simulation_mcp do.",
     "MuJoCo is no option here: it answers no scene call, so nothing in this launch could command it. It runs a robot's own simulation in those launchers.",
   ],

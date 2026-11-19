@@ -64,7 +64,7 @@
             max_iterations: 20000,
             // MoveIt's default num_planning_attempts.
             planning_attempts: 1,
-            // The OpenArm's tree settings: no depth camera to place here.
+            // The OpenArm's tree settings.
             cache_window_s: 10.0,
             lookup_timeout_s: 0.1,
           },
@@ -73,10 +73,9 @@
             identity: "init_inst",
             // The arm's measured joints and the gripper's opening.
             limb_state: "backbone_inst",
-            // SO-101 carries no depth camera, and its design names no
-            // perception camera; its transforms set stays empty.
-            sensor_mounts: { vacant: "SO-101 carries no depth camera" },
-            workspace: { vacant: "SO-101 carries no perception camera" },
+            // Every publisher of the robot's tree, which places each goal,
+            // request and object at its timestamp.
+            transforms: ["init_inst", "backbone_inst"],
             camera: { vacant: "SO-101 has no depth camera: a plan keeps clear of the planning scene's objects" },
             geometry: { vacant: "SO-101 has no depth camera: a plan keeps clear of the planning scene's objects" },
           },

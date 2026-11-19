@@ -24,8 +24,10 @@ Both deploy the SO-101 control: the initializer, `robot_initializer` with
 `model: "so101"`, which answers `robot_identity` and `robot_ready`, the
 backbone, and `transform_server` (`transforms_inst`), which keeps the
 robot's tree of frames from the initializer's and the backbone's transforms
-and answers lookups in it. A fragment writes only the instances it deploys
-and the backbone's pairs into the stack's headset, so what the headset
+and answers lookups in it, the backbone's among them: the backbone places
+each command's pose in the robot frame through `transform_lookup`. A
+fragment writes only the instances it deploys and the backbone's pairs into
+the stack's headset, so what the headset
 reaches of the robot, its postures, recorder, camera and motor telemetry, the
 recorder's rig and dataset, and the robot's listing on the MCP endpoint are
 the launcher's, under the option that selects the robot; the recorder's

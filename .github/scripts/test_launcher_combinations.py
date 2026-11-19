@@ -2178,24 +2178,30 @@ class CombinationsTests(unittest.TestCase):
                 brain = combinations.load_json5(root / f"openarm/fragments/{option}.json5", option)
                 links = instance_of(brain, "brain_inst")["links"]
                 self.assertEqual((links["sensor_mounts"], links["transform_lookup"]), ("init_inst", "transforms_inst"))
-        # An OpenArm's planner holds its own tree, bound to every publisher
-        # of it, and reads the frames from the initializer. An SO-101's
-        # planner has no depth camera to place: its sensor_mounts slot is
-        # vacant, its transforms set empty, and its tree's settings are the
-        # OpenArm's.
+        # Each planner holds its own tree, which places each goal, request
+        # and object, bound to every publisher of it; an SO-101's tree
+        # settings are the OpenArm's.
         openarm = instance_of(combinations.load_json5(root / "openarm/fragments/motion_planner.json5", "motion_planner"),
                               "planner_inst")
         so101 = instance_of(combinations.load_json5(root / "so101/fragments/motion_planner.json5", "motion_planner"),
                             "planner_inst")
-        self.assertEqual((openarm["links"]["sensor_mounts"], openarm["links"]["transforms"]), ("init_inst", publishers))
-        self.assertEqual(set(so101["links"]["sensor_mounts"]), {"vacant"})
-        self.assertNotIn("transforms", so101["links"])
+        self.assertEqual((openarm["links"]["transforms"], so101["links"]["transforms"]), (publishers, publishers))
         tree_settings = ["cache_window_s", "lookup_timeout_s"]
         self.assertEqual({key: so101["arguments"][key] for key in tree_settings},
                          {key: openarm["arguments"][key] for key in tree_settings})
+        # Each backbone places each command's pose by the robot's tree: an
+        # OpenArm's holds its own, bound to the tree's other publisher, the
+        # initializer, and an SO-101's asks the transform server.
+        for robot, path in ROBOT_FILES.items():
+            with self.subTest(robot=robot):
+                links = instance_of(combinations.load_json5(root / path, path), "backbone_inst")["links"]
+                if family_of(robot) == "openarm":
+                    self.assertEqual(links["other_transforms"], ["init_inst"])
+                else:
+                    self.assertEqual(links["transform_lookup"], "transforms_inst")
         # The robot files and the fragments bind the tree; a launcher lists
         # the robot's sensor mounts and lookups on the stack's server alone.
-        tree_slots = ["transforms", "sensor_mounts", "transform_lookup"]
+        tree_slots = ["other_transforms", "transforms", "sensor_mounts", "transform_lookup"]
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:
@@ -2278,7 +2284,8 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual(instance["instance_id"], "backbone_inst")
                 self.assertEqual(instance["arguments"]["upstream_mode"], "joints")
                 self.assertEqual(set(instance["links"]),
-                                 {"robot_identity", "arm", "gripper", "leader_arm", "leader_gripper", "leader_pose"})
+                                 {"robot_identity", "transform_lookup", "arm", "gripper", "leader_arm", "leader_gripper",
+                                  "leader_pose"})
                 self.assertEqual(instance["links"]["robot_identity"], "init_inst")
         self.assertEqual(instance_of(simulated, "backbone_inst")["arguments"],
                          instance_of(real, "backbone_inst")["arguments"])

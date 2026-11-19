@@ -11,11 +11,14 @@ it for the nodes that hold no tree, and declares the robot's own axes: its
 model, `openarm_v1` or `openarm_v2`, which a copy of the physical robot
 names and a simulated copy stands as `openarm_v2` unless its `with` or
 `--with openarm_v1` says otherwise, the robot commander, the recorder, the
-camera rig, the brain and the motion planner. `model` is an option written
-in place: each deploys the initializer, `robot_initializer`, which every
-robot runs, naming its model; the physical file deploys the four CAN
-drivers on a v2's interfaces and sets a v1's interfaces on them, and the
-simulated one joins the initializer to the simulation. A fragment writes
+camera rig, the brain and the motion planner. The backbone holds the tree
+too, from the initializer's transforms on its `other_transforms` link and
+the transforms it publishes, and places each command's pose by it. `model`
+is an option written in place: each deploys the initializer,
+`robot_initializer`, which every robot runs, naming its model; the
+physical file deploys the four CAN drivers on a v2's interfaces and sets a
+v1's interfaces on them, and the simulated one joins the initializer to the
+simulation. A fragment writes
 only the instances it deploys, so the robot's connections to the stack, its
 commander's sockets and tuning, the headset's slots, its recorder's rig and
 dataset and its listing on the MCP endpoint, are written in each launcher

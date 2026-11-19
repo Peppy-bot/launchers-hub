@@ -70,12 +70,18 @@
             start_tolerance_rad: 0.05,
             collision_governor_enabled: true,
             max_stream_ee_velocity_m_s: 0.25,
+            // Two limb_states periods: the worst wait measured in Waldo, plus one dropped sample.
+            lookup_timeout_s: 0.1,
           },
           links: {
             robot_init: "init_inst",
             // The robot's model, whose description the backbone builds its
             // arms from, and holds to the one it was built with.
             robot_identity: "init_inst",
+            // The other publisher of the robot's tree, which places each
+            // command's pose: the initializer, with the fixed joints. The
+            // backbone takes the joints it measures into the tree itself.
+            other_transforms: ["init_inst"],
             // The limbs either model deploys, under the same ids.
             left_arm: "left_arm_inst",
             right_arm: "right_arm_inst",

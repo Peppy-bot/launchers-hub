@@ -3,7 +3,9 @@
 // binds the cameras to the recorder, the stack's headset and the MCP
 // endpoint under the robot's option, by the instance ids written here. All
 // three read the rgb8 the wrist cameras publish: the endpoint's server
-// transcodes rgb8 to JPEG and refuses yuyv.
+// transcodes rgb8 to JPEG and refuses yuyv. Each camera names in every
+// picture the frame the initializer's sensor_mounts gives for its instance
+// id.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -29,6 +31,9 @@
               topic_encoding: "rgb8",
             },
           },
+          links: {
+            sensor_mounts: "init_inst",
+          },
         },
         {
           instance_id: "wrist_right",
@@ -40,6 +45,9 @@
               camera_encoding: "yuyv",
               topic_encoding: "rgb8",
             },
+          },
+          links: {
+            sensor_mounts: "init_inst",
           },
         },
       ],
@@ -60,6 +68,9 @@
             resolution: "hd720",
             frame_rate: 15,
             depth: { min_depth_m: 0.4, downscale: 2, block_size: 3 },
+          },
+          links: {
+            sensor_mounts: "init_inst",
           },
         },
       ],

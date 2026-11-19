@@ -1,6 +1,7 @@
 // The wrist camera for episode video. The launcher binds it to the recorder,
 // the headset and the MCP endpoint under the robot's option, by the instance
-// id written here.
+// id written here. The camera names in every picture the frame the
+// initializer's sensor_mounts gives for that id.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -24,6 +25,9 @@
               camera_encoding: "mjpeg",
               topic_encoding: "rgb8",
             },
+          },
+          links: {
+            sensor_mounts: "init_inst",
           },
         },
       ],

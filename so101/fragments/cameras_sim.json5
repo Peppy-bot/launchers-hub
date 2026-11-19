@@ -15,6 +15,9 @@
 // model, so the slot is written vacant and every camera control refuses on
 // them.
 //
+// The relay names in every picture the camera's frame, which the
+// initializer's sensor_mounts gives for the relay's instance id.
+//
 // The launcher binds the rig to the recorder, the stack's headset when it
 // leads the robot, and the stack's MCP endpoint, the rendered relay listed with
 // its profile and geometry. The browser scene
@@ -36,6 +39,7 @@
           links: {
             simulation: "simulation_inst/rgb_cameras",
             control: { vacant: "this simulation has no camera response model; every camera control refuses" },
+            sensor_mounts: "init_inst",
           },
           framework: { clock: "simulation" } },
       ],

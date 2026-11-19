@@ -118,7 +118,7 @@ the stack's, one for every robot, selected at launch:
 ```sh
 peppy stack launch physical --with xr_commander   # the stack's headset
 peppy stack join openarm:bravo --with openarm_v2,robot_commander=none,lerobot_recorder,cameras
-peppy stack join openarm:charlie@jetson-2 --with openarm_v1,robot_commander=none,cameras
+peppy stack join openarm:charlie@jetson-2 --with openarm_v1,robot_commander=none
 peppy stack join openarm:delta --with openarm_v2,web_commander,ai_brain_vla
 peppy stack join openarm:echo --with openarm_v2,ker_commander
 ```
@@ -137,11 +137,10 @@ robot and `cameras_sim` on a simulated one; a robot without a rig is listed
 with no camera. The
 backbone's workspace answers judge what the chest camera sees from that
 camera's geometry, a link the robot file writes vacant: `openarm` binds the
-ZED Mini whenever `cameras` runs on a v2 and `openarm_sim` the rendered
-chest camera whenever `cameras_sim` runs; without a rig, and on a v1, whose
-design carries no perception camera, the answers check reach alone. No
-simulation renders a rig on v1 links, so `cameras_sim` on a simulated v1 is
-refused; a physical v1 films with `cameras`.
+ZED Mini whenever `cameras` runs and `openarm_sim` the rendered chest camera
+whenever `cameras_sim` runs; without a rig the answers check reach alone.
+Only a v2's model places the cameras of a rig, so `cameras` and
+`cameras_sim` on a v1 are refused.
 
 The KER leader, on either model (physical or simulated), streams joint
 setpoints from enactic's motorless leader arm.
@@ -159,7 +158,7 @@ What exists only because the world is simulated, the scene's objects, its lighti
 peppy stack launch simulation_mcp --join openarm_sim:alpha                            # Waldo, the three endpoints, alpha over MCP
 peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim
 peppy stack launch physical --with robot_control
-peppy stack join openarm:charlie@jetson-2 --with openarm_v1,cameras
+peppy stack join openarm:bravo --with openarm_v2,cameras
 ```
 
 A copy's `brain` axis adds a brain, the environment aware action layer
@@ -219,7 +218,9 @@ peppy stack launch openarm_simulation --with robot_control,alpha.cameras_sim,alp
 Install [the camera udev rules](rules/99-openarm-cameras.rules), following their
 header, before selecting `cameras`. That option brings up both wrist cameras
 and the chest camera, attaches them to the recorder or the stack's headset,
-and lists them on the endpoint.
+and lists them on the endpoint. Each camera names in every picture its
+frame, which the initializer's `sensor_mounts` gives for the camera's
+instance id.
 
 In the headset's browser, open one of the HTTPS URLs the launch prints under
 `Web pages:`, accept the self-signed certificate and press **Start** (or

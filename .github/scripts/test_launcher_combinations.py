@@ -1366,10 +1366,9 @@ class CombinationsTests(unittest.TestCase):
         # its brain: the ZED Mini on hardware, the rendered relay in a
         # simulation. The robot file deploys the backbone and declares the
         # rig, so it writes the binding, and no launcher writes the slot.
-        # A v1's design carries no perception camera, so hardware binds the
-        # chest on a v2 alone; no simulation renders a rig on v1 links.
+        # Neither robot file offers its rig on a v1.
         for robot, when, rig_file, chest_node in [
-            ("openarm", {"camera_rig": "cameras", "model": "openarm_v2"}, "cameras.json5", "zed_camera"),
+            ("openarm", {"camera_rig": "cameras"}, "cameras.json5", "zed_camera"),
             ("openarm_sim", {"camera_rig": "cameras_sim"}, "cameras_sim.json5", "sim_rgbd_camera"),
         ]:
             with self.subTest(robot=robot):
@@ -1393,6 +1392,20 @@ class CombinationsTests(unittest.TestCase):
                 with self.subTest(path=path, robot=robot):
                     self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
                                       if writes_link(a, "perception_geometry")], [])
+
+    def test_each_physical_camera_reads_its_frame_from_the_initializer(self):
+        root = Path(__file__).resolve().parents[2]
+        # Each camera of a physical rig names in every picture the frame the
+        # initializer's sensor_mounts gives for its instance id, by the rig's
+        # own write. The test of the robot's tree holds that no launcher
+        # writes the slot.
+        for robot, cameras in [("openarm", ["wrist_left", "wrist_right", "chest"]), ("so101", ["wrist"])]:
+            with self.subTest(robot=robot):
+                rig = option_file(ROBOT_FILES[robot], "cameras.json5")
+                written = {instance["instance_id"]: instance["links"]["sensor_mounts"]
+                           for deployment in rig["deployments"] for instance in deployment["instances"]}
+                self.assertEqual(written, dict.fromkeys(cameras, "init_inst"))
+                self.assertEqual([a for a in rig.get("adjustments", []) if writes_link(a, "sensor_mounts")], [])
 
     def test_the_record_button_binds_on_the_commander_that_carries_one(self):
         root = Path(__file__).resolve().parents[2]
@@ -1878,29 +1891,25 @@ class CombinationsTests(unittest.TestCase):
                 self.assertIn("launch with robot_control", consumer["reason"])
                 self.assertIn("robot_commander=none and launch with xr_commander", consumer["reason"])
 
-    def test_the_rendered_rig_is_refused_on_a_v1_first(self):
+    def test_the_rig_is_refused_on_a_v1_first(self):
         root = Path(__file__).resolve().parents[2]
-        # Every commander leads either model; the rendered rig is the one
-        # thing a v1 is refused, written as a requirement so a model the
-        # axis gains later is refused until it is proven to render.
-        for path, required in [("openarm/fragments/openarm.json5", False),
-                               ("openarm/fragments/openarm_sim.json5", True)]:
+        # Only a v2's model places the cameras of a rig, so a v1 is refused
+        # the rig, physical or rendered, written as a requirement so a model
+        # the axis gains later is refused until its model places them. The
+        # physical axis has no `none` option: a copy leaves its rig out.
+        for path, rig, remedy in [
+            ("openarm/fragments/openarm.json5", "cameras", "select openarm_v2, or leave out cameras"),
+            ("openarm/fragments/openarm_sim.json5", "cameras_sim", "select openarm_v2, or camera_rig=none"),
+        ]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
-                generation_rules = [
-                    constraint for constraint in robot["constraints"]
-                    if constraint.get("when") == {"camera_rig": "cameras_sim"}
-                    and [{"model": "openarm_v2"}] == constraint.get("requires")
-                ]
-                if not required:
-                    self.assertEqual(generation_rules, [])
-                    continue
-                rule, = generation_rules
-                self.assertEqual(rule["when"], {"camera_rig": "cameras_sim"})
+                rule, = [constraint for constraint in robot["constraints"]
+                         if constraint["when"] == {"camera_rig": rig}
+                         and constraint["requires"] == [{"model": "openarm_v2"}]]
                 # First in the file, so a v1 asking for the rig reads this
                 # refusal before the consumer rule's.
                 self.assertIs(robot["constraints"][0], rule)
-                self.assertIn("select openarm_v2, or camera_rig=none", rule["reason"])
+                self.assertIn(remedy, rule["reason"])
 
     def test_the_ker_is_offered_on_a_v2_alone(self):
         root = Path(__file__).resolve().parents[2]
@@ -2061,11 +2070,14 @@ class CombinationsTests(unittest.TestCase):
                 self.assertEqual([relay["instance_id"] for relay in relays], list(cameras))
                 # Each relay pairs into the simulation's slot for its kind
                 # of camera, which holds every robot's pairs and knows the
-                # camera by the relay's id, and writes its control slot
-                # vacant; Waldo, the one simulation with a camera response
-                # model, binds it, by the rig's own write on its relays.
+                # camera by the relay's id, reads its camera's frame from the
+                # initializer's sensor_mounts by that id, and writes its
+                # control slot vacant; Waldo, the one simulation with a camera
+                # response model, binds it, by the rig's own write on its
+                # relays.
                 for relay in relays:
                     self.assertEqual(relay["links"]["simulation"], f"simulation_inst/{cameras[relay['instance_id']]}")
+                    self.assertEqual(relay["links"]["sensor_mounts"], "init_inst")
                     self.assertEqual(set(relay["links"]["control"]), {"vacant"})
                     self.assertTrue(relay["links"]["control"]["vacant"].strip())
                     self.assertEqual(relay["framework"], {"clock": "simulation"})

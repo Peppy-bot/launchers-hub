@@ -32,15 +32,31 @@ def fleet_axes():
 LAUNCHER_DESCRIPTION = ["A launcher of the tests."]
 
 
+def resolved(plan, *report):
+    """The record `stack resolve --selections` prints for a selection that
+    resolves to the flat launcher `plan`, with the lines of its report."""
+    return {"launcher": plan, "report": list(report)}
+
+
+def failed(error):
+    """The record `stack resolve --selections` prints for a selection that
+    does not resolve, with the message of the failure."""
+    return {"error": error}
+
+
+def reporting(record, *lines):
+    """`record` with `lines` after the lines of its report."""
+    return resolved(record["launcher"], *record["report"], *lines)
+
+
 def resolved_plan(*nodes, description=LAUNCHER_DESCRIPTION):
-    """What `stack resolve` prints for a launcher deploying `nodes`, each a
-    `name:tag` running as the one instance `name_inst`, under the launcher's
-    `description`."""
+    """The record of a launcher deploying `nodes`, each a `name:tag` running
+    as the one instance `name_inst`, under the launcher's `description`."""
     deployments = [
         {"source": {"name": name, "tag": tag}, "instances": [{"instance_id": f"{name}_inst"}]}
         for name, tag in (node.split(":") for node in nodes)
     ]
-    return completed(json.dumps({"description": description, "deployments": deployments}))
+    return resolved({"description": description, "deployments": deployments})
 
 
 def completed(stdout="", returncode=0, stderr=""):
@@ -50,12 +66,11 @@ def completed(stdout="", returncode=0, stderr=""):
 def needing(answer, *variables):
     """`answer` with the report lines of `stack resolve` that say the launch
     needs each of `variables` from the shell that launches."""
-    report = "".join(
+    return reporting(answer, *(
         f"launch variables: the launch needs `{variable}` from the shell that launches: "
-        "`brain_inst` takes it from the launch, and the launch starts it\n"
+        "`brain_inst` takes it from the launch, and the launch starts it"
         for variable in variables
-    )
-    return completed(answer.stdout, answer.returncode, answer.stderr + report)
+    ))
 
 
 def simulation_axis(*simulations):
@@ -106,30 +121,45 @@ def write_repository(root, launchers):
 
 
 class FakeResolve:
-    """Stands in for `peppy stack resolve`: answers each tree's combinations
-    from `(launcher path, launch words, the options it names a copy of with
-    `--join`, that copy's own words)`, an empty plan where a tree names none,
-    and keeps the calls it received. A named copy's own words ride the
-    selection under its name, so the words carrying that name read back as
-    the copy's."""
+    """Stands in for `peppy stack resolve --selections`: answers each
+    selection of a launcher with the record of its tree's combination, from
+    `(launcher path, launch words, the options it names a copy of with
+    `--join`, that copy's own words)`, an empty plan where a tree names none.
+    It keeps the calls it received and, for each selection, its tree, its
+    launcher and the selection. A named copy's own words ride the selection
+    under its name, so the words carrying that name read back as the copy's.
+    A `(tree, launcher path)` of `unloadable` fails the command with its
+    text and prints no record, and one of `short` gets one record too few."""
 
-    def __init__(self, **answers_by_tree):
+    def __init__(self, unloadable=None, short=(), **answers_by_tree):
         self.answers_by_tree = answers_by_tree
+        self.unloadable = unloadable or {}
+        self.short = short
         self.calls = []
+        self.selections = []
 
     def __call__(self, argv, **kwargs):
         self.calls.append((argv, kwargs))
-        flags = list(zip(argv[4::2], argv[5::2]))
+        path = argv[3]
+        tree = Path(kwargs["cwd"]).name
+        if (tree, path) in self.unloadable:
+            return completed(returncode=1, stderr=self.unloadable[tree, path])
+        answers = self.answers_by_tree.get(tree, {})
         scope = f"{combinations.COPY_NAME}."
-        selection = [word for word in dict(flags).get("--with", "").split(",") if word]
-        key = (
-            argv[3],
-            ",".join(word for word in selection if not word.startswith(scope)),
-            ",".join(value.split(":")[0] for flag, value in flags if flag == "--join"),
-            ",".join(word.removeprefix(scope) for word in selection if word.startswith(scope)),
-        )
-        answers = self.answers_by_tree.get(Path(kwargs["cwd"]).name, {})
-        return answers.get(key, resolved_plan())
+        records = []
+        for line in kwargs["input"].splitlines():
+            selection = json.loads(line)
+            self.selections.append((tree, path, selection))
+            key = (
+                path,
+                ",".join(word for word in selection["with"] if not word.startswith(scope)),
+                ",".join(copy.split(":")[0] for copy in selection["join"]),
+                ",".join(word.removeprefix(scope) for word in selection["with"] if word.startswith(scope)),
+            )
+            records.append(json.dumps(answers.get(key, resolved_plan())))
+        if (tree, path) in self.short:
+            records.pop()
+        return completed("".join(record + "\n" for record in records))
 
 
 EVERYTHING = combinations.Scope(combinations.ScopeKind.EVERYTHING, "a test of every combination", ())
@@ -138,20 +168,21 @@ CHANGED = combinations.Scope(combinations.ScopeKind.CHANGED, "a test of a launch
 
 @contextlib.contextmanager
 def planned(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base_answers=None,
-            unprovable=""):
+            unprovable="", **faults):
     """The launchers planned in a repository of their own, `stack resolve`
     answering `answers`, `base_answers` for the base tree a changed scope
     compares against, and `unprovable` for what the step that fills the caches
-    reports about them: the fake resolve, the labels of the planned launches,
-    those launches and the run summary."""
-    with planned_whole(launchers, answers, scope, base_launchers, base_answers, unprovable) \
-            as (resolve, plan, summary, _outputs):
+    reports about them, the fake resolve failing as `faults` say: the fake
+    resolve, the labels of the planned launches, those launches and the run
+    summary."""
+    with planned_whole(launchers, answers, scope, base_launchers, base_answers, unprovable,
+                       **faults) as (resolve, plan, summary, _outputs):
         yield resolve, [launch.label for launch in plan.launches], plan.launches, summary
 
 
 @contextlib.contextmanager
 def planned_whole(launchers, answers=None, scope=EVERYTHING, base_launchers=None, base_answers=None,
-                  unprovable=""):
+                  unprovable="", **faults):
     """`planned`, which yields the fake resolve, the whole plan, refused
     launches included, the run summary and the step outputs."""
     with tempfile.TemporaryDirectory() as directory:
@@ -168,7 +199,7 @@ def planned_whole(launchers, answers=None, scope=EVERYTHING, base_launchers=None
         plan_path = Path(directory) / "plan.json"
         summary = Path(directory) / "summary.md"
         outputs = Path(directory) / "outputs"
-        resolve = FakeResolve(head=answers or {}, base=base_answers or {})
+        resolve = FakeResolve(head=answers or {}, base=base_answers or {}, **faults)
         with patch.object(combinations.subprocess, "run", resolve), \
                 patch.dict(combinations.os.environ, {
                     "GITHUB_STEP_SUMMARY": str(summary),
@@ -2409,33 +2440,29 @@ class CombinationsTests(unittest.TestCase):
                 combinations.read_launcher(directory, "fleet.json5")
 
 
-REFUSAL = completed(returncode=1, stderr=(
-    "Error: camera_rig=cameras_sim requires recorder=lerobot_recorder, "
+REFUSAL = failed(
+    "camera_rig=cameras_sim requires recorder=lerobot_recorder, "
     "which this selection (camera_rig=cameras_sim) does not satisfy"
-))
-JOIN_REFUSAL = completed(returncode=1, stderr=(
-    "Error: joining bravo would change simulation_inst, which already runs"
-))
+)
+JOIN_REFUSAL = failed("joining bravo would change simulation_inst, which already runs")
 #: A resolve that flattened its launcher and checked no link rule over it.
-UNCHECKED = completed(
-    resolved_plan("waldo:v1").stdout,
-    stderr="link rules not checked, 1 manifest(s) unavailable: waldo:v1 (not in the nodes cache)",
+UNCHECKED = reporting(
+    resolved_plan("waldo:v1"),
+    "link rules not checked, 1 manifest(s) unavailable: waldo:v1 (not in the nodes cache)",
 )
 #: A resolve that flattened its launcher and checked no daemon scope over it.
-SCOPES_UNCHECKED = completed(
-    resolved_plan("waldo:v1").stdout,
-    stderr=(
-        "daemon scopes not checked for 1 exposure deployment(s) this machine's caches do not "
-        "hold: framework_controls:v1 (not in the exposure cache)"
-    ),
+SCOPES_UNCHECKED = reporting(
+    resolved_plan("waldo:v1"),
+    "daemon scopes not checked for 1 exposure deployment(s) this machine's caches do not "
+    "hold: framework_controls:v1 (not in the exposure cache)",
 )
 #: A resolve that refused the flat launcher's daemon scopes: a feature set of
 #: the scope that one of the launcher's constraints refuses as a join, its
 #: refusal quoted under the scope refusal.
-SCOPE_REFUSAL = completed(returncode=1, stderr=(
-    "Error: the flat launcher breaks daemon scope rules a launch would reject:\n"
-    "  - option `openarm_v2` with the features `recorder`: " + REFUSAL.stderr.removeprefix("Error: ")
-))
+SCOPE_REFUSAL = failed(
+    "the flat launcher breaks daemon scope rules a launch would reject:\n"
+    "  - option `openarm_v2` with the features `recorder`: " + REFUSAL["error"]
+)
 
 
 class ResolveTests(unittest.TestCase):
@@ -2445,12 +2472,16 @@ class ResolveTests(unittest.TestCase):
                 resolved_plan("sim_mujoco:v1", "lerobot_recorder:v1"),
         }
         with planned({"fleet": fleet_launcher()}, answers) as (resolve, labels, plan, _):
-            self.assertIn([
-                "peppy", "stack", "resolve", "fleet.json5",
-                "--with", f"{combinations.COPY_NAME}.recorder=lerobot_recorder",
-                "--join", f"openarm_v2:{combinations.COPY_NAME}",
-            ], [argv for argv, _ in resolve.calls])
-            # The preview reads the plan as JSON5, so peppy logs errors only.
+            # One process previews every combination of the launcher.
+            self.assertEqual(
+                [argv for argv, _ in resolve.calls],
+                [["peppy", "stack", "resolve", "fleet.json5", "--selections", "-"]])
+            self.assertIn(("head", "fleet.json5", {
+                "with": [f"{combinations.COPY_NAME}.recorder=lerobot_recorder"],
+                "join": [f"openarm_v2:{combinations.COPY_NAME}"],
+            }), resolve.selections)
+            # A command that fails prints its cause alone, so peppy logs
+            # errors only.
             self.assertTrue(all(kwargs["env"]["RUST_LOG"] == "error" for _, kwargs in resolve.calls))
             # The plain join is a launch of its own beside the one with words.
             self.assertEqual(labels, [
@@ -2464,17 +2495,76 @@ class ResolveTests(unittest.TestCase):
             self.assertEqual(launch.join_words, "recorder=lerobot_recorder")
             self.assertFalse(launch.local)
 
+    def test_one_process_previews_the_combinations_of_each_launcher_in_their_order(self):
+        launchers = {"fleet": fleet_launcher(), "sim": simulation_launcher("mujoco", "waldo")}
+        with planned(launchers) as (resolve, _labels, _plan, _summary):
+            self.assertEqual([argv for argv, _ in resolve.calls], [
+                ["peppy", "stack", "resolve", "fleet.json5", "--selections", "-"],
+                ["peppy", "stack", "resolve", "sim.json5", "--selections", "-"],
+            ])
+            # The records answer the selections by position, so each launcher
+            # gets its combinations in the order the inventory lists them.
+            inventory = combinations.read_inventory(Path(resolve.calls[0][1]["cwd"]))
+            self.assertEqual(resolve.selections, [
+                ("head", launcher.path, combinations.resolve_selection(
+                    candidate.words, candidate.join_option, candidate.join_words,
+                    candidate.launch_joins))
+                for launcher in inventory
+                for candidate in launcher.candidates
+            ])
+            self.assertEqual(len(resolve.selections), 5)
+
+    def test_a_selection_writes_one_word_and_one_copy_in_each_string(self):
+        self.assertEqual(combinations.resolve_selection("", "", ""), {"with": [], "join": []})
+        self.assertEqual(
+            combinations.resolve_selection(
+                "simulation=waldo,teleop=xr_commander", "openarm_v2",
+                "recorder=lerobot_recorder,brain=ai_brain_vla", ("so101",)),
+            {
+                "with": [
+                    "simulation=waldo", "teleop=xr_commander",
+                    f"{combinations.COPY_NAME}.recorder=lerobot_recorder",
+                    f"{combinations.COPY_NAME}.brain=ai_brain_vla",
+                ],
+                # The copies the launch names come before the one that joins.
+                "join": [f"so101:{combinations.COPY_NAME}", f"openarm_v2:{combinations.COPY_NAME}"],
+            })
+
+    def test_a_launcher_peppy_does_not_load_breaks_each_of_its_combinations(self):
+        refusal = "Error: launcher file sim.json5: expected peppy_schema 'launcher/v1'"
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        with self.assertRaises(SystemExit) as failure, \
+                contextlib.redirect_stderr(io.StringIO()) as printed:
+            with planned(launchers, unloadable={("head", "sim.json5"): refusal}):
+                pass
+        self.assertIn("sim (simulation=mujoco) does not resolve", str(failure.exception))
+        self.assertIn(refusal, printed.getvalue())
+        # The base tree is a reference: a launcher of it that peppy does not
+        # load gives its combinations no plan, so each one counts as changed.
+        with planned(launchers, {}, CHANGED, launchers,
+                     unloadable={("base", "sim.json5"): refusal}) as (_, labels, _plan, _summary):
+            self.assertEqual(labels, ["sim (simulation=mujoco)"])
+
+    def test_a_count_of_records_that_is_not_the_count_of_selections_fails_the_plan(self):
+        launchers = {"sim": simulation_launcher("mujoco", "waldo")}
+        with self.assertRaises(SystemExit) as failure:
+            with planned(launchers, short=[("head", "sim.json5")]):
+                pass
+        self.assertEqual(
+            str(failure.exception),
+            "sim.json5: `peppy stack resolve --selections` printed 1 records for 2 selections")
+
     def test_plan_previews_a_launch_naming_its_copy_and_launches_the_same(self):
-        started = completed(json.dumps({"deployments": [
+        started = resolved({"deployments": [
             {"source": {"name": "sim_mujoco", "tag": "v1"}, "instances": [{"instance_id": "simulation_inst"}]},
             {"source": {"name": "openarm_backbone", "tag": "v1"},
              "instances": [{"instance_id": "bravo_backbone_inst", "core_node": "bravo"}]},
-        ]}))
+        ]})
         answers = {("fleet.json5", "", "openarm_v2", ""): started}
         with planned({"fleet": fleet_launcher(at_launch=True)}, answers) as (resolve, labels, plan, _):
             self.assertIn(
-                ["peppy", "stack", "resolve", "fleet.json5", "--join", "openarm_v2:bravo"],
-                [argv for argv, _ in resolve.calls])
+                ("head", "fleet.json5", {"with": [], "join": ["openarm_v2:bravo"]}),
+                resolve.selections)
             self.assertIn("fleet --join openarm_v2:bravo", labels)
             launch, = [launch for launch in plan if launch.launch_joins]
             self.assertEqual(launch.launch_joins, ["openarm_v2"])
@@ -2488,9 +2578,7 @@ class ResolveTests(unittest.TestCase):
         }
         with planned({"fleet": fleet_launcher(file_copy="alpha")}, answers) as (resolve, labels, plan, _):
             self.assertIn(
-                ["peppy", "stack", "resolve", "fleet.json5", "--with", words],
-                [argv for argv, _ in resolve.calls],
-            )
+                ("head", "fleet.json5", {"with": [words], "join": []}), resolve.selections)
             self.assertEqual(labels, [f"fleet ({words})", "fleet + join openarm_v2"])
             launch, _ = plan
             self.assertEqual(launch.words, words)
@@ -2503,10 +2591,10 @@ class ResolveTests(unittest.TestCase):
                     "arguments": {"model": model}, "links": {"simulation": "simulation_inst"}}
 
         def plan_of(*initializers):
-            return completed(json.dumps({"deployments": [
+            return resolved({"deployments": [
                 {"source": {"name": "waldo", "tag": "v1"}, "instances": [{"instance_id": "simulation_inst"}]},
                 {"source": {"name": "robot_initializer", "tag": "v1"}, "instances": list(initializers)},
-            ]}))
+            ]})
 
         # The launch stands the file's copy, and the join the copy it adds.
         both = plan_of(initializer("alpha", "openarm_v2"), initializer("bravo", "openarm_v1"))
@@ -2556,13 +2644,13 @@ class ResolveTests(unittest.TestCase):
 
     def test_a_join_comes_up_beside_the_files_copy(self):
         def plan_of(*copies):
-            return completed(json.dumps({"deployments": [
+            return resolved({"deployments": [
                 {"source": {"name": "waldo", "tag": "v1"}, "instances": [{"instance_id": "simulation_inst"}]},
                 {"source": {"name": "scene_commander", "tag": "v1"},
                  "instances": [{"instance_id": "scene_commander_inst", "links": {"cameras": ["alpha_chest"]}}]},
                 {"source": {"name": "sim_rgb_camera", "tag": "v1"},
                  "instances": [{"instance_id": f"{copy}_chest", "core_node": copy} for copy in copies]},
-            ]}))
+            ]})
 
         answers = {
             ("fleet.json5", "", "", ""): plan_of("alpha"),
@@ -2576,7 +2664,7 @@ class ResolveTests(unittest.TestCase):
             self.assertEqual(launch.join_instances, ["bravo_chest"])
 
     def test_a_run_reaching_only_refused_combinations_launches_nothing(self):
-        refusal_with_a_pipe = completed(returncode=1, stderr=REFUSAL.stderr + " (a|b)")
+        refusal_with_a_pipe = failed(REFUSAL["error"] + " (a|b)")
         answers = {("sim.json5", "", "", ""): refusal_with_a_pipe}
         with planned({"sim": simulation_launcher("mujoco")}, answers) as (_, labels, _plan, summary):
             self.assertEqual(labels, [])
@@ -2585,7 +2673,7 @@ class ResolveTests(unittest.TestCase):
             self.assertIn("does not satisfy (a\\|b) |", summary)
 
     def test_a_combination_nothing_refuses_and_nothing_resolves_fails_the_plan(self):
-        answers = {("sim.json5", "simulation=waldo", "", ""): completed(returncode=1, stderr="Error: no such fragment")}
+        answers = {("sim.json5", "simulation=waldo", "", ""): failed("no such fragment")}
         with self.assertRaises(SystemExit) as failure, contextlib.redirect_stderr(io.StringIO()):
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
                 pass
@@ -2620,7 +2708,7 @@ class ResolveTests(unittest.TestCase):
         """The scope is the launcher author's, so a launch refusing it is
         a launcher to fix, never a selection its constraints refuse by
         design, whatever constraint text the refusal quotes."""
-        self.assertIn(combinations.CONSTRAINT_REFUSAL_MARK, SCOPE_REFUSAL.stderr)
+        self.assertIn(combinations.CONSTRAINT_REFUSAL_MARK, SCOPE_REFUSAL["error"])
         answers = {("sim.json5", "simulation=waldo", "", ""): SCOPE_REFUSAL}
         with self.assertRaises(SystemExit) as failure, contextlib.redirect_stderr(io.StringIO()) as printed:
             with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers):
@@ -2630,25 +2718,22 @@ class ResolveTests(unittest.TestCase):
         # A scope refusal quoting a join that would change what runs, in a
         # combination that names a copy, is the launcher's too, not a copy
         # that runs from the file alone.
-        quoting_a_join_change = completed(returncode=1, stderr=(
-            "Error: the flat launcher breaks daemon scope rules a launch would reject:\n"
-            "  - option `openarm_v2` with the features `recorder`: "
-            + JOIN_REFUSAL.stderr.removeprefix("Error: ")
-        ))
+        quoting_a_join_change = failed(
+            "the flat launcher breaks daemon scope rules a launch would reject:\n"
+            "  - option `openarm_v2` with the features `recorder`: " + JOIN_REFUSAL["error"]
+        )
         candidate = combinations.Candidate("fleet", "fleet.json5", "", "openarm_v2", "", local=False)
         self.assertTrue(candidate.names_a_copy)
         for answer in (SCOPE_REFUSAL, quoting_a_join_change):
-            with self.subTest(stderr=answer.stderr):
-                with patch.object(combinations.subprocess, "run", return_value=answer):
-                    resolution = combinations.resolve_candidate(Path("."), candidate, {})
+            with self.subTest(answer=answer):
+                resolution = combinations.resolution_of(candidate, answer, {})
                 self.assertIs(resolution.verdict, combinations.Verdict.BROKEN)
 
     def test_a_resolve_that_checked_no_daemon_scope_is_unchecked_and_fails_the_plan(self):
         """With the caches filled, a resolve that reports the daemon scopes
         unchecked names an exposure document the run should have had."""
         candidate = combinations.Candidate("sim", "sim.json5", "simulation=waldo", "", "", local=False)
-        with patch.object(combinations.subprocess, "run", return_value=SCOPES_UNCHECKED):
-            resolution = combinations.resolve_candidate(Path("."), candidate, {})
+        resolution = combinations.resolution_of(candidate, SCOPES_UNCHECKED, {})
         self.assertIs(resolution.verdict, combinations.Verdict.UNCHECKED)
         self.assertIn("framework_controls:v1", resolution.detail)
         answers = {("sim.json5", "simulation=waldo", "", ""): SCOPES_UNCHECKED}
@@ -2661,10 +2746,9 @@ class ResolveTests(unittest.TestCase):
     def test_the_reason_the_link_rules_went_unchecked_does_not_excuse_the_daemon_scopes(self):
         """Every exposure document comes from the MCP hub, which every run
         registers, so a short private hub explains no unchecked scope."""
-        both = completed(
-            UNCHECKED.stdout, stderr=UNCHECKED.stderr + "\n" + SCOPES_UNCHECKED.stderr)
+        both = reporting(UNCHECKED, *SCOPES_UNCHECKED["report"])
         for answer in (SCOPES_UNCHECKED, both):
-            with self.subTest(stderr=answer.stderr):
+            with self.subTest(answer=answer):
                 answers = {("sim.json5", "simulation=waldo", "", ""): answer}
                 with self.assertRaises(SystemExit) as failure:
                     with planned({"sim": simulation_launcher("mujoco", "waldo")}, answers,
@@ -2783,8 +2867,8 @@ class ScopeModelTests(unittest.TestCase):
         self.assertIsNone(combinations.scope_model_drift(unscoped, self.candidate("arm_sim")))
 
     def test_a_scope_naming_another_model_than_the_join_adds_fails_the_plan(self):
-        drifted = completed(json.dumps(self.plan([("openarm_v2", "openarm_v1")],
-                                                 (combinations.COPY_NAME, "openarm_v2"))))
+        drifted = resolved(self.plan([("openarm_v2", "openarm_v1")],
+                                                 (combinations.COPY_NAME, "openarm_v2")))
         answers = {("fleet.json5", "", "openarm_v2", ""): drifted}
         with self.assertRaises(SystemExit) as failure:
             with planned({"fleet": fleet_launcher()}, answers):
@@ -2854,10 +2938,10 @@ def so101_stack(simulation, *copies):
     with `copies` in it, under the launcher's own description."""
     launcher = combinations.load_json5(ROOT / "so101_simulation.json5", "so101_simulation.json5")
     deployments = fragment_deployments(f"simulation/fragments/{simulation}.json5")
-    return completed(json.dumps({
+    return resolved({
         "description": launcher["description"],
         "deployments": deployments + [d for copy in copies for d in copy],
-    }))
+    })
 
 
 class SimulatedSo101Tests(unittest.TestCase):
@@ -2877,8 +2961,7 @@ class SimulatedSo101Tests(unittest.TestCase):
         candidate, = [c for c in self.inventory.candidates
                       if (c.words, c.launch_joins, c.join_option, c.join_words)
                       == (words, launch_joins, join_option, join_words)]
-        with patch.object(combinations.subprocess, "run", return_value=answer):
-            return candidate, combinations.resolve_candidate(ROOT, candidate, self.skips)
+        return candidate, combinations.resolution_of(candidate, answer, self.skips)
 
 
     def test_a_launch_of_the_mcp_stack_names_the_so101_it_starts(self):
@@ -2893,8 +2976,7 @@ class SimulatedSo101Tests(unittest.TestCase):
                       if (c.words, c.launch_joins, c.join_option) == (stack, ("so101_sim",), "")]
         led = so101_copy("bravo", robot_commander="none", camera_rig="cameras_sim")
         answer = so101_stack("waldo", fragment_deployments(HEADSET_FRAGMENT), led)
-        with patch.object(combinations.subprocess, "run", return_value=answer):
-            resolution = combinations.resolve_candidate(ROOT, candidate, self.skips)
+        resolution = combinations.resolution_of(candidate, answer, self.skips)
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         launch = combinations.Launch.of(candidate, resolution, ())
         self.assertEqual(launch.launch_joins, ["so101_sim"])
@@ -2984,10 +3066,10 @@ class CoverageTests(unittest.TestCase):
 
     def test_the_same_node_configured_differently_is_launched_both_ways(self):
         def simulation(scene):
-            return completed(json.dumps({"deployments": [{
+            return resolved({"deployments": [{
                 "source": {"name": "waldo", "tag": "v1"},
                 "instances": [{"instance_id": "simulation_inst", "arguments": {"scene": scene}}],
-            }]}))
+            }]})
 
         answers = {
             ("sim.json5", "simulation=a", "", ""): simulation("default"),
@@ -3343,19 +3425,19 @@ class LaunchVariableTests(unittest.TestCase):
 
     def test_a_resolve_names_each_launch_variable_the_launch_needs_once(self):
         candidate = combinations.Candidate("sim", "sim.json5", "", "", "", False)
-        answer = completed(resolved_plan("waldo:v1").stdout, stderr=(
+        answer = reporting(
+            resolved_plan("waldo:v1"),
             "launch variables: the launch needs `OPENROUTER_API_KEY` from the shell that launches: "
-            "`brain_inst` takes it from the launch, and the launch starts it\n"
+            "`brain_inst` takes it from the launch, and the launch starts it",
             "launch variables: the launch needs `GEMINI_API_KEY` from the shell that launches: "
             "`brain_inst` of option `openarm_sim` takes it from the launch, and stack.join through "
-            "`framework_controls_inst` can add a copy of `openarm_sim`\n"
+            "`framework_controls_inst` can add a copy of `openarm_sim`",
             # A placement line names a variable the launch needs too, and
             # adds none.
             "launch variables: `alpha_brain_inst` takes `GEMINI_API_KEY` from the launch and a word "
-            "places it on `cn-peer`, so the launch refuses it unless `cn-peer` is the coordinator\n"
-        ))
-        with patch.object(combinations.subprocess, "run", return_value=answer):
-            resolution = combinations.resolve_candidate(Path("."), candidate, {})
+            "places it on `cn-peer`, so the launch refuses it unless `cn-peer` is the coordinator",
+        )
+        resolution = combinations.resolution_of(candidate, answer, {})
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         self.assertEqual(resolution.launch_variables, ("GEMINI_API_KEY", "OPENROUTER_API_KEY"))
 

@@ -70,12 +70,18 @@
             start_tolerance_rad: 0.05,
             collision_governor_enabled: true,
             max_stream_ee_velocity_m_s: 0.25,
+            // Two limb_states periods: the worst wait measured in Waldo, plus one dropped sample.
+            lookup_timeout_s: 0.1,
           },
           links: {
             robot_init: "init_inst",
             // The robot's model, whose description the backbone builds its
             // arms from, and holds to the one it was built with.
             robot_identity: "init_inst",
+            // The other publisher of the robot's tree, which places each
+            // command's pose: the initializer, with the fixed joints. The
+            // backbone takes the joints it measures into the tree itself.
+            other_transforms: ["init_inst"],
             // The limbs either model deploys, under the same ids.
             left_arm: "left_arm_inst",
             right_arm: "right_arm_inst",
@@ -97,11 +103,10 @@
             leader_right_arm_pose: { vacant: "upstream_mode joints: arm commands arrive on the joint slots" },
             // The geometry of the camera the robot finds items with, which
             // the workspace answers read to judge what that camera sees. A
-            // robot without a rig has no chest camera to read, and a v1's
-            // design carries no perception camera, so their answers check
-            // reach alone; the adjustment below binds the rig's chest camera
-            // when a v2 copy selects cameras.
-            perception_geometry: { vacant: "select cameras on a v2 to give the backbone the chest camera's geometry: the workspace answers check reach alone" },
+            // robot without a rig has no chest camera to read, so its answers
+            // check reach alone; the adjustment below binds the rig's chest
+            // camera when the copy selects cameras.
+            perception_geometry: { vacant: "select cameras to give the backbone the chest camera's geometry: the workspace answers check reach alone" },
           },
         },
       ],
@@ -112,10 +117,6 @@
       instances: [
         {
           instance_id: "transforms_inst",
-          arguments: {
-            // tf2_ros buffer_server's default.
-            cache_window_s: 120.0,
-          },
           links: {
             // Every publisher of the robot's tree.
             transforms: ["init_inst", "backbone_inst"],
@@ -196,6 +197,11 @@
   ],
 
   constraints: [
+    // Only a v2's model places the cameras of the rig, whose frames each
+    // camera reads from the initializer.
+    { when: { camera_rig: "cameras" },
+      requires: [{ model: "openarm_v2" }],
+      reason: "the camera rig is offered on a v2 alone, whose model places the cameras; select openarm_v2, or leave out cameras" },
     // The camera streams need a consumer: the recorder films them, the
     // stack's headset shows them in its panels, and the robots' MCP endpoint
     // publishes them as resources and tools. The rig must feed at least one
@@ -228,10 +234,9 @@
       set_arguments: { can_interface: "can0" } },
     { target: "right_gripper_inst", when: { model: "openarm_v1" },
       set_arguments: { can_interface: "can1" } },
-    // The rig's chest camera, a ZED Mini, serves its geometry, so a v2's
+    // The rig's chest camera, a ZED Mini, serves its geometry, so the
     // workspace answers check what it sees, whatever else the copy selects.
-    // A v1's design carries no perception camera to bind.
-    { target: "backbone_inst", when: { camera_rig: "cameras", model: "openarm_v2" },
+    { target: "backbone_inst", when: { camera_rig: "cameras" },
       set_links: { perception_geometry: "chest" } },
     // The panel streams joint setpoints into the four leader sockets,
     // released here for it to pair into, and supplies the operator's

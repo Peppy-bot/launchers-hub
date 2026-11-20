@@ -52,12 +52,18 @@
             max_stream_ee_velocity_m_s: 2.0,
             max_gripper_rate_frac_s: 10.0,
             start_tolerance_rad: 0.05,
+            // Two of SO-101's limb_states periods: so101_backbone publishes
+            // limb_states every 0.05 s.
+            lookup_timeout_s: 0.1,
           },
           links: {
             // The robot's model and its description, which the backbone holds
             // to so101 and to the description it was built with once it
             // serves, ending when either differs.
             robot_identity: "init_inst",
+            // The robot's tree, which places each command's pose in the
+            // robot frame.
+            transform_lookup: "transforms_inst",
             // The backbone leads the simulation's limb slots, one per kind of
             // limb: governed commands flow down each pair and this robot's
             // measured state returns on it. The simulation tells a pair's
@@ -85,10 +91,6 @@
         {
           instance_id: "transforms_inst",
           framework: { clock: "simulation" },
-          arguments: {
-            // tf2_ros buffer_server's default.
-            cache_window_s: 120.0,
-          },
           links: {
             // Every publisher of the robot's tree.
             transforms: ["init_inst", "backbone_inst"],

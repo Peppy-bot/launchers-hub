@@ -81,20 +81,17 @@
             // within 1665 ms against 2035 ms with four attempts, and a plan of
             // one arm within 998 ms against 739 ms.
             planning_attempts: 1,
-            // tf2's default buffer, which MoveIt's planning scene monitor keeps.
-            cache_window_s: 10.0,
             // Two limb_states periods: the worst wait measured in Waldo, plus one dropped sample.
             lookup_timeout_s: 0.1,
           },
           links: {
             // Who the robot is: the initializer names its model, openarm_v2.
             identity: "init_inst",
-            // The arms' measured joints, and which camera the robot perceives
-            // with: the backbone answers both.
+            // The arms' measured joints.
             limb_state: "backbone_inst",
-            workspace: "backbone_inst",
-            // The chest camera's frame, and every publisher of the robot's tree.
-            sensor_mounts: "init_inst",
+            // Every publisher of the robot's tree, which places each goal,
+            // request and object at its timestamp, and each depth frame by
+            // the frame it names.
             transforms: ["init_inst", "backbone_inst"],
             // The rig's chest camera: its depth frames and their geometry.
             // Without a rig the map stays empty, and a plan keeps clear of

@@ -18,7 +18,8 @@ nothing. A launcher's description is prose that no launch reads, so the
 resolved plan leaves it out, and a change to it alone moves no plan.
 
 plan previews every combination through peppy stack resolve, its join
-included. Constraints classify refused combinations. The skip file
+included, the combinations of one launcher in one process. Constraints
+classify refused combinations. The skip file
 classifies unavailable hardware and rollout dependencies. A joined copy
 comes up beside the copies the file deploys. A resolve whose report says the
 link rules or the daemon scopes went unchecked fails the plan, naming the
@@ -1319,48 +1320,32 @@ def previewed_words(join_words):
     return ",".join(f"{COPY_NAME}.{word}" for word in join_words.split(",") if word)
 
 
-def resolve_command(path, words, join_option, join_words, launch_joins=()):
-    """The preview of one combination: the launch, and each copy it names
-    with `--join` under that copy's own words."""
-    argv = ["peppy", "stack", "resolve", path]
+def resolve_selection(words, join_option, join_words, launch_joins=()):
+    """The preview of one combination, as one selection of `peppy stack
+    resolve --selections`: the words of the launch, with those of the copy
+    it joins under that copy's name, and each copy it names with `--join`."""
     selection = ",".join(part for part in (words, previewed_words(join_words)) if part)
-    if selection:
-        argv += ["--with", selection]
     named = (*launch_joins, join_option) if join_option else launch_joins
-    for option in named:
-        argv += ["--join", f"{option}:{COPY_NAME}"]
-    return argv
+    return {
+        "with": [word for word in selection.split(",") if word],
+        "join": [f"{option}:{COPY_NAME}" for option in named],
+    }
 
 
 def launched_plan(resolved):
-    """The flattened launcher that `stack resolve` prints, less its
+    """The flattened launcher that `stack resolve` gives, less its
     `description`: that is prose for the people who choose and start the
     launcher, and no launch reads it. So a change to the description alone
     moves no combination's plan."""
     return {key: value for key, value in resolved.items() if key != "description"}
 
 
-def resolve_candidate(root, candidate, skips):
-    """Previews one combination through `peppy stack resolve` and says what
-    a runner can do with it."""
-    argv = resolve_command(
-        candidate.path,
-        candidate.words,
-        candidate.join_option,
-        candidate.join_words,
-        candidate.launch_joins,
-    )
-    # peppy's own logging is held to errors, so stdout carries the resolved
-    # plan alone and the JSON5 reader below takes it whole.
-    resolve = subprocess.run(
-        argv,
-        capture_output=True,
-        text=True,
-        cwd=root,
-        env={**os.environ, "RUST_LOG": "error"},
-    )
-    if resolve.returncode != 0:
-        output = (resolve.stderr + resolve.stdout).strip()
+def resolution_of(candidate, record, skips):
+    """What a runner can do with one combination, from the record `peppy
+    stack resolve --selections` printed for it: the flat launcher and the
+    lines of the report, or the message the resolve fails with."""
+    if "error" in record:
+        output = record["error"].strip()
         if DAEMON_SCOPE_REFUSAL_MARK in output:
             return Resolution(Verdict.BROKEN, output)
         if CONSTRAINT_REFUSAL_MARK in output:
@@ -1368,15 +1353,12 @@ def resolve_candidate(root, candidate, skips):
         if candidate.names_a_copy and JOIN_CHANGE_MARK in output:
             return Resolution(Verdict.FILE_ONLY, output)
         return Resolution(Verdict.BROKEN, output)
-    unchecked = [
-        line
-        for line in resolve.stderr.splitlines()
-        if any(mark in line for mark in UNCHECKED_MARKS)
-    ]
+    report = record["report"]
+    unchecked = [line for line in report if any(mark in line for mark in UNCHECKED_MARKS)]
     if unchecked:
         return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
-    plan = launched_plan(_Parser(resolve.stdout, "resolved").parse_document())
-    variables = needed_launch_variables(resolve.stderr)
+    plan = launched_plan(record["launcher"])
+    variables = needed_launch_variables(report)
     nodes = deployed_nodes(plan)
     hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
     if hits:
@@ -1387,21 +1369,58 @@ def resolve_candidate(root, candidate, skips):
 
 
 def needed_launch_variables(report):
-    """The launch variables a resolve's report says the launch needs from
-    the shell that launches, sorted."""
+    """The launch variables the lines of a resolve's report say the launch
+    needs from the shell that launches, sorted."""
     return tuple(sorted({
-        need.group(1)
-        for line in report.splitlines()
-        if (need := LAUNCH_VARIABLE_NEED.match(line))
+        need.group(1) for line in report if (need := LAUNCH_VARIABLE_NEED.match(line))
     }))
+
+
+def resolve_launcher(root, launcher, skips):
+    """Every combination of one launcher previewed by one `peppy stack
+    resolve --selections`, in the order of its candidates. One process reads
+    the launcher, its fragments and this machine's caches once for all of
+    them, and prints one record for each.
+
+    A launcher peppy does not load fails the command with no record: every
+    combination of it is broken, with what the command printed."""
+    selections = "".join(
+        json.dumps(resolve_selection(
+            candidate.words, candidate.join_option, candidate.join_words, candidate.launch_joins,
+        )) + "\n"
+        for candidate in launcher.candidates
+    )
+    # peppy's own logging is held to errors, so a failure prints its cause
+    # alone.
+    resolve = subprocess.run(
+        ["peppy", "stack", "resolve", launcher.path, "--selections", "-"],
+        input=selections,
+        capture_output=True,
+        text=True,
+        cwd=root,
+        env={**os.environ, "RUST_LOG": "error"},
+    )
+    if resolve.returncode != 0:
+        broken = Resolution(Verdict.BROKEN, (resolve.stderr + resolve.stdout).strip())
+        return [broken for _ in launcher.candidates]
+    records = resolve.stdout.splitlines()
+    if len(records) != len(launcher.candidates):
+        raise SystemExit(
+            f"{launcher.path}: `peppy stack resolve --selections` printed {len(records)} "
+            f"records for {len(launcher.candidates)} selections"
+        )
+    return [
+        resolution_of(candidate, json.loads(record), skips)
+        for candidate, record in zip(launcher.candidates, records)
+    ]
 
 
 def resolve_inventory(root, inventory, skips):
     """Every combination of `inventory` resolved, keyed like its candidate."""
     return {
-        candidate.key: resolve_candidate(root, candidate, skips)
+        candidate.key: resolution
         for launcher in inventory
-        for candidate in launcher.candidates
+        for candidate, resolution in zip(launcher.candidates, resolve_launcher(root, launcher, skips))
     }
 
 

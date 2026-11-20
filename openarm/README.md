@@ -362,7 +362,7 @@ rendered cameras with their device profiles, read from Waldo's
 `sim_camera_control`; the relays forward their own camera controls to
 Waldo's device models too. MuJoCo and Isaac Sim model no camera response,
 so their page carries no camera panel and every camera control refuses.
-Waldo serves its HTTPS page on `viewer_port` (8080, at the URLs the launch
+Waldo serves its HTTPS page on `viewer_port` (23817, at the URLs the launch
 prints under `Web pages:`; accept the self-signed certificate once). The page
 carries the engine's 3D viewer of the running world, served by its debug
 inspector (the `debug_inspector` parameter), and around it every UI element

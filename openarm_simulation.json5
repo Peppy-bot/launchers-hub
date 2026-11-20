@@ -9,10 +9,10 @@
     "`peppy stack launch openarm_simulation --with xr_commander,alpha.robot_commander=none`: alpha led by the stack's headset.",
     "`peppy stack join so101_sim:charlo`: an SO-101 beside alpha.",
     "`peppy stack remove alpha`: the simulation keeps running.",
-    "The robot axis offers every simulated robot, so an SO-101 joins beside the OpenArm; every simulation stands as many robots as the machines can run, of any model, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the second and third commands above do, so an SO-101 joined to a launch without one has no `wrist` camera, and `--with cameras_sim` on its join is refused.",
+    "The robot axis offers the simulated arm robots, the OpenArm and the SO-101, so an SO-101 joins beside the OpenArm; every simulation stands as many robots as the machines can run, of any model, each joined copy bringing its own. The botshare base stands in botshare_simulation and simulation_mcp. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the second and third commands above do, so an SO-101 joined to a launch without one has no `wrist` camera, and `--with cameras_sim` on its join is refused.",
     "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed with its moves, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
     "`--with xr_commander` runs the stack's headset, which leads every robot that runs no commander of its own, one at a time, chosen on the headset's page.",
-    "simulation_mcp is this launcher with the endpoints and the headset deployed, the framework's endpoint adding and removing robots, no robot listed, every robot led by the headset by default, and rendering on from the launch.",
+    "simulation_mcp is this launcher with the endpoints and the headset deployed, the botshare base offered beside its robots, the framework's endpoint adding and removing robots, no robot listed, every arm robot led by the headset by default, and rendering on from the launch.",
   ],
 
   components: [
@@ -48,8 +48,9 @@
         xr_commander: "teleop/fragments/xr_commander.json5",
       },
     },
-    // Every simulated robot, an option of the same name in every simulation
-    // launcher. Every simulation stands any number of them, of any model.
+    // The simulated arm robots, each an option of the same name in
+    // every launcher that offers it. Every simulation stands any number of
+    // them, of any model.
     {
       name: "robot",
       cardinality: "zero_or_more",
@@ -64,13 +65,13 @@
             { target: "robot_control_inst",
               add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"], collision: ["backbone_inst"],
                            sensor_mounts: ["init_inst"], transform_lookup: ["transforms_inst"], workspace: ["backbone_inst"],
-                           postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+                           postures: ["backbone_inst"], limb_motion: ["backbone_inst"], robot_stop: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into it (the robot's fragment), the headset's
             // buttons reach the robot's postures and recorder, and a squeeze
-            // stops the moves in flight on the robot through its limb_motion.
+            // stops the moves in flight on the robot through its robot_stop.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
-              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+              add_links: { postures: ["backbone_inst"], robot_stop: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // The panel streams the live cap the simulated backbone starts on.
@@ -173,14 +174,14 @@
             { target: "robot_control_inst",
               add_links: { identity: ["init_inst"], guide: ["init_inst"], limb_state: ["backbone_inst"],
                            sensor_mounts: ["init_inst"], transform_lookup: ["transforms_inst"], workspace: ["backbone_inst"],
-                           postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+                           postures: ["backbone_inst"], limb_motion: ["backbone_inst"], robot_stop: ["backbone_inst"] } },
             // The stack's headset leads a robot with no commander of its own:
             // the backbone pairs into its right hand (the robot's fragment),
             // the headset's buttons reach the robot's postures and recorder,
             // and a squeeze stops the moves in flight on the robot through its
-            // limb_motion.
+            // robot_stop.
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
-              add_links: { postures: ["backbone_inst"], limb_motion: ["backbone_inst"] } },
+              add_links: { postures: ["backbone_inst"], robot_stop: ["backbone_inst"] } },
             { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", recorder: "lerobot_recorder" },
               add_links: { recorder: ["recorder_inst"] } },
             // The motion planner's tools, listed beside the moves.

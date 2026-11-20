@@ -1,0 +1,45 @@
+// The botshare base's Gemini 336L, rendered by the simulation as an rgbd
+// producer, color and depth aligned because both come from one rendered
+// camera. The relay pairs into the simulation's rgbd_cameras slot and
+// presents the rgbd_camera contract, and describes the camera through
+// camera_profile. The slot holds any
+// number of pairs: the simulation tells a pair's robot by its copy and its
+// camera by the relay's name in that copy, the instance id written here.
+//
+// The relay also holds a control slot for the simulation's camera response
+// model (sim_camera_control), which forwards the controls a consumer sets
+// on the camera to the simulation's model of that camera. Waldo implements
+// it, and refuses each control of this camera, whose entry names no device,
+// so the relay binds it there; MuJoCo and Isaac Sim have no response model,
+// so the slot is written vacant and every camera control refuses on them.
+//
+// The relay names in every picture the camera's frame, which the
+// initializer's sensor_mounts gives for the relay's instance id.
+//
+// The launcher binds the rig to the stack's MCP endpoint, the rendered relay
+// listed with its profile and geometry. The simulation renders the camera
+// where its botshare_base model's description places it on the chassis,
+// at that model's intrinsics and rate.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "sim_rgbd_camera", tag: "v1" },
+      instances: [
+        { instance_id: "base_camera",
+          links: {
+            simulation: "simulation_inst/rgbd_cameras",
+            control: { vacant: "this simulation has no camera response model; every camera control refuses" },
+            sensor_mounts: "init_inst",
+          },
+          framework: { clock: "simulation" } },
+      ],
+    },
+  ],
+
+  adjustments: [
+    // Waldo implements the camera response model: the relay binds it there.
+    { target: "base_camera", when: { simulation: "waldo" }, set_links: { control: "simulation_inst" } },
+  ],
+}

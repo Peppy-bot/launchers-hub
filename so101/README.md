@@ -15,9 +15,9 @@ initializer, the backbone and the commander, its ids under the copy's name
 (`alpha_follower_inst`, `alpha_init_inst`, `alpha_backbone_inst`,
 `alpha_commander_inst`). [so101_sim](fragments/so101_sim.json5) joins a
 simulation that stands its limbs, and is an option of every simulation
-launcher: [so101_simulation.json5](../so101_simulation.json5), which lists
-one as `alpha`,
-[openarm_simulation.json5](../openarm_simulation.json5) and
+launcher with arm robots:
+[so101_simulation.json5](../so101_simulation.json5), which lists one as
+`alpha`, [openarm_simulation.json5](../openarm_simulation.json5) and
 [simulation_mcp.json5](../mcp/simulation_mcp.json5).
 
 Both deploy the SO-101 control: the initializer, `robot_initializer` with

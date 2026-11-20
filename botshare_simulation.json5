@@ -1,0 +1,87 @@
+{
+  peppy_schema: "launcher/v1",
+  description: [
+    "A botshare base in a simulation: Waldo, unless a launch word selects another simulation, and one simulated botshare base named alpha, botshare.ai's OpenAMRobot 2.0 base on two driven wheels. It opens no device, so it launches on a machine with no botshare hardware.",
+    "The simulation is the stack, and the robot is a copy, alpha, a simulated botshare base that base_motion's goals drive, its ids minted under its name: alpha_init_inst, alpha_backbone_inst. `stack remove` takes a copy off and `stack join` adds one, the simulation running throughout, and `--join OPTION:NAME` names another copy at launch.",
+    "`peppy stack launch botshare_simulation`: Waldo and one botshare base.",
+    "`peppy stack launch botshare_simulation --with mujoco`: the same base in MuJoCo.",
+    "`peppy stack launch botshare_simulation --with isaac_sim`: the same base in Isaac Sim.",
+    "`peppy stack launch botshare_simulation --with robot_control`: the base driven over MCP.",
+    "`peppy stack launch botshare_simulation --with robot_control,alpha.cameras_sim`: driven over MCP, its depth camera served.",
+    "`peppy stack join botshare_sim:bravo`: another botshare base beside alpha.",
+    "The robot axis offers the botshare base alone, and every simulation stands as many as the machines can run, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the fifth command above does, and `--with cameras_sim` on a join is refused on a launch without one.",
+    "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the base through base_motion, reads its odometry, stops it and sees through its depth camera, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
+    "simulation_mcp stands the base beside the arm robots in one simulation: `peppy stack launch simulation_mcp --join botshare_sim:india`.",
+  ],
+
+  components: [
+    {
+      name: "simulation",
+      cardinality: "one",
+      provides: ["simulation_inst"],
+      options: {
+        mujoco: "simulation/fragments/mujoco.json5",
+        isaac_sim: "simulation/fragments/isaac_sim.json5",
+        waldo: "simulation/fragments/waldo.json5",
+      },
+    },
+    // The robots' MCP endpoint, selected with `--with robot_control`, and
+    // the framework's endpoint beside it, whose fleet tools halt the stack.
+    // Every robot is listed on the robots' endpoint with its moves.
+    {
+      name: "robot_control",
+      cardinality: "zero_or_one",
+      options: {
+        robot_control: {
+          fragments: ["mcp/fragments/framework_controls.json5", "mcp/fragments/robot_control.json5"],
+        },
+      },
+    },
+    // The simulated botshare base, an option of the same name in every
+    // launcher that offers it. Every simulation stands any number of them.
+    {
+      name: "robot",
+      cardinality: "zero_or_more",
+      options: {
+        botshare_sim: {
+          fragments: ["botshare/fragments/botshare_sim.json5"],
+          adjustments: [
+            // Listed on the MCP endpoint: who it is, its guide, where it
+            // carries its sensors and where its frames stand, what its base is
+            // and where its odometry places it, and the moves a model drives
+            // it by with the stop that ends them.
+            { target: "robot_control_inst",
+              add_links: { identity: ["init_inst"], guide: ["init_inst"], sensor_mounts: ["init_inst"],
+                           transform_lookup: ["transforms_inst"], base_state: ["backbone_inst"],
+                           base_motion: ["backbone_inst"], robot_stop: ["backbone_inst"] } },
+            // Listed on the MCP endpoint with profile and geometry.
+            { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
+              add_links: { depth_camera: ["base_camera"], camera_profile: ["base_camera"], camera_geometry: ["base_camera"] } },
+            // Rendering, while this robot films.
+            { target: "simulation_inst", when: { camera_rig: "cameras_sim" },
+              set_arguments: { cameras_enabled: true } },
+          ],
+        },
+      },
+    },
+  ],
+
+  // Component deployments: the entry names the component and its option,
+  // and the robot entry lists the copy the launch starts, set up as its
+  // fragment deploys it; `--join OPTION:NAME` names another.
+  deployments: [
+    { simulation: "waldo" },
+    { robot: "botshare_sim", instances: [{ instance_id: "alpha" }] },
+  ],
+
+  adjustments: [
+    // The server reads the simulation's clock, as every instance a robot
+    // copy runs does; each simulated robot's fragment binds its own.
+    { target: "robot_control_inst", set_framework: { clock: "simulation" } },
+    // The framework's endpoint serves its fleet target alone: this file
+    // offers an MCP client no robot to add, so its stack target stays
+    // vacant, and every robot joins from the command line.
+    { target: "framework_controls_inst",
+      set_daemon_scopes: { stack: { vacant: "this launcher offers MCP clients no robot to add: robots join from the command line" } } },
+  ],
+}

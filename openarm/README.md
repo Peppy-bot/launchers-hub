@@ -314,7 +314,7 @@ peppy stack remove alpha                                                # the si
 
 Every simulation stands as many robots as the machines can run, of any
 model, each joined copy bringing its own, the simulation running throughout.
-The `robot` axis offers every simulated robot, so an SO-101
+The `robot` axis offers the simulated arm robots, so an SO-101
 ([so101_sim](../so101/README.md#simulation)) joins beside the OpenArm:
 
 ```sh

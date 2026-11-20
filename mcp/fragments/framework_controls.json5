@@ -22,13 +22,13 @@
 //
 // Every launcher with robots deploys it beside the robots' endpoint on port
 // 8900, on its robot_control option: simulation_mcp deploys that option and
-// gives the stack target its two robot options, and physical,
-// openarm_simulation and so101_simulation serve it with `--with
-// robot_control` and leave the stack target vacant. The instance declares
-// no core_node, so it runs on the coordinator, the daemon that adds and
-// removes the copies and holds the halt, as an instance serving a daemon
-// target must. It reads wall time: it waits on the daemon, not on the
-// simulation.
+// gives the stack target its robot options, and physical,
+// openarm_simulation, so101_simulation and botshare_simulation serve it
+// with `--with robot_control` and leave the stack target vacant. The
+// instance declares no core_node, so it runs on the coordinator, the daemon
+// that adds and removes the copies and holds the halt, as an instance
+// serving a daemon target must. It reads wall time: it waits on the daemon,
+// not on the simulation.
 {
   peppy_schema: "launcher_fragment/v1",
 

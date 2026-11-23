@@ -14,13 +14,13 @@
 // removal takes them out, so the endpoint and its URL are the same for one
 // robot or ten and before and after any join.
 //
-// simulation_mcp deploys this option, and physical, openarm_simulation and
-// so101_simulation serve it with `--with robot_control`. The option of each
-// of these launchers also deploys the framework's endpoint, on port 8903,
-// with the fleet target that halts the stack. The server reads one clock: a
-// simulation launcher binds it to the simulation's clock beside its robots,
-// and physical.json5 leaves it on wall time with the physical robots, so a
-// stack under MCP is real or simulated.
+// simulation_mcp deploys this option, and physical, openarm_simulation,
+// so101_simulation and botshare_simulation serve it with `--with
+// robot_control`. The option of each of these launchers also deploys the
+// framework's endpoint, on port 8903, with the fleet target that halts the
+// stack. The server reads one clock: a simulation launcher binds it to the
+// simulation's clock beside its robots, and physical.json5 leaves it on wall
+// time with the physical robots, so a stack under MCP is real or simulated.
 {
   peppy_schema: "launcher_fragment/v1",
 

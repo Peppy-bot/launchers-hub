@@ -1,0 +1,153 @@
+// The simulated botshare base, botshare.ai's OpenAMRobot 2.0 base: the
+// initializer that joins the simulation as this robot, its backbone that
+// drives the base's two wheels, the server of its tree of frames, and the
+// robot's own axis, its rendered camera. The simulation plays the wheels'
+// follower role toward the backbone, on joint_link, in each simulation's
+// bases slot.
+//
+// base_motion's goals drive it, from the robots' MCP endpoint when the
+// launcher runs one.
+//
+// This file writes only the instances it deploys. The launcher's simulation
+// axis supplies simulation_inst, and the launcher that selects this robot
+// wires it to the stack: the MCP endpoint's slots.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      // The initializer every robot runs, reading the simulation's clock
+      // like everything else this robot deploys.
+      source: { name: "robot_initializer", tag: "v1" },
+      instances: [
+        {
+          instance_id: "init_inst",
+          framework: { clock: "simulation" },
+          arguments: { model: "botshare_base" },
+          // The simulation, which the initializer joins as this robot and
+          // which answers for the base it stands.
+          links: { simulation: "simulation_inst" },
+        },
+      ],
+    },
+    {
+      source: { name: "botshare_backbone", tag: "v1" },
+      instances: [
+        {
+          instance_id: "backbone_inst",
+          // Every time the base reads, the 0.5 s a leader's setpoint holds
+          // and the steps of its velocity limiter included, is the
+          // simulation's.
+          framework: { clock: "simulation" },
+          // The base's wheels and outline come from the model the
+          // initializer names, the URDF of robot_description's
+          // botshare_base.
+          arguments: {
+            // botshare's own velocity smoother (openamr-platform-sw 69847ab,
+            // openamrobot_nav2/config/nav2_params.yaml:334-348), the limits
+            // botshare runs the robot at: max_velocity [0.20, 0, 0.5],
+            // min_velocity [-0.20, 0, -0.5], max_accel [1.0, 0, 3.0],
+            // max_decel [-2.5, 0, -3.0], deadband_velocity [0, 0, 0].
+            // The rest velocity: botshare's trans_stopped_velocity
+            // (nav2_params.yaml:140), the noise floor it measured on its
+            // odometry's forward speed, below which its path controller
+            // counts the robot as stopped, given here as the bound of each
+            // wheel's measured speed. The backbone derives the turn's rest
+            // rate from it and the wheel separation of its model, and the
+            // base counts as at rest while its odometry reads within both.
+            linear_limits: { min_velocity: -0.2, max_velocity: 0.2, max_acceleration: 1.0, max_deceleration: 2.5, deadband: 0.0, rest_velocity: 0.02 },
+            angular_limits: { min_rate: -0.5, max_rate: 0.5, max_acceleration: 3.0, max_deceleration: 3.0, deadband: 0.0 },
+            // botshare's smoothing_frequency (nav2_params.yaml:336), Nav2's
+            // default too (velocity_smoother.cpp:51-52).
+            smoothing_frequency_hz: 20.0,
+            // ros2_controllers 6.9.0's velocity_rolling_window_size default
+            // (diff_drive_controller/src/diff_drive_controller_parameter.yaml:
+            // 119-121): 10 wheel states, 0.1 s of the 100 Hz states of Waldo
+            // and MuJoCo (state_rate_hz); the adjustment below keeps the
+            // 0.1 s under Isaac Sim.
+            velocity_rolling_window_size: 10,
+            // Nav2 1.5.2's regulated pure pursuit default
+            // rotate_to_heading_min_angle
+            // (nav2_regulated_pure_pursuit_controller/src/parameter_handler.cpp:
+            // 104-105): past this bearing move_base's drive turns toward its
+            // target again.
+            rotate_to_heading_min_angle_rad: 0.785,
+            // Below robot.stop's deadline_ms on the robots' MCP endpoint
+            // (mcp-hub robot/robot_control.json5), 2 s, by 0.5 s for the
+            // call's round trip: a stop the control loop does not answer
+            // gives its own error before the call's deadline passes.
+            stop_answer_timeout_s: 1.5,
+            // The lookup wait: botshare's behavior_server
+            // transform_tolerance (nav2_params.yaml:317), the time its Spin
+            // and DriveOnHeading let tf2 wait for the robot's pose;
+            // move_base turns as Spin and drives as DriveOnHeading.
+            lookup_timeout_s: 0.1,
+          },
+          links: {
+            robot_init: "init_inst",
+            // The robot's model, whose description the backbone builds the
+            // base from, and holds to the one it was built with.
+            robot_identity: "init_inst",
+            // The other publisher of the robot's tree, which places each
+            // goal and setpoint: the initializer, with the fixed joints. The
+            // backbone takes the transforms it publishes itself into the
+            // tree.
+            other_transforms: ["init_inst"],
+            // The simulation stands the wheels: its bases slot holds any
+            // number of pairs, and it tells a pair's robot by its copy and
+            // its base by this side's link name.
+            base: "simulation_inst/bases",
+            // No leader streams by default: the leader_base slot stands
+            // vacant.
+            leader_base: { vacant: "no leader streams velocities: base moves arrive as base_motion actions" },
+          },
+        },
+      ],
+    },
+    // The robot's tree of frames, served to the nodes that hold none.
+    {
+      source: { name: "transform_server", tag: "v1" },
+      instances: [
+        {
+          instance_id: "transforms_inst",
+          framework: { clock: "simulation" },
+          links: {
+            // Every publisher of the robot's tree.
+            transforms: ["init_inst", "backbone_inst"],
+          },
+        },
+      ],
+    },
+    // What this robot deploys on its own axes unless a copy's `with` says
+    // otherwise.
+    { camera_rig: "none" },
+  ],
+
+  components: [
+    {
+      // The rendered camera, the Gemini 336L (`cameras_sim`). A rendered
+      // camera costs the simulation a frame budget, so the robot starts
+      // without one: the option on a copy turns it on.
+      name: "camera_rig",
+      options: {
+        none: "../../common/fragments/none.json5",
+        cameras_sim: "cameras_sim.json5",
+      },
+    },
+  ],
+
+  constraints: [
+    // The camera stream needs a consumer: the robots' MCP endpoint
+    // publishes it as a resource and tools.
+    { when: { camera_rig: "cameras_sim" },
+      requires: [{ robot_control: "robot_control" }],
+      reason: "the camera needs a consumer: launch with robot_control (the MCP endpoint lists the camera), or select camera_rig=none" },
+  ],
+
+  adjustments: [
+    // Isaac steps its physics slower than the others: 6 of its 60 Hz wheel
+    // states span the odometry's 0.1 s.
+    { target: "backbone_inst", when: { simulation: "isaac_sim" },
+      set_arguments: { velocity_rolling_window_size: 6 } },
+  ],
+}

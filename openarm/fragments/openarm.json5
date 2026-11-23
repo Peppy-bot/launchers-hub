@@ -72,6 +72,14 @@
             max_stream_ee_velocity_m_s: 0.25,
             // Two limb_states periods: the worst wait measured in Waldo, plus one dropped sample.
             lookup_timeout_s: 0.1,
+            // Below the 2 s that each caller of the stop waits, robot.stop's
+            // deadline_ms on the robots' MCP endpoint (mcp-hub
+            // robot/robot_control.json5) and the headset's call_timeout_s
+            // (nodes-hub xr_commander/src/xr_commander/fleet.py), by 0.5 s
+            // for the call's round trip, as the botshare base's: a stop the
+            // backbone does not answer gives its own error before its
+            // caller's wait runs out.
+            stop_answer_timeout_s: 1.5,
           },
           links: {
             robot_init: "init_inst",

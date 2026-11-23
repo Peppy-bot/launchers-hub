@@ -1,6 +1,9 @@
 {
   peppy_schema: "repository/v1",
   launchers: {
+    botshare_simulation: {
+      path: "botshare_simulation.json5"
+    },
     openarm_simulation: {
       path: "openarm_simulation.json5"
     },

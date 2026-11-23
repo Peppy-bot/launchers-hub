@@ -1,0 +1,5 @@
+// Waldo's drive controls lead the base: the stick, the arrow keys and a
+// gamepad on Waldo's page stream its velocity on drive_link. Waldo runs in
+// the stack, so this option deploys nothing: the robot's fragment pairs its
+// backbone into Waldo's drive_controls slot.
+{ peppy_schema: "launcher_fragment/v1" }

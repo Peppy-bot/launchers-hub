@@ -5,20 +5,20 @@
 // serves HTTPS on port 4443, once per stack; accept its certificate in the
 // headset browser. Headset access requires a reachable host port.
 //
-// A robot whose robot_commander is none pairs its backbone's pose and
-// gripper sockets into the four slots (its own fragment declares the
-// pairs), and the launcher binds its postures, robot_stop, recorder,
-// cameras, alerts and motor health here under the option that selects the
-// robot. A launcher with Waldo binds the simulation's sensor streams too,
-// through which the headset holds the cameras of the robot it drives at
-// their own rate.
+// A robot whose robot_commander is none pairs its backbone's sockets into
+// the slots of the parts it has (its own fragment declares the pairs): an
+// arm robot its pose and gripper sockets, a base its leader_base socket.
+// The launcher binds its postures, robot_stop, recorder, cameras, alerts
+// and motor health here under the option that selects the robot. A launcher
+// with Waldo binds the simulation's sensor streams too, through which the
+// headset holds the cameras of the robot it drives at their own rate.
 //
 // The headset holds the robot lease of the robot a person drives: a squeeze
 // takes the lease and stops the moves in flight on the robot, and the
-// headset releases the lease after the release burst of the last hand once no
-// posture move of its own runs. Its fleet target follows the fleet listing
-// (changes) and holds the leases (lease); it drives only the robots of the
-// listing.
+// headset releases the lease after the last release burst, of a hand or of
+// the base, once no posture move of its own runs. Its fleet target follows
+// the fleet listing (changes) and holds the leases (lease); it drives only
+// the robots of the listing.
 {
   peppy_schema: "launcher_fragment/v1",
   deployments: [

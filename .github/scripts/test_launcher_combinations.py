@@ -277,7 +277,7 @@ ROUTER_BRAIN_MODELS = {
         "target": "brain_inst", "when": {"brain": "vlm_router_brain"},
         "set_arguments": {"perception_model": "gemini-robotics-er-2-preview",
                           "manipulation_model": "gemini-robotics-er-2-preview"},
-        "set_env_from_launch": ["GEMINI_API_KEY"],
+        "set_env_from_launch": {"one_of": [["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], ["GEMINI_API_KEY"]]},
     },
 }
 

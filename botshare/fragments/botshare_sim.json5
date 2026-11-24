@@ -6,7 +6,9 @@
 // bases slot.
 //
 // base_motion's goals drive it, from the robots' MCP endpoint when the
-// launcher runs one.
+// launcher runs one. A person drives it by hand on drive_link: through
+// Waldo's drive controls, the robot_commander drive_controls, or through
+// the stack's headset, which leads a base with no commander of its own.
 //
 // This file writes only the instances it deploys. The launcher's simulation
 // axis supplies simulation_inst, and the launcher that selects this robot
@@ -97,9 +99,9 @@
             // number of pairs, and it tells a pair's robot by its copy and
             // its base by this side's link name.
             base: "simulation_inst/bases",
-            // No leader streams by default: the leader_base slot stands
-            // vacant.
-            leader_base: { vacant: "no leader streams velocities: base moves arrive as base_motion actions" },
+            // No leader drives the base by hand until the robot_commander
+            // axis or the stack's headset pairs one below.
+            leader_base: { vacant: "no leader drives the base by hand: select robot_commander=drive_controls for Waldo's page, or launch with xr_commander for the headset" },
           },
         },
       ],
@@ -120,10 +122,22 @@
     },
     // What this robot deploys on its own axes unless a copy's `with` says
     // otherwise.
+    { robot_commander: "none" },
     { camera_rig: "none" },
   ],
 
   components: [
+    {
+      // The robot's own commander, which leads the base on drive_link:
+      // drive_controls, the drive controls on Waldo's page; `none` gives
+      // none, and the stack's headset leads the base when the launch runs
+      // one.
+      name: "robot_commander", role: "robot_commander",
+      options: {
+        none: "../../common/fragments/none.json5",
+        drive_controls: "drive_controls.json5",
+      },
+    },
     {
       // The rendered camera, the Gemini 336L (`cameras_sim`). A rendered
       // camera costs the simulation a frame budget, so the robot starts
@@ -138,13 +152,26 @@
 
   constraints: [
     // The camera stream needs a consumer: the robots' MCP endpoint
-    // publishes it as a resource and tools.
+    // publishes it as a resource and tools, and the stack's headset shows it
+    // while it leads the base.
     { when: { camera_rig: "cameras_sim" },
-      requires: [{ robot_control: "robot_control" }],
-      reason: "the camera needs a consumer: launch with robot_control (the MCP endpoint lists the camera), or select camera_rig=none" },
+      requires: [{ robot_control: "robot_control" }, { teleop: "xr_commander", robot_commander: "none" }],
+      reason: "the camera needs a consumer: launch with robot_control (the MCP endpoint lists the camera), or select robot_commander=none and launch with xr_commander (the headset shows it), or select camera_rig=none" },
+    // The drive controls are on Waldo's page.
+    { when: { robot_commander: "drive_controls" },
+      requires: [{ simulation: "waldo" }],
+      reason: "drive_controls are on Waldo's page: launch with waldo, or select robot_commander=none and launch with xr_commander (the headset drives the base)" },
   ],
 
   adjustments: [
+    // Waldo's drive controls lead the base: the backbone pairs into Waldo's
+    // drive_controls slot, which holds any number of bases.
+    { target: "backbone_inst", when: { robot_commander: "drive_controls" },
+      set_links: { leader_base: "simulation_inst/drive_controls" } },
+    // A robot with no commander of its own is led by the stack's headset:
+    // the backbone pairs into the headset's base slot.
+    { target: "backbone_inst", when: { teleop: "xr_commander", robot_commander: "none" },
+      set_links: { leader_base: "headset_inst/base" } },
     // Isaac steps its physics slower than the others: 6 of its 60 Hz wheel
     // states span the odometry's 0.1 s.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },

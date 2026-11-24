@@ -193,8 +193,9 @@ from its entry, on Gemini Robotics-ER for perception and manipulation, and
 names an `any_of` of launch variables of the brain, the two variables of an
 OpenAI-compatible API or `GEMINI_API_KEY`: the brain takes the first set
 that the shell that launches holds complete, the daemon gives that set to
-the brain of each OpenArm that a later join starts, and a brain with launch
-variables runs on the coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
+the brain of each OpenArm that a later join starts, unless the shell of a
+`peppy stack join` holds a set complete, which the brain of that join takes,
+and a brain with launch variables runs on the coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
 router brain.
 
 A v2 copy's `motion_planner` axis adds the motion planner, the node

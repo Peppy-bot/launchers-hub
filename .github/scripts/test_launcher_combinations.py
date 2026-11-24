@@ -74,6 +74,20 @@ def needing(answer, *variables):
     ))
 
 
+#: The report line of `stack resolve` for the `any_of` of the router brain of
+#: simulation_mcp: the two variables of an OpenAI-compatible API, else
+#: GEMINI_API_KEY.
+BRAIN_ANY_OF_NEED = (
+    "launch variables: the launch needs one set of `OPENAI_COMPATIBLE_API_BASE` and "
+    "`OPENAI_COMPATIBLE_API_KEY`, or of `GEMINI_API_KEY`, from the shell that launches: "
+    "`brain_inst` of option `openarm_sim` takes the first complete set from the launch, and "
+    "stack.join through `framework_controls_inst` can add a copy of `openarm_sim`"
+)
+
+#: The sets of that `any_of`, as a resolution holds them.
+BRAIN_ANY_OF = (("OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"), ("GEMINI_API_KEY",))
+
+
 def simulation_axis(*simulations):
     return {"name": "simulation", "options": {simulation: {} for simulation in simulations}}
 
@@ -3686,6 +3700,56 @@ class LaunchVariableTests(unittest.TestCase):
             resolution.launch_variables,
             ("GEMINI_API_KEY", "OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY", "TOOL_KEY"),
         )
+        # The resolution keeps the sets of the `any_of`, in order.
+        self.assertEqual(resolution.any_ofs, (BRAIN_ANY_OF,))
+
+    def test_a_launcher_with_an_any_of_plans_a_launch_through_its_first_set_and_one_holding_it_in_part(self):
+        # The bare launch and the plain join need the `any_of` of the brain.
+        # The first planned launch holds the first set, the API's two
+        # variables, so the brain comes up through the API once; the other
+        # takes the key of the job's environment. Beside the launch without
+        # every variable, one launch holds the API's first variable and the
+        # key, without the API's second variable, and must be refused.
+        answers = {
+            ("fleet.json5", "", "", ""): reporting(resolved_plan("sim_mujoco:v1"), BRAIN_ANY_OF_NEED),
+            ("fleet.json5", "", "openarm_v2", ""):
+                reporting(resolved_plan("sim_mujoco:v1", "brain:v1"), BRAIN_ANY_OF_NEED),
+            ("fleet.json5", "", "openarm_v2", "recorder=lerobot_recorder"):
+                reporting(resolved_plan("sim_mujoco:v1", "brain:v1", "lerobot_recorder:v1"), BRAIN_ANY_OF_NEED),
+        }
+        every_name = ["GEMINI_API_KEY", "OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"]
+        with planned_whole({"fleet": fleet_launcher()}, answers) as (_, plan, summary, _outputs):
+            self.assertEqual(
+                [(launch.label, launch.given, launch.launch_variables) for launch in plan.launches], [
+                    ("fleet + join openarm_v2",
+                     ["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], every_name),
+                    ("fleet + join openarm_v2 (recorder=lerobot_recorder)", [], every_name),
+                ])
+            self.assertEqual(plan.refused, [
+                combinations.RefusedLaunch(
+                    "fleet without " + ", ".join(every_name), "fleet", "", False, [], every_name),
+                combinations.RefusedLaunch(
+                    "fleet with GEMINI_API_KEY, OPENAI_COMPATIBLE_API_BASE, without "
+                    "OPENAI_COMPATIBLE_API_KEY",
+                    "fleet", "", False, [], ["OPENAI_COMPATIBLE_API_KEY"],
+                    ["GEMINI_API_KEY", "OPENAI_COMPATIBLE_API_BASE"], True),
+            ])
+            self.assertIn("### 🔑 Launches without their launch variables (2)", summary)
+            self.assertIn(
+                "- fleet with GEMINI_API_KEY, OPENAI_COMPATIBLE_API_BASE, without "
+                "OPENAI_COMPATIBLE_API_KEY\n", summary)
+
+    def test_an_any_of_of_sets_of_one_variable_plans_no_launch_holding_a_set_in_part(self):
+        candidate = combinations.Candidate("sim", "sim.json5", "", "", "", False)
+        resolution = combinations.resolution_of(candidate, reporting(
+            resolved_plan("waldo:v1"),
+            "launch variables: the launch needs one set of `A_KEY`, or of `B_KEY`, from the shell "
+            "that launches: `brain_inst` takes the first complete set from the launch, and the "
+            "launch starts it",
+        ), {})
+        self.assertEqual(resolution.any_ofs, ((("A_KEY",), ("B_KEY",)),))
+        self.assertIsNone(combinations.RefusedLaunch.holding_a_set_in_part(candidate, resolution))
+        self.assertEqual(combinations.first_sets(resolution), ["A_KEY"])
 
     def test_every_launch_of_a_launcher_with_launch_variables_joins_without_them(self):
         # The bare launch needs the key for the robots a scope can add, and
@@ -3765,7 +3829,8 @@ class FakePeppy:
     failed, on the daemon's own node. A launch run without a variable adds
     the nodes `adds` names to the stack, then prints `refusal` and exits 4,
     or comes up like any launch where `refusal` is None. The commands are
-    kept in order, and `without` keeps the variables each one ran without.
+    kept in order, `without` keeps the variables each one ran without, and
+    `given` the variables each one was given a value for.
     Its clock reads the seconds the commands took, each `stack` command
     taking `seconds` of its verb."""
 
@@ -3782,13 +3847,15 @@ class FakePeppy:
         self.now = 0.0
         self.commands = []
         self.without = []
+        self.given = []
 
     def clock(self):
         return self.now
 
-    def __call__(self, argv, capture=False, without=()):
+    def __call__(self, argv, capture=False, without=(), given=()):
         self.commands.append(argv)
         self.without.append(tuple(without))
+        self.given.append(tuple(given))
         self.now += self.seconds.get(argv[2], 0.0)
         if argv[:3] == ["peppy", "stack", "launch"] and without:
             self.added += self.adds
@@ -3818,21 +3885,23 @@ class FakePeppy:
 
 
 def a_launch(launcher="fleet", words="", join_option="", join_words="", local=False, launch_joins=(),
-             launch_stands=(), join_stands=(), launch_variables=()):
+             launch_stands=(), join_stands=(), launch_variables=(), given=()):
     label = combinations.combination_label(launcher, words, join_option, join_words, local, launch_joins)
     join_name = combinations.COPY_NAME if join_option else ""
     return combinations.Launch(
         label, launcher, words, join_option, join_name, join_words, local,
         JOINED_INSTANCES if join_option or launch_joins else [], list(launch_joins),
-        list(launch_stands), list(join_stands), list(launch_variables),
+        list(launch_stands), list(join_stands), list(launch_variables), list(given),
     )
 
 
-def a_refused_launch(launcher="simulation_mcp", words="", launch_joins=(), variables=("GEMINI_API_KEY",)):
+def a_refused_launch(launcher="simulation_mcp", words="", launch_joins=(), variables=("GEMINI_API_KEY",),
+                     given=()):
     label = combinations.combination_label(launcher, words, "", "", False, launch_joins)
+    with_given = f" with {', '.join(given)}," if given else ""
     return combinations.RefusedLaunch(
-        f"{label} without {', '.join(variables)}", launcher, words, False, list(launch_joins),
-        list(variables),
+        f"{label}{with_given} without {', '.join(variables)}", launcher, words, False, list(launch_joins),
+        list(variables), list(given), bool(given),
     )
 
 
@@ -3988,6 +4057,69 @@ class LaunchTests(unittest.TestCase):
             "simulation_mcp --join openarm_sim:bravo without GEMINI_API_KEY", combinations.Status.REFUSED)])
         # The job's log holds what peppy said.
         self.assertIn(LAUNCH_REFUSAL, log)
+
+    def test_a_launch_through_the_first_set_holds_it_and_its_join_takes_the_kept_values(self):
+        peppy = FakePeppy()
+        api = ["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"]
+        every_name = ["GEMINI_API_KEY", *api]
+        outcomes, log = launched(
+            [a_launch(join_option="openarm_v2", launch_variables=every_name, given=api)], peppy)
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.PASSED])
+        self.assertEqual(
+            [(argv[2], without, given) for argv, without, given in zip(peppy.commands, peppy.without, peppy.given)
+             if without or given],
+            [("launch", (), tuple(api)), ("join", tuple(every_name), ())])
+
+    def test_run_peppy_gives_the_given_value_and_takes_out_the_variables_it_runs_without(self):
+        seen = {}
+
+        def run(argv, text, stdout, env):
+            seen.update(env)
+            return completed()
+
+        with patch.object(combinations.subprocess, "run", run), \
+                patch.dict(combinations.os.environ, {"GEMINI_API_KEY": "job-value", "KEPT": "kept"}), \
+                contextlib.redirect_stdout(io.StringIO()) as log:
+            combinations.run_peppy(
+                ["peppy", "stack", "launch", "fleet"], without=("GEMINI_API_KEY",),
+                given=("OPENAI_COMPATIBLE_API_BASE",))
+        self.assertNotIn("GEMINI_API_KEY", seen)
+        self.assertEqual(seen["OPENAI_COMPATIBLE_API_BASE"], combinations.GIVEN_VALUE)
+        self.assertEqual(seen["KEPT"], "kept")
+        self.assertIn(
+            "$ peppy stack launch fleet  # with OPENAI_COMPATIBLE_API_BASE; without GEMINI_API_KEY",
+            log.getvalue())
+
+    def test_a_launch_holding_a_set_in_part_is_refused_saying_so(self):
+        refusal = (
+            "[ERROR] Error: Launch failed (rejected): the launch needs one set of "
+            "`OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, or of `GEMINI_API_KEY`, and "
+            "the launch environment holds the set of `OPENAI_COMPATIBLE_API_BASE` and "
+            "`OPENAI_COMPATIBLE_API_KEY` in part, as it does not hold `OPENAI_COMPATIBLE_API_KEY`\n"
+        )
+        in_part = a_refused_launch(
+            variables=("OPENAI_COMPATIBLE_API_KEY",),
+            given=("GEMINI_API_KEY", "OPENAI_COMPATIBLE_API_BASE"),
+        )
+        peppy = FakePeppy(refusal=refusal)
+        outcomes, _ = launched([in_part], peppy)
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.REFUSED])
+        self.assertIn(
+            (("OPENAI_COMPATIBLE_API_KEY",), ("GEMINI_API_KEY", "OPENAI_COMPATIBLE_API_BASE")),
+            list(zip(peppy.without, peppy.given)))
+
+        # A refusal for another reason, one that names the variable and no
+        # set held in part, fails the launch.
+        outcomes, _ = launched([in_part], FakePeppy(refusal=(
+            "[ERROR] Error: Launch failed (rejected): the launch needs one set of "
+            "`OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, or of `GEMINI_API_KEY`, and "
+            "the launch environment holds no set complete\n")))
+        self.assertEqual([outcome.status for outcome in outcomes], [combinations.Status.FAILED])
+        self.assertEqual(
+            outcomes[0].detail,
+            f"`peppy stack launch simulation_mcp {' '.join(IDLE)}` with GEMINI_API_KEY, "
+            "OPENAI_COMPATIBLE_API_BASE was refused, and its message does not say that a set is "
+            "held in part")
 
     def test_a_launch_that_comes_up_without_its_launch_variables_fails(self):
         peppy = FakePeppy(refusal=None)

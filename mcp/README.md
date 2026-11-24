@@ -172,9 +172,11 @@ API it asks for each model by its catalog name, so the API serves
 `gemini-robotics-er-2-preview` under that name. The daemon keeps the values
 for the life of the stack and gives the set to the brain of each OpenArm
 that the launch or a later join starts: a `stack.join` of the framework's
-endpoint takes the set of the launch, and a `peppy stack join` reads its
-own shell first, then the values of the launch, for each value and for the
-set. No other node receives them.
+endpoint takes the set of the launch. A `peppy stack join` takes a set that
+its own shell holds complete, also when the launch kept the other set, else
+the set of the launch, and every value of the set comes from that one
+source: a key of the join shell never reaches a base address of the launch.
+No other node receives them.
 
 - A launch that can start an OpenArm needs one complete set: a launch with
   the robots' endpoint, whose `stack.join` adds OpenArms, and a launch with
@@ -188,9 +190,14 @@ set. No other node receives them.
   the brain never takes Google's key in place of an API that the shell names
   in part.
 - A launch with `--with robot_control=none` and no OpenArm in `--join`
-  starts no brain and needs neither set. A `peppy stack join` of an OpenArm
-  onto it needs one complete set in the shell that joins, or in the shell
-  that launched.
+  starts no brain and needs neither set, but it keeps the values for each
+  later join, so it is refused too when its shell holds one of the API's two
+  variables without the other. A `peppy stack join` of an OpenArm onto it
+  needs one complete set in the shell that joins, or in the shell that
+  launched.
+- A `peppy stack join` whose shell holds one of the API's two variables
+  without the other is refused, also when the launch kept a complete set:
+  export both in the shell that joins, or neither.
 - The brain takes launch variables, so it runs on the coordinator: an
   OpenArm on another machine joins with its router brain on the
   coordinator, `--with vlm_router_brain@self`, and `stack.join` adds an

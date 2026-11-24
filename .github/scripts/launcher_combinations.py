@@ -31,13 +31,19 @@ names another model than the scope gives the option, fails the plan.
 Of the launchable combinations in scope it keeps the launches that, between
 them, run every configured node instance and every pair of instances that run
 side by side. A resolve names the launch variables the launch needs from the
-shell that launches; for each launcher with planned launches whose
-combinations need any, it plans one more launch of the launcher that runs
-without them, which must be refused.
+shell that launches, and the sets of each `any_of` of which it needs one
+complete set; for each launcher with planned launches whose combinations
+need any, it plans one more launch of the launcher that runs without them,
+which must be refused, and where an `any_of` has a set of two variables or
+more, one that holds that set in part beside the other sets, which must be
+refused too. One planned launch of such a launcher holds the first set of
+each `any_of` it needs, so each `any_of` comes up once through its first set.
 
 launch runs the refused launches first, each without the launch variables it
-needs: each must be refused, with a message that names every one of them,
-and must leave the stack's nodes as they were, so it added and built none.
+needs, or with a set held in part: each must be refused, with a message that
+names every variable it lacks, and that says that a set is held in part
+where one is, and must leave the stack's nodes as they were, so it added and
+built none.
 
 It then runs the planned launches one after the other on the running daemon,
 resetting the stack between them, holds each joined copy to the instances
@@ -120,6 +126,17 @@ LAUNCH_VARIABLE_SET_NEED = re.compile(
 )
 # A name in backticks.
 BACKTICKED = re.compile(r"`([^`]+)`")
+# The words between two sets of the line of an `any_of`.
+NEXT_SET = ", or of "
+# What a refusal of a set held in part says.
+SET_HELD_IN_PART = "in part"
+
+# The value a launch is given for each launch variable it holds beside the
+# environment of the job: an http address on loopback, which the base address
+# of an API needs, and which a key takes as any other text. No launch here
+# calls a provider or an API: a node's start checks that each value is set
+# and has its form, and no launch runs a search or a grab.
+GIVEN_VALUE = "http://127.0.0.1:9/launchers-hub-ci-no-call"
 
 # The environment variable the step that fills the caches sets when it knows
 # they are short: its value says why, in one clause, and a resolve reporting
@@ -1155,12 +1172,17 @@ class Resolution:
     #: The launch variables the launch needs from the shell that launches,
     #: sorted, where the combination resolves.
     launch_variables: tuple = ()
+    #: The `any_of`s of which the launch needs one complete set, where the
+    #: combination resolves: each its sets in order, each set its names,
+    #: sorted.
+    any_ofs: tuple = ()
 
     def fingerprint(self, candidate):
         """Everything a launch of the combination depends on: two trees
         giving a combination the same fingerprint launch the same thing."""
         return canonical([
             self.verdict.value, self.detail, self.plan, candidate.local, list(self.launch_variables),
+            self.any_ofs,
         ])
 
 
@@ -1393,13 +1415,14 @@ def resolution_of(candidate, record, skips):
         return Resolution(Verdict.UNCHECKED, " ".join(unchecked))
     plan = launched_plan(record["launcher"])
     variables = needed_launch_variables(report)
+    any_ofs = needed_any_ofs(report)
     nodes = deployed_nodes(plan)
     hits = [(node, skips[node]) for node in sorted(nodes) if node in skips]
     if hits:
         detail = "; ".join(f"deploys {node}: {reason}" for node, reason in hits)
-        return Resolution(Verdict.SKIPPED, detail, plan, variables)
+        return Resolution(Verdict.SKIPPED, detail, plan, variables, any_ofs)
     # A joined copy comes up beside the copies the file deploys.
-    return Resolution(Verdict.LAUNCH, "-", plan, variables)
+    return Resolution(Verdict.LAUNCH, "-", plan, variables, any_ofs)
 
 
 def needed_launch_variables(report):
@@ -1413,6 +1436,24 @@ def needed_launch_variables(report):
         elif sets := LAUNCH_VARIABLE_SET_NEED.match(line):
             names.update(BACKTICKED.findall(sets.group(1)))
     return tuple(sorted(names))
+
+
+def needed_any_ofs(report):
+    """The `any_of`s of which the lines of a resolve's report say the launch
+    needs one complete set, in the order of the lines: each the tuple of its
+    sets in order, each set the tuple of its names, sorted."""
+    return tuple(
+        tuple(tuple(sorted(BACKTICKED.findall(written))) for written in sets.group(1).split(NEXT_SET))
+        for line in report
+        if (sets := LAUNCH_VARIABLE_SET_NEED.match(line))
+    )
+
+
+def first_sets(resolution):
+    """The names of the first set of each `any_of` the launch needs, sorted:
+    the launch variables that make each `any_of` come up through its first
+    set, whatever the environment of the job holds."""
+    return sorted({name for any_of in resolution.any_ofs for name in any_of[0]})
 
 
 def resolve_launcher(root, launcher, skips):
@@ -1645,9 +1686,13 @@ class Launch:
     #: so the instances it starts take them from the values the daemon kept
     #: from the launch.
     launch_variables: list = field(default_factory=list)
+    #: The launch variables the launch holds `GIVEN_VALUE` for, beside the
+    #: environment of the job: the first set of each `any_of` it needs, in
+    #: one launch of each launcher that needs one.
+    given: list = field(default_factory=list)
 
     @classmethod
-    def of(cls, candidate, resolution, launch_variables):
+    def of(cls, candidate, resolution, launch_variables, given=()):
         launched = candidate.file_copies + ((COPY_NAME,) if candidate.launch_joins else ())
         joined = (COPY_NAME,) if candidate.join_option else ()
         return cls(
@@ -1663,6 +1708,7 @@ class Launch:
             robot_stands(resolution.plan, launched),
             robot_stands(resolution.plan, joined),
             list(launch_variables),
+            list(given),
         )
 
     @classmethod
@@ -1695,8 +1741,15 @@ class RefusedLaunch:
     local: bool
     #: The options `--join OPTION:NAME` starts a copy of with the launch.
     launch_joins: list
-    #: The launch variables the launch needs, which it runs without.
+    #: The launch variables the launch needs, which it runs without, and
+    #: which its refusal names.
     variables: list
+    #: The launch variables the launch holds `GIVEN_VALUE` for, beside the
+    #: environment of the job.
+    given: list = field(default_factory=list)
+    #: Whether the launch holds a set of an `any_of` in part, which its
+    #: refusal then says.
+    holds_a_set_in_part: bool = False
 
     @classmethod
     def of(cls, candidate, resolution):
@@ -1709,6 +1762,31 @@ class RefusedLaunch:
             list(candidate.launch_joins),
             variables,
         )
+
+    @classmethod
+    def holding_a_set_in_part(cls, candidate, resolution):
+        """The launch of `candidate` that holds in part the first set of two
+        variables or more of the `any_of`s it needs: it holds the first
+        variable of the set and every variable of the other sets of its
+        `any_of`, and runs without the other variables of the set, which its
+        refusal names. None where no `any_of` has such a set."""
+        for any_of in resolution.any_ofs:
+            in_part = next((names for names in any_of if len(names) >= 2), None)
+            if in_part is None:
+                continue
+            given = sorted({in_part[0], *(name for names in any_of if names != in_part for name in names)})
+            missing = list(in_part[1:])
+            return cls(
+                f"{candidate.label} with {', '.join(given)}, without {', '.join(missing)}",
+                candidate.launcher,
+                candidate.words,
+                candidate.local,
+                list(candidate.launch_joins),
+                missing,
+                given,
+                True,
+            )
+        return None
 
     @property
     def passed(self):
@@ -1731,7 +1809,9 @@ def refused_launches(candidates, resolutions, launchers):
     """For each launcher of `launchers` whose combinations need launch
     variables, the launch that runs without them: of its launchable
     combinations that join no copy after the launch, the first that needs
-    the most launch variables. In the order of `candidates`."""
+    the most launch variables. After it, where an `any_of` of that launch has
+    a set of two variables or more, the launch that holds that set in part.
+    In the order of `candidates`."""
     chosen = {}
     for candidate in candidates:
         if candidate.launcher not in launchers or candidate.join_option:
@@ -1742,7 +1822,13 @@ def refused_launches(candidates, resolutions, launchers):
         held = chosen.get(candidate.launcher)
         if held is None or len(resolution.launch_variables) > len(held[1].launch_variables):
             chosen[candidate.launcher] = (candidate, resolution)
-    return [RefusedLaunch.of(candidate, resolution) for candidate, resolution in chosen.values()]
+    refused = []
+    for candidate, resolution in chosen.values():
+        refused.append(RefusedLaunch.of(candidate, resolution))
+        in_part = RefusedLaunch.holding_a_set_in_part(candidate, resolution)
+        if in_part is not None:
+            refused.append(in_part)
+    return refused
 
 
 def launch_variables_by_launcher(candidates, resolutions):
@@ -1842,10 +1928,7 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
     selected = select_launches(units_by_key)
     by_key = {candidate.key: candidate for candidate in launchable}
     variables = launch_variables_by_launcher(candidates, resolutions)
-    launches = [
-        Launch.of(by_key[key], resolutions[key], variables[by_key[key].launcher])
-        for key in selected
-    ]
+    launches = launches_of(selected, by_key, resolutions, variables)
     refused = refused_launches(
         candidates, resolutions, {launch.launcher for launch in launches}
     )
@@ -1861,6 +1944,24 @@ def command_plan(root, scope_path, base_root, skips_path, plan_path):
     append_to_env_file("GITHUB_OUTPUT", f"launches={'true' if launches else 'false'}\n")
 
 
+def launches_of(selected, by_key, resolutions, variables):
+    """The launches of the combinations `selected`, in order, each with the
+    launch variables of its launcher, `variables`. The first launch of each
+    launcher that needs an `any_of` holds the first set of each `any_of` it
+    needs, so that set comes up once; the other launches take the sets that
+    the environment of the job holds."""
+    through_first_sets = set()
+    launches = []
+    for key in selected:
+        candidate, resolution = by_key[key], resolutions[key]
+        given = []
+        if resolution.any_ofs and candidate.launcher not in through_first_sets:
+            through_first_sets.add(candidate.launcher)
+            given = first_sets(resolution)
+        launches.append(Launch.of(candidate, resolution, variables[candidate.launcher], given))
+    return launches
+
+
 def refused_summary(refused):
     """The run summary's account of the refused launches, or nothing where
     the plan holds none."""
@@ -1868,8 +1969,9 @@ def refused_summary(refused):
         return ""
     return (
         f"\n### 🔑 Launches without their launch variables ({len(refused)})\n\n"
-        "Each runs before the launches, without the launch variables it needs, and must "
-        "be refused before it builds anything, with a message that names each of them. "
+        "Each runs before the launches, without the launch variables it needs, or with a set "
+        "of an `any_of` held in part, and must be refused before it builds anything, with a "
+        "message that names each variable it lacks. "
         "Every join of the launches below runs without the launch variables of its "
         "launcher, so the instances it starts take them from the values the daemon "
         "kept from the launch.\n\n"
@@ -2056,6 +2158,17 @@ class RefusalNamesTooLittle(LaunchFailed):
         )
 
 
+class RefusalHoldsNoSetInPart(LaunchFailed):
+    """A refusal of a launch that holds a set in part that does not say so:
+    the launch was refused for another reason."""
+
+    def __init__(self, argv, given):
+        super().__init__(
+            f"`{' '.join(argv)}` with {', '.join(given)} was refused, and its message does not "
+            f"say that a set is held {SET_HELD_IN_PART}"
+        )
+
+
 class RefusedLaunchChangedTheNodes(LaunchFailed):
     """A refused launch that changed the nodes of the stack, so it got as far
     as adding or building one."""
@@ -2081,17 +2194,20 @@ class JoinedCopyNotRunning(LaunchFailed):
         )
 
 
-def run_peppy(argv, capture=False, without=()):
+def run_peppy(argv, capture=False, without=(), given=()):
     """Runs one command of a launch, its output going to the job's log, or
     its stdout returned where `capture` asks for it, in the job's
-    environment less the variables `without` names. A captured command's
-    peppy logging is held to errors, so stdout carries the document it
-    prints, or the error that ends it, alone."""
-    unset = f"  # without {', '.join(without)}" if without else ""
-    print(f"$ {' '.join(argv)}{unset}", flush=True)
+    environment less the variables `without` names, with `GIVEN_VALUE` for
+    each variable `given` names. A captured command's peppy logging is held
+    to errors, so stdout carries the document it prints, or the error that
+    ends it, alone."""
+    notes = [f"with {', '.join(given)}"] if given else []
+    notes += [f"without {', '.join(without)}"] if without else []
+    print(f"$ {' '.join(argv)}{'  # ' + '; '.join(notes) if notes else ''}", flush=True)
     env = None
-    if capture or without:
+    if capture or without or given:
         env = {name: value for name, value in os.environ.items() if name not in without}
+        env.update({name: GIVEN_VALUE for name in given})
     if capture:
         env["RUST_LOG"] = "error"
     return subprocess.run(
@@ -2099,8 +2215,8 @@ def run_peppy(argv, capture=False, without=()):
     )
 
 
-def checked(run, argv, capture=False, without=()):
-    completed = run(argv, capture, without)
+def checked(run, argv, capture=False, without=(), given=()):
+    completed = run(argv, capture, without, given)
     if completed.returncode != 0:
         raise CommandFailed(argv, completed.returncode)
     return completed
@@ -2176,7 +2292,7 @@ def launch_start_to_end(launch, run, stand_times):
     robot than the one planned fails the launch, and a copy whose robot the
     engine took out after it stood fails it too."""
     with stand_times.timing(launch.label, "launch", launch.launch_stands):
-        checked(run, launch_command(launch))
+        checked(run, launch_command(launch), given=launch.given)
     if launch.launch_joins:
         hold_copy_to_preview(launch, run)
     if launch.join_option:
@@ -2189,19 +2305,23 @@ def launch_start_to_end(launch, run, stand_times):
 
 
 def refused_before_any_build(refused, run):
-    """Runs a launch without the launch variables it needs: it is refused,
-    with a message that names each of them, and the stack holds the nodes it
-    held before, so the launch added and built none."""
+    """Runs a launch without the launch variables it needs, or with a set
+    held in part: it is refused, with a message that names each variable it
+    lacks, and that says that a set is held in part where one is, and the
+    stack holds the nodes it held before, so the launch added and built
+    none."""
     listed = ["peppy", "stack", "list", "--json"]
     before = stack_nodes(checked(run, listed, capture=True).stdout)
     argv = launch_command(refused)
-    completed = run(argv, True, refused.variables)
+    completed = run(argv, True, refused.variables, refused.given)
     print(completed.stdout, end="", flush=True)
     if completed.returncode == 0:
         raise LaunchNotRefused(argv, refused.variables)
     unnamed = [variable for variable in refused.variables if f"`{variable}`" not in completed.stdout]
     if unnamed:
         raise RefusalNamesTooLittle(argv, unnamed)
+    if refused.holds_a_set_in_part and SET_HELD_IN_PART not in completed.stdout:
+        raise RefusalHoldsNoSetInPart(argv, refused.given)
     after = stack_nodes(checked(run, listed, capture=True).stdout)
     if after != before:
         raise RefusedLaunchChangedTheNodes(argv, before, after)

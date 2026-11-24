@@ -723,13 +723,20 @@ jobs:
       # gpt-6-astra, whose key is OPENROUTER_API_KEY. A launch forwards its
       # environment to the nodes it starts, so both keys are set here. A
       # join of a launcher that names launch variables runs without them,
-      # and simulation_mcp names GEMINI_API_KEY, so the brain of each OpenArm
-      # that such a join starts gets the key that the daemon kept from the
-      # launch. The values are placeholders: the brain's start only checks
-      # that each key is set, its first search or grab is its first call to
-      # the provider, and no launch here runs one. So no real key is needed,
-      # and a pull request from a fork, which is given no secrets, launches
-      # the brain as well.
+      # so the brain of each OpenArm that such a join starts gets the values
+      # that the daemon kept from the launch. simulation_mcp names an
+      # `any_of` of two sets, OPENAI_COMPATIBLE_API_BASE and
+      # OPENAI_COMPATIBLE_API_KEY, else GEMINI_API_KEY: the first launch of
+      # it that needs the `any_of` holds the first set, which the planner
+      # gives (its `GIVEN_VALUE`), so its brain comes up through the API,
+      # and the other launches take GEMINI_API_KEY from here. A refused
+      # launch holds the API's base without its key, beside GEMINI_API_KEY.
+      # The values are placeholders: the brain's start only checks that each
+      # value is set and that the base of the API is an http address, its
+      # first search or grab is its first call to the provider or the API,
+      # and no launch here runs one. So no real key is needed, and a pull
+      # request from a fork, which is given no secrets, launches the brain
+      # as well.
       - name: Launch every planned combination start to end
         env:
           PLAN: ${{ needs.discover.outputs.plan }}

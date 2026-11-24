@@ -1,9 +1,9 @@
 // The simulated botshare base, botshare.ai's OpenAMRobot 2.0 base: the
 // initializer that joins the simulation as this robot, its backbone that
 // drives the base's two wheels, the server of its tree of frames, and the
-// robot's own axes, its rendered camera and its navigator. The simulation
-// plays the wheels' follower role toward the backbone, on joint_link, in each
-// simulation's bases slot.
+// robot's own axes, its rendered camera, its navigator, its swept lidar
+// and its room mapper. The simulation plays the wheels' follower role
+// toward the backbone, on joint_link, in each simulation's bases slot.
 //
 // base_motion's goals drive it, from the robots' MCP endpoint when the
 // launcher runs one. A person drives it by hand on drive_link: through
@@ -127,6 +127,8 @@
     { robot_commander: "none" },
     { camera_rig: "none" },
     { navigator: "none" },
+    { lidar_rig: "none" },
+    { mapper: "none" },
   ],
 
   components: [
@@ -161,6 +163,26 @@
         base_navigator: "base_navigator.json5",
       },
     },
+    {
+      // The swept lidar, the RPLIDAR S3 (`lidar_sim`). A swept lidar costs
+      // the simulation its rays, so the robot starts without one: the
+      // option on a copy turns it on.
+      name: "lidar_rig",
+      options: {
+        none: "../../common/fragments/none.json5",
+        lidar_sim: "lidar_sim.json5",
+      },
+    },
+    {
+      // The room mapper (`room_mapper`), which maps the rooms the base
+      // drives in from the lidar, saves the maps by name and keeps the base
+      // localized in the loaded one; `none` gives none.
+      name: "mapper",
+      options: {
+        none: "../../common/fragments/none.json5",
+        room_mapper: "room_mapper.json5",
+      },
+    },
   ],
 
   constraints: [
@@ -170,6 +192,19 @@
     { when: { camera_rig: "cameras_sim" },
       requires: [{ robot_control: "robot_control" }, { teleop: "xr_commander", robot_commander: "none", navigator: "none" }, { navigator: "base_navigator" }],
       reason: "the camera needs a consumer: launch with robot_control (the MCP endpoint lists the camera), select navigator=base_navigator (the navigator's grid reads it), select robot_commander=none and launch with xr_commander (the headset shows it), or select camera_rig=none" },
+    // The lidar's scans need a consumer: the room mapper maps from them.
+    { when: { lidar_rig: "lidar_sim" },
+      requires: [{ mapper: "room_mapper" }],
+      reason: "the lidar needs a consumer: select room_mapper (it maps from the lidar's scans), or select lidar_rig=none" },
+    // The room mapper maps from the lidar.
+    { when: { mapper: "room_mapper" },
+      requires: [{ lidar_rig: "lidar_sim" }],
+      reason: "the room mapper maps from the lidar: select lidar_sim, or select mapper=none" },
+    // The mapper needs a caller: the robots' MCP endpoint lists room_map's
+    // tools, which start a map, save it, load one and localize the base.
+    { when: { mapper: "room_mapper" },
+      requires: [{ robot_control: "robot_control" }],
+      reason: "the room mapper needs a caller: launch with robot_control (the MCP endpoint lists room_map's tools), or select mapper=none" },
     // The drive controls are on Waldo's page, and lead the base alone.
     { when: { robot_commander: "drive_controls" },
       requires: [{ simulation: "waldo", navigator: "none" }],
@@ -193,6 +228,10 @@
     // navigator's base slot.
     { target: "backbone_inst", when: { navigator: "base_navigator" },
       set_links: { leader_base: "navigator_inst/base" } },
+    // The mapper publishes map to odom on the robot's tree, so the transform
+    // server takes it among the tree's publishers.
+    { target: "transforms_inst", when: { mapper: "room_mapper" },
+      add_links: { transforms: ["mapper_inst"] } },
     // Isaac steps its physics slower than the others: 6 of its 60 Hz wheel
     // states span the odometry's 0.1 s.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },

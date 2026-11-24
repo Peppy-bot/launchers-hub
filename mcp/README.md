@@ -164,7 +164,7 @@ The brain reaches that model one of two ways, from the shell that launches
 the stack: through an OpenAI-compatible API, a local model server among
 them, whose base address and key are `OPENAI_COMPATIBLE_API_BASE` and
 `OPENAI_COMPATIBLE_API_KEY`, or at Google's API, whose key is
-`GEMINI_API_KEY`. The launcher names both sets as a `one_of` of launch
+`GEMINI_API_KEY`. The launcher names both sets as an `any_of` of launch
 variables of the brain, with `set_env_from_launch`: the brain takes the
 first set that the shell holds complete, and no variable of the other, so
 with all three exported it calls its models through the API. Through the
@@ -182,6 +182,11 @@ set. No other node receives them.
   builds anything, with a message that names both sets, the brain
   `brain_inst` of the option `openarm_sim`, and `framework_controls_inst`
   and `sim_harness_inst`, whose `stack.join` can add an OpenArm.
+- A launch whose shell holds one of `OPENAI_COMPATIBLE_API_BASE` and
+  `OPENAI_COMPATIBLE_API_KEY` without the other is refused too, also with
+  `GEMINI_API_KEY`, and the message names the variable that the set lacks:
+  the brain never takes Google's key in place of an API that the shell names
+  in part.
 - A launch with `--with robot_control=none` and no OpenArm in `--join`
   starts no brain and needs neither set. A `peppy stack join` of an OpenArm
   onto it needs one complete set in the shell that joins, or in the shell

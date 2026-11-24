@@ -277,7 +277,7 @@ ROUTER_BRAIN_MODELS = {
         "target": "brain_inst", "when": {"brain": "vlm_router_brain"},
         "set_arguments": {"perception_model": "gemini-robotics-er-2-preview",
                           "manipulation_model": "gemini-robotics-er-2-preview"},
-        "set_env_from_launch": {"one_of": [["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], ["GEMINI_API_KEY"]]},
+        "set_env_from_launch": {"any_of": [["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], ["GEMINI_API_KEY"]]},
     },
 }
 
@@ -686,29 +686,32 @@ class OptionShapeTests(unittest.TestCase):
                     self.parts(spec)
                 self.assertIn(refusal, str(raised.exception))
 
-    def test_a_one_of_of_launch_variables_is_an_operation(self):
-        # As peppy reads it: an object whose one key `one_of` holds two lists
-        # of names or more; a name can be in several lists.
+    def test_an_any_of_of_launch_variables_is_an_operation(self):
+        # As peppy reads it: an object whose one key `any_of` holds two lists
+        # of names or more, each name in one list only.
         for variables in (
-            {"one_of": [["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], ["GEMINI_API_KEY"]]},
-            {"one_of": [["TOOL_KEY", "A_KEY"], ["TOOL_KEY", "B_KEY"], ["C_KEY"]]},
+            {"any_of": [["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], ["GEMINI_API_KEY"]]},
+            {"any_of": [["TOOL_KEY", "A_KEY"], ["B_KEY"], ["C_KEY", "D_KEY"]]},
         ):
             with self.subTest(variables=variables):
                 spec = {"fragments": ["fragments/a.json5"], "adjustments": [
                     {"target": "brain_inst", "set_env_from_launch": variables}]}
                 self.assertEqual(self.parts(spec), ["fragments/a.json5"])
 
-    def test_a_one_of_is_two_lists_of_distinct_names_or_more(self):
-        shape = "as `{ one_of: [...] }` of two lists of them or more"
+    def test_an_any_of_is_two_lists_of_distinct_names_or_more(self):
+        shape = "as `{ any_of: [...] }` of two lists of them or more"
         for variables, refusal in (
-            ({"one_of": [["A_KEY"]]}, shape),
-            ({"one_of": []}, shape),
-            ({"one_of": [["A_KEY"], []]}, shape),
-            ({"one_of": "A_KEY"}, shape),
-            ({"one_of": [["A_KEY"], ["B_KEY"]], "all": ["C_KEY"]}, shape),
+            ({"any_of": [["A_KEY"]]}, shape),
+            ({"any_of": []}, shape),
+            ({"any_of": [["A_KEY"], []]}, shape),
+            ({"any_of": "A_KEY"}, shape),
+            ({"any_of": [["A_KEY"], ["B_KEY"]], "all": ["C_KEY"]}, shape),
             ({}, shape),
-            ({"one_of": [["A_KEY"], [""]]}, "writes `set_env_from_launch` as a list of variable names"),
-            ({"one_of": [["A_KEY", "A_KEY"], ["B_KEY"]]}, "names one launch variable twice"),
+            ({"any_of": [["A_KEY"], [""]]}, "writes `set_env_from_launch` as a list of variable names"),
+            ({"any_of": [["A_KEY", "A_KEY"], ["B_KEY"]]}, "names one launch variable twice"),
+            ({"any_of": [["A_KEY"], ["A_KEY"]]}, "names one launch variable in two sets"),
+            ({"any_of": [["A_KEY"], ["B_KEY", "A_KEY"]]}, "names one launch variable in two sets"),
+            ({"any_of": [["A_KEY", "B_KEY"], ["C_KEY", "B_KEY"]]}, "names one launch variable in two sets"),
         ):
             with self.subTest(variables=variables):
                 spec = {"fragments": ["fragments/a.json5"], "adjustments": [
@@ -3659,8 +3662,8 @@ class LaunchVariableTests(unittest.TestCase):
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         self.assertEqual(resolution.launch_variables, ("GEMINI_API_KEY", "OPENROUTER_API_KEY"))
 
-    def test_a_resolve_names_each_name_of_each_set_of_a_one_of(self):
-        # The line of a `one_of` names every set; the launch needs one of them,
+    def test_a_resolve_names_each_name_of_each_set_of_an_any_of(self):
+        # The line of an `any_of` names every set; the launch needs one of them,
         # so the launch that runs without its launch variables runs without
         # every name, and its refusal names each one.
         candidate = combinations.Candidate("sim", "sim.json5", "", "", "", False)
@@ -3672,7 +3675,7 @@ class LaunchVariableTests(unittest.TestCase):
             "stack.join through `framework_controls_inst` can add a copy of `openarm_sim`",
             "launch variables: the launch needs `TOOL_KEY` from the shell that launches: "
             "`tool_inst` takes it from the launch, and the launch starts it",
-            # A placement line of a `one_of` adds no name.
+            # A placement line of an `any_of` adds no name.
             "launch variables: `alpha_brain_inst` takes one set of `A_KEY`, or of `B_KEY` from the "
             "launch and a word places it on `cn-peer`, so the launch refuses it unless `cn-peer` is "
             "the coordinator",

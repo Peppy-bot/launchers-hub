@@ -190,7 +190,7 @@ ai_brain_vla@cn-gpu-box` runs it on `cn-gpu-box`, a machine with an NVIDIA
 GPU for its perception models, and the rest of the robot on its own
 machine. `simulation_mcp` gives every `openarm_sim` copy `vlm_router_brain`
 from its entry, on Gemini Robotics-ER for perception and manipulation, and
-names a `one_of` of launch variables of the brain, the two variables of an
+names an `any_of` of launch variables of the brain, the two variables of an
 OpenAI-compatible API or `GEMINI_API_KEY`: the brain takes the first set
 that the shell that launches holds complete, the daemon gives that set to
 the brain of each OpenArm that a later join starts, and a brain with launch

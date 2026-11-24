@@ -11,7 +11,7 @@
 //     for a model on Google's API, OPENROUTER_API_KEY for a model on
 //     OpenRouter.
 // A launcher names these variables with `set_env_from_launch` on
-// brain_inst, as a list, or as a `one_of` of both ways, whose first set
+// brain_inst, as a list, or as an `any_of` of both ways, whose first set
 // that the shell holds complete the brain takes: the daemon then takes the
 // variables from the shell that launches, keeps them, and gives them to the
 // brain that the launch or a later join starts, and it refuses a launch

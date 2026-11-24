@@ -106,7 +106,8 @@ nodes-hub. Every OpenArm of `simulation_mcp` has the router brain, which
 calls its models through an OpenAI-compatible API, with
 `OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, or at Google's
 API, with `GEMINI_API_KEY`, as the shell that launches exports: a launch of it
-that can start an OpenArm is refused when the shell holds neither set
+that can start an OpenArm is refused when the shell holds neither set, or
+one of the two API variables without the other
 ([mcp/README.md](mcp/README.md)). Run join and remove on the coordinator, locally or with
 `--core-node NAME`. A copy runs on the machine its name is placed on:
 `OPTION:NAME@CORE_NODE` on `stack join` and on `--join`, and `--place

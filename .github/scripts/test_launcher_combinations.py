@@ -686,6 +686,37 @@ class OptionShapeTests(unittest.TestCase):
                     self.parts(spec)
                 self.assertIn(refusal, str(raised.exception))
 
+    def test_a_one_of_of_launch_variables_is_an_operation(self):
+        # As peppy reads it: an object whose one key `one_of` holds two lists
+        # of names or more; a name can be in several lists.
+        for variables in (
+            {"one_of": [["OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY"], ["GEMINI_API_KEY"]]},
+            {"one_of": [["TOOL_KEY", "A_KEY"], ["TOOL_KEY", "B_KEY"], ["C_KEY"]]},
+        ):
+            with self.subTest(variables=variables):
+                spec = {"fragments": ["fragments/a.json5"], "adjustments": [
+                    {"target": "brain_inst", "set_env_from_launch": variables}]}
+                self.assertEqual(self.parts(spec), ["fragments/a.json5"])
+
+    def test_a_one_of_is_two_lists_of_distinct_names_or_more(self):
+        shape = "as `{ one_of: [...] }` of two lists of them or more"
+        for variables, refusal in (
+            ({"one_of": [["A_KEY"]]}, shape),
+            ({"one_of": []}, shape),
+            ({"one_of": [["A_KEY"], []]}, shape),
+            ({"one_of": "A_KEY"}, shape),
+            ({"one_of": [["A_KEY"], ["B_KEY"]], "all": ["C_KEY"]}, shape),
+            ({}, shape),
+            ({"one_of": [["A_KEY"], [""]]}, "writes `set_env_from_launch` as a list of variable names"),
+            ({"one_of": [["A_KEY", "A_KEY"], ["B_KEY"]]}, "names one launch variable twice"),
+        ):
+            with self.subTest(variables=variables):
+                spec = {"fragments": ["fragments/a.json5"], "adjustments": [
+                    {"target": "brain_inst", "set_env_from_launch": variables}]}
+                with self.assertRaises(combinations.Json5Error) as raised:
+                    self.parts(spec)
+                self.assertIn(refusal, str(raised.exception))
+
     def test_an_adjustment_target_is_one_instance_or_a_list_of_distinct_ones(self):
         # As peppy reads it: a list names each instance once, each an id.
         listed = {"fragments": ["fragments/a.json5"], "adjustments": [
@@ -3627,6 +3658,31 @@ class LaunchVariableTests(unittest.TestCase):
         resolution = combinations.resolution_of(candidate, answer, {})
         self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
         self.assertEqual(resolution.launch_variables, ("GEMINI_API_KEY", "OPENROUTER_API_KEY"))
+
+    def test_a_resolve_names_each_name_of_each_set_of_a_one_of(self):
+        # The line of a `one_of` names every set; the launch needs one of them,
+        # so the launch that runs without its launch variables runs without
+        # every name, and its refusal names each one.
+        candidate = combinations.Candidate("sim", "sim.json5", "", "", "", False)
+        answer = reporting(
+            resolved_plan("waldo:v1"),
+            "launch variables: the launch needs one set of `OPENAI_COMPATIBLE_API_BASE` and "
+            "`OPENAI_COMPATIBLE_API_KEY`, or of `GEMINI_API_KEY`, from the shell that launches: "
+            "`brain_inst` of option `openarm_sim` takes the first complete set from the launch, and "
+            "stack.join through `framework_controls_inst` can add a copy of `openarm_sim`",
+            "launch variables: the launch needs `TOOL_KEY` from the shell that launches: "
+            "`tool_inst` takes it from the launch, and the launch starts it",
+            # A placement line of a `one_of` adds no name.
+            "launch variables: `alpha_brain_inst` takes one set of `A_KEY`, or of `B_KEY` from the "
+            "launch and a word places it on `cn-peer`, so the launch refuses it unless `cn-peer` is "
+            "the coordinator",
+        )
+        resolution = combinations.resolution_of(candidate, answer, {})
+        self.assertIs(resolution.verdict, combinations.Verdict.LAUNCH)
+        self.assertEqual(
+            resolution.launch_variables,
+            ("GEMINI_API_KEY", "OPENAI_COMPATIBLE_API_BASE", "OPENAI_COMPATIBLE_API_KEY", "TOOL_KEY"),
+        )
 
     def test_every_launch_of_a_launcher_with_launch_variables_joins_without_them(self):
         # The bare launch needs the key for the robots a scope can add, and

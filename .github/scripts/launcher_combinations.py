@@ -111,6 +111,15 @@ UNCHECKED_MARKS = (LINK_RULES_UNCHECKED_MARK, DAEMON_SCOPES_UNCHECKED_MARK)
 LAUNCH_VARIABLE_NEED = re.compile(
     r"^launch variables: the launch needs `([^`]+)` from the shell that launches"
 )
+# It writes one line for each `one_of` of which the launch needs one complete
+# set: an instance takes the first of its sets that the shell holds complete.
+# The line names each set, `A` and `B`, or of `C`, before the words that
+# close the list. A launch without any name of the sets is refused.
+LAUNCH_VARIABLE_SET_NEED = re.compile(
+    r"^launch variables: the launch needs one set of (.+?), from the shell that launches: "
+)
+# A name in backticks.
+BACKTICKED = re.compile(r"`([^`]+)`")
 
 # The environment variable the step that fills the caches sets when it knows
 # they are short: its value says why, in one clause, and a resolve reporting
@@ -472,7 +481,8 @@ BODY_SHAPES = {
 #: their scopes, by target name; `peppy` parses each scope against the
 #: exposure when it resolves the launcher, so the planner reads it as a map.
 #: `set_env_from_launch` names the launch variables of the target: the
-#: variables it takes from the environment of the launch.
+#: variables it takes from the environment of the launch, a list of names or
+#: a `one_of` of two lists of them or more.
 ADJUSTMENT_OPERATIONS = (
     "set_arguments",
     "set_framework",
@@ -491,6 +501,23 @@ def writes_operation(entry, operation):
     if operation == "set_env_from_launch":
         return operation in entry
     return bool(entry.get(operation))
+
+
+def launch_variable_lists(written, label, target):
+    """The lists of names of one `set_env_from_launch`, as `peppy` reads it:
+    a list of names, or an object whose one key `one_of` holds two lists of
+    names or more, none empty. Each list is checked by the caller."""
+    if not isinstance(written, dict):
+        return [written]
+    sets = written.get("one_of")
+    if set(written) != {"one_of"} or not isinstance(sets, list) or len(sets) < 2 or any(
+        not isinstance(names, list) or not names for names in sets
+    ):
+        raise Json5Error(
+            f"{label}: adjustment on `{target}` writes `set_env_from_launch` as a list of "
+            "variable names, or as `{ one_of: [...] }` of two lists of them or more"
+        )
+    return sets
 
 
 def check_adjustments(written, label):
@@ -533,19 +560,19 @@ def check_adjustments(written, label):
                 )
         if any(not slot.strip() for slot in (entry.get("unset_links") or [])):
             raise Json5Error(f"{label}: adjustment on `{target}` unsets an empty link key")
-        variables = entry.get("set_env_from_launch", [])
-        if not isinstance(variables, list) or any(
-            not isinstance(variable, str) or not variable.strip() for variable in variables
-        ):
-            raise Json5Error(
-                f"{label}: adjustment on `{target}` writes `set_env_from_launch` as a list of "
-                "variable names"
-            )
-        if len(set(variables)) != len(variables):
-            raise Json5Error(
-                f"{label}: adjustment on `{target}` names one launch variable twice in "
-                "`set_env_from_launch`"
-            )
+        for variables in launch_variable_lists(entry.get("set_env_from_launch", []), label, target):
+            if not isinstance(variables, list) or any(
+                not isinstance(variable, str) or not variable.strip() for variable in variables
+            ):
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` writes `set_env_from_launch` as a list of "
+                    "variable names"
+                )
+            if len(set(variables)) != len(variables):
+                raise Json5Error(
+                    f"{label}: adjustment on `{target}` names one launch variable twice in "
+                    "`set_env_from_launch`"
+                )
         for slot, targets in (entry.get("add_links") or {}).items():
             if not targets:
                 raise Json5Error(
@@ -1370,10 +1397,15 @@ def resolution_of(candidate, record, skips):
 
 def needed_launch_variables(report):
     """The launch variables the lines of a resolve's report say the launch
-    needs from the shell that launches, sorted."""
-    return tuple(sorted({
-        need.group(1) for line in report if (need := LAUNCH_VARIABLE_NEED.match(line))
-    }))
+    needs from the shell that launches, sorted: each variable of a list, and
+    each name of each set of a `one_of`."""
+    names = set()
+    for line in report:
+        if need := LAUNCH_VARIABLE_NEED.match(line):
+            names.add(need.group(1))
+        elif sets := LAUNCH_VARIABLE_SET_NEED.match(line):
+            names.update(BACKTICKED.findall(sets.group(1)))
+    return tuple(sorted(names))
 
 
 def resolve_launcher(root, launcher, skips):

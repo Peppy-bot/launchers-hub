@@ -114,8 +114,8 @@
             // words miss is still reported under the catalogue's name; this
             // is a condition of the simulation, not of the robot, whose brain
             // names by words alone. vlm_router_brain asks a hosted model
-            // instead, with the key the launching shell exports, and needs
-            // no GPU.
+            // instead, through the OpenAI-compatible API or with the provider
+            // key that the launching shell names, and needs no GPU.
             // perception_model: the node's own default applies (see the node's peppy.json5, parameter perception_model).
             { target: "brain_inst", when: { brain: "ai_brain_vla", simulation: "waldo" },
               set_arguments: { perception_gallery: "waldo_catalogue" } },
@@ -129,8 +129,11 @@
             // The router brain aligns its grab and its place with a catalog
             // model, which looks through the arm's wrist camera and the chest
             // camera above the item or the spot before the descent; it needs
-            // OPENROUTER_API_KEY in the launching shell. The node's own
-            // default, "scripted", moves with no model call.
+            // OPENROUTER_API_KEY in the launching shell, or
+            // OPENAI_COMPATIBLE_API_BASE and OPENAI_COMPATIBLE_API_KEY, the
+            // base address and the key of an OpenAI-compatible API that the
+            // brain then calls every model through. The node's own default,
+            // "scripted", moves with no model call.
             { target: "brain_inst", when: { brain: "vlm_router_brain" },
               set_arguments: { manipulation_model: "gpt-6-astra" } },
             // The router brain plans the arm's transits with the copy's

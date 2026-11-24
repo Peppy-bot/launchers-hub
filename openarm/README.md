@@ -179,8 +179,10 @@ simulation launchers also enrol the catalogue's table objects from the
 prototypes the node ships, so a rendered mesh is reported under the
 catalogue's name, a condition of the simulation and not of the robot, which
 enrols nothing. `vlm_router_brain` starts on Gemini Robotics-ER and needs
-its key, `GEMINI_API_KEY`, exported in the shell that launches; it needs no
-GPU. The brain's tools are listed under the robot's name on the
+its key, `GEMINI_API_KEY`, exported in the shell that launches, or
+`OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, the base address
+and the key of an OpenAI-compatible API that it then calls every model
+through; it needs no GPU. The brain's tools are listed under the robot's name on the
 `robot_control` endpoint, beside the direct moves and the recorder's
 episodes. The brain runs on the copy's machine, or on the machine its word
 names: `--with
@@ -188,10 +190,11 @@ ai_brain_vla@cn-gpu-box` runs it on `cn-gpu-box`, a machine with an NVIDIA
 GPU for its perception models, and the rest of the robot on its own
 machine. `simulation_mcp` gives every `openarm_sim` copy `vlm_router_brain`
 from its entry, on Gemini Robotics-ER for perception and manipulation, and
-names `GEMINI_API_KEY` as a launch variable of the brain: the daemon takes
-it from the shell that launches and gives it to the brain of each OpenArm
-that a later join starts, and a brain with a launch variable runs on the
-coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
+names a `one_of` of launch variables of the brain, the two variables of an
+OpenAI-compatible API or `GEMINI_API_KEY`: the brain takes the first set
+that the shell that launches holds complete, the daemon gives that set to
+the brain of each OpenArm that a later join starts, and a brain with launch
+variables runs on the coordinator. `--with ai_brain_vla` on a join of that launcher replaces the
 router brain.
 
 A v2 copy's `motion_planner` axis adds the motion planner, the node

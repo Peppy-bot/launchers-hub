@@ -160,24 +160,33 @@ The launcher writes the perception model although it is the node's own
 default, so a change of that default does not change the brain of this
 stack.
 
-The key of that model, `GEMINI_API_KEY`, comes from the shell that launches
-the stack. The launcher names it as a launch variable of the brain, with
-`set_env_from_launch`, so the daemon keeps its value for the life of the
-stack and gives it to the brain of each OpenArm that the launch or a later
-join starts: a `stack.join` of the framework's endpoint and a `peppy stack
-join` alike, and a `peppy stack join` whose shell exports the key gives its
-own value. No other node receives it.
+The brain reaches that model one of two ways, from the shell that launches
+the stack: through an OpenAI-compatible API, a local model server among
+them, whose base address and key are `OPENAI_COMPATIBLE_API_BASE` and
+`OPENAI_COMPATIBLE_API_KEY`, or at Google's API, whose key is
+`GEMINI_API_KEY`. The launcher names both sets as a `one_of` of launch
+variables of the brain, with `set_env_from_launch`: the brain takes the
+first set that the shell holds complete, and no variable of the other, so
+with all three exported it calls its models through the API. Through the
+API it asks for each model by its catalog name, so the API serves
+`gemini-robotics-er-2-preview` under that name. The daemon keeps the values
+for the life of the stack and gives the set to the brain of each OpenArm
+that the launch or a later join starts: a `stack.join` of the framework's
+endpoint takes the set of the launch, and a `peppy stack join` reads its
+own shell first, then the values of the launch, for each value and for the
+set. No other node receives them.
 
-- A launch that can start an OpenArm needs the key: a launch with the
-  robots' endpoint, whose `stack.join` adds OpenArms, and a launch with an
-  OpenArm in `--join`. Without it the launch is refused before it builds
-  anything, with a message that names `GEMINI_API_KEY`, the brain
+- A launch that can start an OpenArm needs one complete set: a launch with
+  the robots' endpoint, whose `stack.join` adds OpenArms, and a launch with
+  an OpenArm in `--join`. Without one the launch is refused before it
+  builds anything, with a message that names both sets, the brain
   `brain_inst` of the option `openarm_sim`, and `framework_controls_inst`
   and `sim_harness_inst`, whose `stack.join` can add an OpenArm.
 - A launch with `--with robot_control=none` and no OpenArm in `--join`
-  starts no brain and needs no key. A `peppy stack join` of an OpenArm onto
-  it needs the key in the shell that joins, or in the shell that launched.
-- The brain takes a launch variable, so it runs on the coordinator: an
+  starts no brain and needs neither set. A `peppy stack join` of an OpenArm
+  onto it needs one complete set in the shell that joins, or in the shell
+  that launched.
+- The brain takes launch variables, so it runs on the coordinator: an
   OpenArm on another machine joins with its router brain on the
   coordinator, `--with vlm_router_brain@self`, and `stack.join` adds an
   OpenArm on `this_core_node` only.
@@ -185,8 +194,11 @@ own value. No other node receives it.
   with the brain whose models run on the GPU of its machine. The launch does
   not build `ai_brain_vla`, so that join builds it.
 - `brain.list_models` also lists the models of the brain's catalog that it
-  reaches through OpenRouter. The launcher gives the brain no other key, so
-  `brain.switch_model` to one of them fails with `resource_unavailable`.
+  reaches through OpenRouter. With `GEMINI_API_KEY`, the launcher gives the
+  brain no other key, so `brain.switch_model` to one of them fails with
+  `resource_unavailable`. Through the API, the switch asks the API for the
+  model by its catalog name, and fails with the API's message when the API
+  does not serve it.
 
 `peppy stack list` reports, for the bare launch:
 
@@ -245,7 +257,7 @@ endpoint, then stands it at a work surface on the simulated world's:
    robot, no commander of its own, so the headset leads it, and an OpenArm
    the router brain. Every field is required, and `features` is empty, since
    no option offers one. An OpenArm runs on `this_core_node` only: its brain
-   takes `GEMINI_API_KEY` from the launch, so the addition of an OpenArm on
+   takes its variables from the launch, so the addition of an OpenArm on
    another machine is refused. Every `copies` item of `stack.list` is a
    `stack.join` input, and for a robot that `stack.join` added, that input
    adds the same robot on the same machine.
@@ -305,7 +317,8 @@ progress window, and the call or the task fails.
 ### One robot, two, many
 
 ```sh
-export GEMINI_API_KEY=...                                                          # the key of the brain of each OpenArm
+export GEMINI_API_KEY=...                                                          # the key of the brain of each OpenArm, or:
+export OPENAI_COMPATIBLE_API_BASE=... OPENAI_COMPATIBLE_API_KEY=...                # the API the brain of each OpenArm calls
 peppy stack launch simulation_mcp                                                  # Waldo and the four endpoints, no robot listed
 peppy stack launch simulation_mcp --join openarm_sim:alpha                         # alpha, an OpenArm v2
 peppy stack launch simulation_mcp --join openarm_sim:alpha --join so101_sim:charlie   # alpha and an SO-101
@@ -369,7 +382,7 @@ A robot runs on the machine its name is placed on, the coordinator unless
 `OPTION:NAME@CORE_NODE` names another, and each part of it, the instances
 one of its own axes brings, runs where the word that selects it says. So
 `ai_brain_vla` can run on a machine with an NVIDIA GPU while its robot runs
-beside the simulation. The router brain takes `GEMINI_API_KEY` from the
+beside the simulation. The router brain takes its variables from the
 launch, so it runs on the coordinator, and an OpenArm on another machine
 places it there:
 

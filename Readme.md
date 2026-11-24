@@ -102,9 +102,12 @@ its scene from the models standing in it.
 These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
 requires access to its private node repository; MuJoCo and Isaac Sim are in
-nodes-hub. Every OpenArm of `simulation_mcp` has the router brain, whose key
-`GEMINI_API_KEY` the shell that launches exports: a launch of it that can
-start an OpenArm is refused without the key ([mcp/README.md](mcp/README.md)). Run join and remove on the coordinator, locally or with
+nodes-hub. Every OpenArm of `simulation_mcp` has the router brain, which
+calls its models through an OpenAI-compatible API, with
+`OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, or at Google's
+API, with `GEMINI_API_KEY`, as the shell that launches exports: a launch of it
+that can start an OpenArm is refused when the shell holds neither set
+([mcp/README.md](mcp/README.md)). Run join and remove on the coordinator, locally or with
 `--core-node NAME`. A copy runs on the machine its name is placed on:
 `OPTION:NAME@CORE_NODE` on `stack join` and on `--join`, and `--place
 NAME@CORE_NODE` for a copy the launcher's file lists, else the

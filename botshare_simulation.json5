@@ -10,10 +10,11 @@
     "`peppy stack launch botshare_simulation --with robot_control,alpha.cameras_sim`: driven over MCP, its depth camera served.",
     "`peppy stack launch botshare_simulation --with alpha.drive_controls`: alpha driven by hand from Waldo's page, with its stick, the arrow keys or a gamepad.",
     "`peppy stack launch botshare_simulation --with xr_commander`: alpha driven by hand from the stack's headset, in any simulation.",
+    "`peppy stack launch botshare_simulation --with robot_control,alpha.cameras_sim,alpha.base_navigator`: driven over MCP, its navigator driving it around what its depth camera sees.",
     "`peppy stack join botshare_sim:bravo`: another botshare base beside alpha.",
     "The robot axis offers the botshare base alone, and every simulation stands as many as the machines can run, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the fifth command above does, and `--with cameras_sim` on a join is refused on a launch without one.",
-    "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the base through base_motion, reads its odometry, stops it and sees through its depth camera, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
-    "`--with alpha.drive_controls` gives alpha Waldo's drive controls as its commander, which lead its base on drive_link; Waldo's page lists every base that selects them and drives the one chosen. `--with xr_commander` runs the stack's headset, which leads every base that runs no commander of its own, one at a time, chosen on the headset's page. A base has one leader: the drive controls under Waldo alone, or the headset.",
+    "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the base through base_motion, and through base_navigation where its navigator runs, reads its odometry, stops it and sees through its depth camera, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
+    "`--with alpha.drive_controls` gives alpha Waldo's drive controls as its commander, which lead its base on drive_link; Waldo's page lists every base that selects them and drives the one chosen. `--with xr_commander` runs the stack's headset, which leads every base that runs no commander of its own and no navigator, one at a time, chosen on the headset's page. `--with alpha.base_navigator` gives alpha its navigator, which leads its base for base_navigation's goals. A base has one leader: the drive controls under Waldo alone, the headset, or its navigator.",
     "simulation_mcp stands the base beside the arm robots in one simulation: `peppy stack launch simulation_mcp --join botshare_sim:india`.",
   ],
 
@@ -41,8 +42,8 @@
       },
     },
     // The stack's teleoperation headset, selected with `--with
-    // xr_commander`: a base running no commander of its own pairs into it,
-    // and the headset drives the one chosen on its page.
+    // xr_commander`: a base running no commander of its own and no navigator
+    // pairs into it, and the headset drives the one chosen on its page.
     {
       name: "teleop",
       cardinality: "zero_or_one",
@@ -70,16 +71,20 @@
             // Listed on the MCP endpoint with profile and geometry.
             { target: "robot_control_inst", when: { camera_rig: "cameras_sim" },
               add_links: { depth_camera: ["base_camera"], camera_profile: ["base_camera"], camera_geometry: ["base_camera"] } },
+            // The navigator's tools, listed beside the moves.
+            { target: "robot_control_inst", when: { navigator: "base_navigator" },
+              add_links: { navigator: ["navigator_inst"] } },
             // Rendering, while this robot films.
             { target: "simulation_inst", when: { camera_rig: "cameras_sim" },
               set_arguments: { cameras_enabled: true } },
-            // The stack's headset leads a base with no commander of its own:
-            // the backbone pairs into it (the robot's fragment), and a squeeze
-            // stops the base's moves in flight through its robot_stop.
-            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none" },
+            // The stack's headset leads a base with no commander of its own
+            // and no navigator: the backbone pairs into it (the robot's
+            // fragment), and a squeeze stops the base's moves in flight
+            // through its robot_stop.
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", navigator: "none" },
               add_links: { robot_stop: ["backbone_inst"] } },
             // The stack's headset shows the base's camera while it leads it.
-            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", camera_rig: "cameras_sim" },
+            { target: "headset_inst", when: { teleop: "xr_commander", robot_commander: "none", navigator: "none", camera_rig: "cameras_sim" },
               add_links: { rgbd_cameras: ["base_camera"] } },
           ],
         },

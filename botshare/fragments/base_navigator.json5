@@ -1,0 +1,177 @@
+// The simulated base's navigator: it drives the base to a pose around what
+// the rendered camera sees, and turns it in place and drives it straight
+// ahead or back clear of the same, as base_navigation states, leading the
+// base over drive_link. It reads what the base is from the backbone's
+// base_state, the base's odometry and whether the base follows it from
+// drive_link's drive_states, which sensors the base carries from the
+// initializer's sensor_mounts, the robot's tree from every publisher of it,
+// and the depth frames and geometry of the rendered camera, and keeps its own
+// grid of them in the base's odometry frame.
+//
+// This file writes only the instance it deploys: the navigator axis of
+// botshare_sim.json5 selects it. That robot file supplies init_inst,
+// backbone_inst and the rendered camera, and pairs the backbone into the
+// navigator's base slot, and the launcher that selects the robot lists the
+// navigator's tools on the robots' MCP endpoint. The robot stop and the
+// base's own moves stay the backbone's.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "base_navigator", tag: "v1" },
+      instances: [
+        {
+          instance_id: "navigator_inst",
+          // Every time the navigator reads, the steps of a goal, the age of
+          // a reading and the recoveries' waits, is the simulation's, as the
+          // backbone's is.
+          framework: { clock: "simulation" },
+          // Nav2 1.5.2's defaults wherever Nav2 declares one, each by the
+          // file and line that declares it.
+          arguments: {
+            grid: {
+              // Nav2's costmap default, 5 m by 5 m (nav2_costmap_2d
+              // src/costmap_2d_ros.cpp:392-395), twice the reach out to which
+              // botshare marks obstacles (openamr-platform-sw 69847ab,
+              // openamrobot_nav2/config/nav2_params.yaml:196,
+              // obstacle_max_range). The one grid serves the planner and the
+              // controller with no map, as Nav2's default costmap does.
+              side_m: 5.0,
+              // nav2_bringup params/nav2_params.yaml:249 and 268, the
+              // resolution and z_resolution of the voxel layer Nav2 ships.
+              voxel_size_m: 0.05,
+              // Deeper than max_step_down_m below a scene's ground, which
+              // stands 0.25 m below its floor in Waldo's site example
+              // (waldo/README.md, a scene's site), in whole voxels.
+              min_z_m: -0.4,
+            },
+            // One voxel: the floor's own voxels hold no obstacle.
+            min_obstacle_height_m: 0.05,
+            // The first voxel above the base's highest point, its cover's
+            // top 0.295 m up (its URDF's chassis box): what the base meets is
+            // an obstacle, and a top above it is driven under.
+            max_obstacle_height_m: 0.3,
+            // The first whole voxel past a wheel's 0.1 m radius: a drop
+            // deeper than a wheel's radius stops the base.
+            max_step_down_m: 0.15,
+            // nav2_costmap_2d plugins/obstacle_layer.cpp:167-168, and
+            // botshare's obstacle_max_range (openamrobot_nav2/config/
+            // nav2_params.yaml:196).
+            obstacle_max_range_m: 2.5,
+            // nav2_costmap_2d src/costmap_2d_ros.cpp:387.
+            footprint_padding_m: 0.01,
+            // nav2_costmap_2d plugins/inflation_layer.cpp:95 and 98-99.
+            inflation_radius_m: 0.55,
+            cost_scaling_factor: 10.0,
+            // Smac 2D: nav2_smac_planner include/nav2_smac_planner/
+            // smac_planner_2d_impl.hpp:76-77, 80 and 85-86; its smoother,
+            // types.hpp:82-87.
+            planner: {
+              cost_travel_multiplier: 1.0,
+              max_iterations: 1000000,
+              use_final_approach_orientation: false,
+              smoother: { tolerance_m: 1e-10, max_iterations: 1000, w_data: 0.2, w_smooth: 0.3, refinements: 2 },
+            },
+            // The default tree's RateController (nav2_bt_navigator
+            // behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml:16).
+            replan_rate_hz: 1.0,
+            // The default tree's IsGoalNearby proximity_threshold (the same
+            // tree, :23): a path shorter than this to the goal, with no pose
+            // in collision, is kept, and no plan replaces it.
+            near_goal_distance_m: 4.0,
+            // nav2_controller src/parameter_handler.cpp:35, and botshare's
+            // controller_frequency (openamrobot_nav2/config/
+            // nav2_params.yaml:75).
+            controller_rate_hz: 20.0,
+            // The controller server's failure_tolerance (nav2_controller
+            // src/parameter_handler.cpp:44).
+            failure_tolerance_s: 0.0,
+            // The goal checker's path_length_tolerance (nav2_controller
+            // plugins/simple_goal_checker.cpp:56).
+            path_length_tolerance_m: 1.0,
+            // nav2_controller plugins/feasible_path_handler.cpp:65-66; the
+            // node searches the path for the robot's pose up to half the
+            // grid's side, as :63-64 and :99-105 derive it.
+            prune_distance_m: 2.0,
+            // Regulated pure pursuit: nav2_regulated_pure_pursuit_controller
+            // src/parameter_handler.cpp, by line: 62-63, 58-59, 60-61, 64-65,
+            // 104-105, 110-111, 68-69, 70-71, 94-95, 96-97, 88-89, 90-91 and
+            // 77-79. The approach speed, min_approach_linear_velocity_m_s, lies
+            // above the deadband along x of the backbone's linear_limits
+            // (botshare_sim.json5), so the base closes on its goal.
+            controller: {
+              lookahead_time_s: 1.5,
+              min_lookahead_dist_m: 0.3,
+              max_lookahead_dist_m: 0.9,
+              rotate_to_heading_angular_vel_rad_s: 1.8,
+              rotate_to_heading_min_angle_rad: 0.785,
+              max_angular_accel_rad_s2: 3.2,
+              min_approach_linear_velocity_m_s: 0.05,
+              approach_velocity_scaling_dist_m: 0.6,
+              regulated_linear_scaling_min_radius_m: 0.9,
+              regulated_linear_scaling_min_speed_m_s: 0.25,
+              cost_scaling_dist_m: 0.6,
+              cost_scaling_gain: 1.0,
+              max_allowed_time_to_collision_up_to_carrot_s: 1.0,
+            },
+            // nav2_controller plugins/simple_progress_checker.cpp:54-56.
+            required_movement_m: 0.5,
+            movement_time_allowance_s: 10.0,
+            // The collision monitor's approach: nav2_collision_monitor
+            // src/polygon.cpp:476-479 and src/collision_monitor_node.cpp:
+            // 277-278.
+            time_before_collision_s: 2.0,
+            simulation_time_step_s: 0.1,
+            source_timeout_s: 2.0,
+            // The lookup wait: botshare's behavior_server transform_tolerance
+            // (nav2_params.yaml:317), as the base's backbone waits.
+            lookup_timeout_s: 0.1,
+            // A spin's and a recovery's turn, stepped as Nav2's Spin steps:
+            // its min_rotational_vel (nav2_behaviors plugins/spin.cpp:54).
+            min_turn_rate_rad_s: 0.4,
+            // A straight drive, stepped as Nav2's DriveOnHeading steps, which
+            // BackUp shares (nav2_behaviors include/nav2_behaviors/plugins/
+            // back_up.hpp:28): its minimum_speed (drive_on_heading.hpp:255-256)
+            // in each direction.
+            min_forward_speed_m_s: 0.1,
+            min_backward_speed_m_s: 0.1,
+            // How far ahead a turn and a straight drive sweep the padded
+            // footprint: Spin's and DriveOnHeading's simulate_ahead_time
+            // (spin.cpp:52, drive_on_heading.hpp:249-250).
+            simulate_ahead_time_s: 2.0,
+            // The default tree's recoveries (navigate_to_pose_w_replanning_
+            // and_recovery.xml:55-57: Spin's spin_dist, Wait's wait_duration,
+            // BackUp's backup_dist and backup_speed), and the time_allowance
+            // of its Spin and BackUp (nav2_behavior_tree include/
+            // nav2_behavior_tree/plugins/action/spin_action.hpp:74 and
+            // back_up_action.hpp:91).
+            recoveries: {
+              turn_angle_rad: 1.57,
+              turn_time_allowance_s: 10.0,
+              wait_s: 5.0,
+              back_up_distance_m: 0.3,
+              back_up_speed_m_s: 0.15,
+              back_up_time_allowance_s: 10.0,
+            },
+          },
+          links: {
+            // What the base is: its limits, its footprint and its odometry
+            // source.
+            base_state: "backbone_inst",
+            // Which sensors the robot carries, and the part that carries
+            // each: the grid reads the depth cameras fixed to the base.
+            sensor_mounts: "init_inst",
+            // Every publisher of the robot's tree, which places each goal at
+            // its timestamp and each depth frame by the frame its header
+            // names at its time.
+            transforms: ["init_inst", "backbone_inst"],
+            // The Gemini's depth frames and geometry.
+            cameras: ["base_camera"],
+            geometry: ["base_camera"],
+          },
+        },
+      ],
+    },
+  ],
+}

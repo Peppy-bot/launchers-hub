@@ -7,7 +7,8 @@
 //
 // A robot whose robot_commander is none pairs its backbone's sockets into
 // the slots of the parts it has (its own fragment declares the pairs): an
-// arm robot its pose and gripper sockets, a base its leader_base socket.
+// arm robot its pose and gripper sockets, a base whose navigator is none
+// too its leader_base socket.
 // The launcher binds its postures, robot_stop, recorder, cameras, alerts
 // and motor health here under the option that selects the robot. A launcher
 // with Waldo binds the simulation's sensor streams too, through which the

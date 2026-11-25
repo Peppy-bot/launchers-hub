@@ -1630,10 +1630,10 @@ class CombinationsTests(unittest.TestCase):
                          {"none": "../../common/fragments/none.json5", "room_mapper": "room_mapper.json5"})
         self.assertIn({"lidar_rig": "none"}, base["deployments"])
         self.assertIn({"mapper": "none"}, base["deployments"])
-        # The lidar needs a consumer, and the mapper needs the lidar: each
-        # refusal says what to select.
+        # The lidar needs a consumer, the mapper or the navigator, and the mapper
+        # needs the lidar: each refusal says what to select.
         unread, = [c for c in base["constraints"] if c.get("when") == {"lidar_rig": "lidar_sim"}]
-        self.assertEqual(unread["requires"], [{"mapper": "room_mapper"}])
+        self.assertEqual(unread["requires"], [{"mapper": "room_mapper"}, {"navigator": "base_navigator"}])
         self.assertIn("select room_mapper", unread["reason"])
         self.assertIn("lidar_rig=none", unread["reason"])
         # The lidar's relay, named as the lidar of the model's description,
@@ -1734,7 +1734,7 @@ class CombinationsTests(unittest.TestCase):
             spans[engine] = Fraction(window, rate)
         self.assertEqual(spans, dict.fromkeys(spans, Fraction(1, 10)))
 
-    def test_the_bases_navigator_leads_it_around_what_its_camera_sees(self):
+    def test_the_bases_navigator_leads_it_around_what_its_camera_and_its_lidar_see(self):
         root = Path(__file__).resolve().parents[2]
         base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
         # An axis of the robot's own, `one`, deployed as `none`: a copy runs
@@ -1746,9 +1746,12 @@ class CombinationsTests(unittest.TestCase):
         self.assertIn({"navigator": "none"}, base["deployments"])
         # One navigator on the simulation's clock. It reads what the base is
         # from the backbone, the sensors the base carries from the
-        # initializer, the robot's tree from every publisher the transform
-        # server reads, and the depth frames and geometry of the rig's
-        # relays, and writes no adjustment: the robot file pairs it.
+        # initializer and odom's tree from the publishers the transform
+        # server's own links name, the initializer and the backbone; it
+        # places map by the room mapper's map_poses. Its own adjustments bind
+        # the rig's relays, the lidar's relay and the room mapper of the axes
+        # that run them, and its map link stays vacant, saying what to select,
+        # while no room mapper runs.
         fragment = option_file(ROBOT_FILES["botshare_sim"], "base_navigator.json5")
         deployment, = fragment["deployments"]
         self.assertEqual(deployment["source"], {"name": "base_navigator", "tag": "v1"})
@@ -1758,22 +1761,41 @@ class CombinationsTests(unittest.TestCase):
         relays = [instance["instance_id"]
                   for rig in option_file(ROBOT_FILES["botshare_sim"], "cameras_sim.json5")["deployments"]
                   for instance in rig["instances"]]
-        self.assertEqual(navigator["links"], {
+        lidars = [instance["instance_id"]
+                  for rig in option_file(ROBOT_FILES["botshare_sim"], "lidar_sim.json5")["deployments"]
+                  for instance in rig["instances"]]
+        mappers = [instance["instance_id"]
+                   for deployment in option_file(ROBOT_FILES["botshare_sim"], "room_mapper.json5")["deployments"]
+                   for instance in deployment["instances"]]
+        links = dict(navigator["links"])
+        unmapped = links.pop("room_map")
+        self.assertEqual(links, {
             "base_state": "backbone_inst",
             "sensor_mounts": "init_inst",
             "transforms": instance_of(base, "transforms_inst")["links"]["transforms"],
-            "cameras": relays,
-            "geometry": relays,
         })
-        self.assertNotIn("adjustments", fragment)
+        self.assertEqual(set(unmapped), {"vacant"})
+        self.assertIn("select mapper=room_mapper", unmapped["vacant"])
+        self.assertEqual(fragment["adjustments"], [
+            {"target": "navigator_inst", "when": {"camera_rig": "cameras_sim"},
+             "add_links": {"cameras": relays, "geometry": relays}},
+            {"target": "navigator_inst", "when": {"lidar_rig": "lidar_sim"}, "add_links": {"lidars": lidars}},
+            {"target": "navigator_inst", "when": {"mapper": "room_mapper"},
+             "set_links": {"room_map": mappers[0]}},
+        ])
+        self.assertEqual(len(mappers), 1)
         # The navigator leads the base: the backbone pairs into its base slot.
         self.assertIn({"target": "backbone_inst", "when": {"navigator": "base_navigator"},
                        "set_links": {"leader_base": "navigator_inst/base"}}, base["adjustments"])
-        # The navigator reads the rig's camera, so it requires the rig and is
-        # one of the camera's consumers, each rule saying what to select.
+        # The navigator reads the rig's camera or the lidar, so it requires
+        # one of them and is a consumer of each, each rule saying what to
+        # select.
         rule, = [c for c in base["constraints"] if c.get("when") == {"navigator": "base_navigator"}]
-        self.assertEqual(rule["requires"], [{"camera_rig": "cameras_sim"}])
-        self.assertIn("select camera_rig=cameras_sim, or navigator=none", rule["reason"])
+        self.assertEqual(rule["requires"], [{"camera_rig": "cameras_sim"}, {"lidar_rig": "lidar_sim"}])
+        self.assertIn("select camera_rig=cameras_sim or lidar_rig=lidar_sim, or navigator=none", rule["reason"])
+        lidar_consumer, = [c for c in base["constraints"] if c.get("when") == {"lidar_rig": "lidar_sim"}]
+        self.assertIn({"navigator": "base_navigator"}, lidar_consumer["requires"])
+        self.assertIn("base_navigator (its grid reads them)", lidar_consumer["reason"])
         consumer, = [c for c in base["constraints"] if c.get("when") == {"camera_rig": "cameras_sim"}]
         self.assertEqual(consumer["requires"],
                          [{"robot_control": "robot_control"}, HEADSET_LEADS_A_BASE, {"navigator": "base_navigator"}])

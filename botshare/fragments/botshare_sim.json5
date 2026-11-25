@@ -10,7 +10,9 @@
 // Waldo's drive controls, the robot_commander drive_controls, or through
 // the stack's headset, which leads a base with no commander of its own and
 // no navigator; and base_navigation's goals drive it through its navigator
-// when the navigator axis selects one.
+// when the navigator axis selects one, the navigator's grid reading the
+// camera and the lidar the robot runs, and its navigations in map running
+// on the room mapper's loaded map when the mapper axis selects one.
 //
 // This file writes only the instances it deploys. The launcher's simulation
 // axis supplies simulation_inst, and the launcher that selects this robot
@@ -194,8 +196,8 @@
       reason: "the camera needs a consumer: launch with robot_control (the MCP endpoint lists the camera), select navigator=base_navigator (the navigator's grid reads it), select robot_commander=none and launch with xr_commander (the headset shows it), or select camera_rig=none" },
     // The lidar's scans need a consumer: the room mapper maps from them.
     { when: { lidar_rig: "lidar_sim" },
-      requires: [{ mapper: "room_mapper" }],
-      reason: "the lidar needs a consumer: select room_mapper (it maps from the lidar's scans), or select lidar_rig=none" },
+      requires: [{ mapper: "room_mapper" }, { navigator: "base_navigator" }],
+      reason: "the lidar needs a consumer: select room_mapper (it maps from the lidar's scans) or base_navigator (its grid reads them), or select lidar_rig=none" },
     // The room mapper maps from the lidar.
     { when: { mapper: "room_mapper" },
       requires: [{ lidar_rig: "lidar_sim" }],
@@ -209,10 +211,11 @@
     { when: { robot_commander: "drive_controls" },
       requires: [{ simulation: "waldo", navigator: "none" }],
       reason: "drive_controls are on Waldo's page and lead the base alone: launch with waldo and select navigator=none, or select robot_commander=none (the navigator or the headset drives the base)" },
-    // The navigator's grid reads the base's rendered camera.
+    // The navigator's grid reads the base's rendered camera, its swept lidar,
+    // or both.
     { when: { navigator: "base_navigator" },
-      requires: [{ camera_rig: "cameras_sim" }],
-      reason: "the navigator's grid reads the base's camera: select camera_rig=cameras_sim, or navigator=none" },
+      requires: [{ camera_rig: "cameras_sim" }, { lidar_rig: "lidar_sim" }],
+      reason: "the navigator's grid reads the base's camera or its lidar: select camera_rig=cameras_sim or lidar_rig=lidar_sim, or navigator=none" },
   ],
 
   adjustments: [

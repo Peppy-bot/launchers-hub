@@ -78,6 +78,19 @@
             // 104-105): past this bearing move_base's drive turns toward its
             // target again.
             rotate_to_heading_min_angle_rad: 0.785,
+            // botshare's behavior_server (openamr-platform-sw 69847ab,
+            // openamrobot_nav2/config/nav2_params.yaml:320): Spin's
+            // min_rotational_vel, the slowest rate move_base's turn commands.
+            // Its backup and drive_on_heading (nav2_params.yaml:306-309) take
+            // DriveOnHeading's default minimum_speed (nav2_behaviors include/
+            // nav2_behaviors/plugins/drive_on_heading.hpp:255-256), the
+            // slowest speed its drive commands each way. move_base then takes
+            // an orientation tolerance from 0.0075 rad, the turn of one step
+            // from rest at 3 rad/s^2, and a position tolerance from 2.5 mm,
+            // the drive of one step from rest at 1 m/s^2.
+            min_turn_rate_rad_s: 0.4,
+            min_forward_speed_m_s: 0.1,
+            min_backward_speed_m_s: 0.1,
             // Below robot.stop's deadline_ms on the robots' MCP endpoint
             // (mcp-hub robot/robot_control.json5), 2 s, by 0.5 s for the
             // call's round trip: a stop the control loop does not answer

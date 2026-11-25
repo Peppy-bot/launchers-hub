@@ -1695,8 +1695,8 @@ class CombinationsTests(unittest.TestCase):
         # test_the_bases_odometry_window_spans_a_tenth_of_a_second_in_every_simulation's.
         arguments = instance_of(base, "backbone_inst")["arguments"]
         self.assertEqual(set(arguments), {"linear_limits", "angular_limits", "smoothing_frequency_hz", "velocity_rolling_window_size",
-                                          "rotate_to_heading_min_angle_rad", "stop_answer_timeout_s",
-                                          "lookup_timeout_s"})
+                                          "rotate_to_heading_min_angle_rad", "min_turn_rate_rad_s", "min_forward_speed_m_s",
+                                          "min_backward_speed_m_s", "stop_answer_timeout_s", "lookup_timeout_s"})
         # Until its commander, its navigator or the headset pairs a leader,
         # the base's leader_base slot stands vacant, its reason naming all
         # three.

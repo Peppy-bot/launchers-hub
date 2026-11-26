@@ -103,9 +103,13 @@ its scene from the models standing in it.
 These are separate sessions. **Launch replaces the current stack.** Complete
 the [hardware and commander setup](openarm/README.md) before launching. Waldo
 requires access to its private node repository; MuJoCo and Isaac Sim are in
-nodes-hub. Every OpenArm of `simulation_mcp` has the router brain, whose key
-`GEMINI_API_KEY` the shell that launches exports: a launch of it that can
-start an OpenArm is refused without the key ([mcp/README.md](mcp/README.md)). Run join and remove on the coordinator, locally or with
+nodes-hub. Every OpenArm of `simulation_mcp` has the router brain, which
+calls its models through an OpenAI-compatible API, with
+`OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, or at Google's
+API, with `GEMINI_API_KEY`, as the shell that launches exports: a launch of it
+that can start an OpenArm is refused when the shell holds neither set, or
+one of the two API variables without the other
+([mcp/README.md](mcp/README.md)). Run join and remove on the coordinator, locally or with
 `--core-node NAME`. A copy runs on the machine its name is placed on:
 `OPTION:NAME@CORE_NODE` on `stack join` and on `--join`, and `--place
 NAME@CORE_NODE` for a copy the launcher's file lists, else the
@@ -132,7 +136,7 @@ discovery and host setup.
 | `robot_commander` | an SO-101 | `so101_leader` (deployed by `so101`) and `none` (deployed by `so101_sim`), no commander of its own: the stack's headset leads the arm with its right hand when the stack runs one, and actions alone drive it otherwise. The axis declares `role: "robot_commander"`, as on an OpenArm |
 | `recorder` | the robot | `lerobot_recorder`; needs a trigger: the record button of the browser panel or of the stack's headset leading the robot, or `recorder.record_episode` on the `robot_control` endpoint, where the recorder is listed whenever the stack serves it; an SO-101 has the headset's button and the endpoint |
 | `camera_rig` | the robot | `cameras` on a physical robot, `cameras_sim` on a simulated one, an OpenArm's on a v2 alone, whose model places the cameras; either gives a v2's backbone the chest camera's geometry for its workspace answers; requires a consumer: a recorder, the `robot_control` endpoint, which lists the cameras, the stack's headset leading the robot, on a simulated v2 the brain, which looks through the chest camera, or on a botshare base its navigator, which reads the camera into its grid |
-| `brain` | an OpenArm | `ai_brain_vla`, whose models run on the GPU of its machine, and `vlm_router_brain`, whose models are hosted vision-language models; the tools of either are listed under the robot's name on the `robot_control` endpoint, and either runs on the copy's machine, or on the machine its word names (`ai_brain_vla@cn-gpu-box`). `simulation_mcp.json5` gives every `openarm_sim` copy `vlm_router_brain` from its entry, with `GEMINI_API_KEY` from the shell that launches, so that brain runs on the coordinator |
+| `brain` | an OpenArm | `ai_brain_vla`, whose models run on the GPU of its machine, and `vlm_router_brain`, whose models are hosted vision-language models; the tools of either are listed under the robot's name on the `robot_control` endpoint, and either runs on the copy's machine, or on the machine its word names (`ai_brain_vla@cn-gpu-box`). `simulation_mcp.json5` gives every `openarm_sim` copy `vlm_router_brain` from its entry, with one of two sets from the shell that launches, `OPENAI_COMPATIBLE_API_BASE` and `OPENAI_COMPATIBLE_API_KEY`, or `GEMINI_API_KEY`, so that brain runs on the coordinator |
 | `navigator` | a botshare base | `base_navigator`: the base's navigator, `navigator_inst`, which drives the base to a pose around what its rendered camera sees, turns it in place and drives it straight, on `base_navigation`'s goals, and leads it on `drive_link`, the backbone pairing into it; it requires `cameras_sim`, and its tools are listed under the robot's name on the `robot_control` endpoint. `none` (deployed) runs none |
 
 A copy selects one option per axis of its robot. `stack resolve` previews a

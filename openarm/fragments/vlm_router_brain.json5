@@ -1,17 +1,26 @@
 // The AI brain whose models are hosted vision-language models, reached over
 // the network: the node that serves item_perception, item_manipulation and
 // brain_model, the environment aware layer above limb_motion. It needs no
-// GPU. It needs in its environment the key of the provider of each model
-// that the launcher sets: GEMINI_API_KEY for a model on Google's API,
-// OPENROUTER_API_KEY for a model on OpenRouter. A launcher names these keys
-// with `set_env_from_launch` on brain_inst: the daemon then takes each one
-// from the shell that launches, keeps it, and gives it to the brain that
-// the launch or a later join starts, and it refuses a launch that can start
-// the brain without it. A launcher that names no key passes the brain the
-// environment of the shell whose launch or join starts it (a local launch
-// passes that shell's environment to the nodes it starts on the machine).
-// switch_model changes a model to another of its catalog, and the switch
-// fails when the brain does not have the key of that model.
+// GPU. It reaches its models one of two ways, from its environment:
+//   - through an OpenAI-compatible API, a local model server among them:
+//     OPENAI_COMPATIBLE_API_BASE, the base address of the API, and
+//     OPENAI_COMPATIBLE_API_KEY, the key for it. The brain then calls every
+//     model through the API, asks for each by its catalog name, and reads
+//     no provider key;
+//   - at the provider of each model that the launcher sets: GEMINI_API_KEY
+//     for a model on Google's API, OPENROUTER_API_KEY for a model on
+//     OpenRouter.
+// A launcher names these variables with `set_env_from_launch` on
+// brain_inst, as a list, or as an `any_of` of both ways, whose first set
+// that the shell holds complete the brain takes: the daemon then takes the
+// variables from the shell that launches, keeps them, and gives them to the
+// brain that the launch or a later join starts, and it refuses a launch
+// that can start the brain without them. A launcher that names no variable
+// passes the brain the environment of the shell whose launch or join starts
+// it (a local launch passes that shell's environment to the nodes it starts
+// on the machine). switch_model changes a model to another of its catalog,
+// and with provider keys the switch fails when the brain does not have the
+// key of that model.
 // It leads no pairing and reaches the arms only through the backbone's
 // discrete moves, so it composes with the selected commander: the operator
 // and the brain send the same kind of goal to the same producer, and the

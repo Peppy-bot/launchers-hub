@@ -244,11 +244,14 @@ SIMULATION_LAUNCHERS = [path for path in ROBOT_LAUNCHERS if path != "physical.js
 #: clock. The MCP launcher turns rendering on as well.
 SERVER_CLOCK = {"target": SERVER, "set_framework": {"clock": "simulation"}}
 RENDERING_ON = {"target": "simulation_inst", "set_arguments": {"cameras_enabled": True}}
-#: The stack's headset, one instance per launcher with an arm robot.
+#: The stack's headset, one instance per launcher with robots.
 HEADSET = "headset_inst"
 #: The guard under which the headset leads a robot: the stack runs one, and
 #: the robot runs no commander of its own.
 HEADSET_LEADS = {"teleop": "xr_commander", "robot_commander": "none"}
+#: The guard under which the headset leads a base: HEADSET_LEADS, and the
+#: base runs no navigator.
+HEADSET_LEADS_A_BASE = {**HEADSET_LEADS, "navigator": "none"}
 #: The OpenArm's four limb drivers, the arm and gripper instances its fragment
 #: runs: the initializer's limbs, and on a physical robot the drivers that
 #: report per-motor health and operator alerts.
@@ -268,8 +271,8 @@ DIRECTOR_CLOCK = {"target": [DIRECTOR, "workflow_controls_inst"], "set_framework
 SO101_DIRECTOR_CONTRACTS = {"target": DIRECTOR, "set_arguments": {"allowed_contracts": (
     "robot_identity:v1, limb_state:v1, limb_motion:v1, postures:v1, workspace:v1, "
     "item_perception:v1, item_manipulation:v1")}}
-#: What every simulation launcher with an arm robot writes at its top
-#: level for the headset: its clock, and Waldo's panel showing it.
+#: What every simulation launcher with robots writes at its top level for
+#: the headset: its clock, and Waldo's panel showing it.
 HEADSET_WIRING = [
     {"target": HEADSET, "set_framework": {"clock": "simulation"}},
     {"target": "simulation_inst", "when": {"simulation": "waldo", "teleop": "xr_commander"},
@@ -310,8 +313,7 @@ ROBOT_FILES = {
     "botshare_sim": "botshare/fragments/botshare_sim.json5",
 }
 
-#: The family of a mobile base: no limbs, no recorder and no commander axis,
-#: and the stack's headset does not lead it.
+#: The family of a mobile base: no limbs and no recorder.
 BASE_FAMILY = "botshare"
 
 
@@ -393,6 +395,12 @@ def writes_link(adjustment, slot):
             or slot in adjustment.get("unset_links", []))
 
 
+def guard_holds(guard, selection):
+    """Whether each axis a guard names selects, in `selection`, the option
+    the guard gives it."""
+    return all(selection.get(axis) == option for axis, option in guard.items())
+
+
 #: The model ids the robots' initializers name.
 ROBOT_MODELS = ("openarm_v1", "openarm_v2", "so101", "botshare_base")
 
@@ -419,7 +427,8 @@ class FragmentInventoryTests(unittest.TestCase):
             ("so101/fragments", {"cameras.json5", "cameras_sim.json5", "lerobot_recorder.json5",
                                  "motion_planner.json5", "so101.json5", "so101_leader.json5",
                                  "so101_sim.json5"}),
-            ("botshare/fragments", {"cameras_sim.json5", "botshare_sim.json5"}),
+            ("botshare/fragments", {"base_navigator.json5", "cameras_sim.json5", "botshare_sim.json5",
+                                    "drive_controls.json5"}),
             ("teleop/fragments", {"xr_commander.json5"}),
             ("simulation/fragments", {"isaac_sim.json5", "mujoco.json5", "waldo.json5",
                                       "web_scene_commander.json5"}),
@@ -580,9 +589,9 @@ class SharedRobotBlockTests(unittest.TestCase):
                 with self.subTest(option=option, launcher=path):
                     simulation = [entry for entry in robot_option(document, option)["adjustments"]
                                   if entry["target"] == "simulation_inst"]
-                    expected = [] if path == "mcp/simulation_mcp.json5" else [
+                    rendering = [] if path == "mcp/simulation_mcp.json5" else [
                         RENDERING_ON | {"when": {"camera_rig": "cameras_sim"}}]
-                    self.assertEqual(simulation, expected)
+                    self.assertEqual(simulation, rendering)
 
 
 class OptionShapeTests(unittest.TestCase):
@@ -852,8 +861,10 @@ class CombinationsTests(unittest.TestCase):
         # default, so every join names one.
         openarm, so101 = 2 * 3 * 2 * 2 * 3 * 2, 1 + 2 * 2 * 2 * 2
         openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2 * 2
-        # A base has one axis of its own, its rig (off or its camera).
-        base_sim = 1 + 2
+        # A base has three axes of its own, its commander (none or Waldo's
+        # drive controls), its rig (off or its camera) and its navigator
+        # (none or base_navigator).
+        base_sim = 1 + 2 * 2 * 2
         # The physical launcher: the endpoint, the workflows and the headset
         # each unfilled or on, each bare and joined by any physical robot. It
         # lists no robot, so no launch names one.
@@ -928,16 +939,25 @@ class CombinationsTests(unittest.TestCase):
             so101_launcher,
         )
         # The botshare_simulation launcher: the same simulations with and
-        # without their scene commander and the robots' endpoint unfilled or
-        # on; each launched with alpha, its rig off or on, and joined by a
-        # base, plain and under every selection of its rig.
-        base_stacks, alpha_base = (1 + 2 + 2) * 2, 2
+        # without their scene commander, the robots' endpoint and the headset
+        # each unfilled or on; each launched with alpha under every selection
+        # of its commander, its rig and its navigator, and joined by a base,
+        # plain and under every selection of its axes.
+        base_stacks, alpha_base = (1 + 2 + 2) * 2 * 2, 2 * 2 * 2
         base_launcher = combos("botshare_simulation")
         self.assertEqual(len(base_launcher), base_stacks * (alpha_base + base_sim))
         self.assertIn(["combo", "botshare_simulation", "simulation=waldo", "", "", "", "-"], base_launcher)
         self.assertIn(["combo", "botshare_simulation", "simulation=mujoco", "", "", "", "-"], base_launcher)
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.camera_rig=cameras_sim", "", "", "", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=none,alpha.camera_rig=cameras_sim,alpha.navigator=none", "", "", "", "-"],
+            base_launcher,
+        )
+        self.assertIn(
+            ["combo", "botshare_simulation", "simulation=waldo,alpha.robot_commander=drive_controls,alpha.camera_rig=none,alpha.navigator=none", "", "", "", "-"],
+            base_launcher,
+        )
+        self.assertIn(
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=none,alpha.camera_rig=cameras_sim,alpha.navigator=base_navigator", "", "", "", "-"],
             base_launcher,
         )
         self.assertIn(
@@ -945,20 +965,26 @@ class CombinationsTests(unittest.TestCase):
             base_launcher,
         )
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "camera_rig=cameras_sim", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "robot_commander=none,camera_rig=cameras_sim,navigator=none", "-"],
+            base_launcher,
+        )
+        self.assertIn(
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "robot_commander=none,camera_rig=cameras_sim,navigator=base_navigator", "-"],
             base_launcher,
         )
         references = next(line for line in lines if line.startswith("launcher\tbotshare_simulation\t"))
         for reference in [
             "botshare/fragments/botshare_sim.json5",
             "botshare/fragments/cameras_sim.json5",
+            "botshare/fragments/drive_controls.json5",
+            "botshare/fragments/base_navigator.json5",
             "mcp/fragments/robot_control.json5",
             "mcp/fragments/framework_controls.json5",
             "simulation/fragments/waldo.json5",
+            "teleop/fragments/xr_commander.json5",
         ]:
             self.assertIn(reference, references)
-        for reference in ["teleop/fragments/xr_commander.json5", "mcp/fragments/workflow_control.json5"]:
-            self.assertNotIn(reference, references)
+        self.assertNotIn("mcp/fragments/workflow_control.json5", references)
         # The simulation_mcp launcher: the same stacks with the world's
         # endpoint on or off as well (the constraint refuses it off Waldo at
         # resolve; the framework's endpoint comes with the robots' on its
@@ -1345,7 +1371,9 @@ class CombinationsTests(unittest.TestCase):
     def test_every_robot_with_no_commander_of_its_own_pairs_into_the_stacks_headset(self):
         root = Path(__file__).resolve().parents[2]
         # The robot's own fragment declares the pairs, by side, under the
-        # headset and robot_commander=none; the headset leads in pose mode.
+        # headset and robot_commander=none, a base's under navigator=none as
+        # well; the headset leads an arm in pose mode, and a base on
+        # drive_link.
         pairs = {
             "openarm": {"leader_left_arm_pose": "headset_inst/left_arm",
                         "leader_right_arm_pose": "headset_inst/right_arm",
@@ -1353,26 +1381,29 @@ class CombinationsTests(unittest.TestCase):
                         "leader_right_gripper": "headset_inst/right_gripper"},
             "so101": {"leader_pose": "headset_inst/right_arm",
                       "leader_gripper": "headset_inst/right_gripper"},
+            BASE_FAMILY: {"leader_base": "headset_inst/base"},
         }
-        for robot in limbed(ROBOT_FILES):
+        for robot in ROBOT_FILES:
             with self.subTest(robot=robot):
                 path = ROBOT_FILES[robot]
                 document = combinations.load_json5(root / path, path)
-                led, = [a for a in document["adjustments"] if a.get("when") == HEADSET_LEADS]
-                self.assertEqual(led, {"target": "backbone_inst", "when": HEADSET_LEADS,
-                                       "set_arguments": {"upstream_mode": "pose"},
+                leads = HEADSET_LEADS_A_BASE if family_of(robot) == BASE_FAMILY else HEADSET_LEADS
+                led, = [a for a in document["adjustments"] if a.get("when") == leads]
+                pose_mode = {"set_arguments": {"upstream_mode": "pose"}} if family_of(robot) != BASE_FAMILY else {}
+                self.assertEqual(led, {"target": "backbone_inst", "when": leads, **pose_mode,
                                        "set_links": pairs[family_of(robot)]})
         # The launcher binds the robot's postures, robot_stop and recorder
         # into the headset under the same guard, so its buttons reach the
-        # robot it drives and a squeeze stops the moves in flight on it. A
-        # base has no robot_commander axis, and the headset does not lead it.
+        # robot it drives and a squeeze stops the moves in flight on it; a
+        # base binds its robot_stop.
         for path, robots in ROBOT_LAUNCHERS.items():
             document = combinations.load_json5(root / path, path)
             for robot in robots:
                 if family_of(robot) == BASE_FAMILY:
                     with self.subTest(path=path, robot=robot):
-                        self.assertEqual([a for a in robot_option(document, robot)["adjustments"]
-                                          if a["target"] == HEADSET], [])
+                        self.assertIn({"target": HEADSET, "when": HEADSET_LEADS_A_BASE,
+                                       "add_links": {"robot_stop": ["backbone_inst"]}},
+                                      robot_option(document, robot)["adjustments"])
                     continue
                 with self.subTest(path=path, robot=robot):
                     entries = robot_option(document, robot)["adjustments"]
@@ -1595,6 +1626,45 @@ class CombinationsTests(unittest.TestCase):
                     self.assertCountEqual(
                         clocked, [{"target": target, "set_framework": {"clock": "simulation"}} for target in expected])
 
+    def test_the_base_pairs_its_one_leader(self):
+        root = Path(__file__).resolve().parents[2]
+        base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
+        # drive_link takes one leader per base: the commander axis, the
+        # robot's own and `one`, offers Waldo's drive controls or none, which
+        # leaves the base to its navigator or the stack's headset; the base
+        # starts with none.
+        commander = axis_of(base, "robot_commander")
+        self.assertEqual(commander["role"], "robot_commander")
+        self.assertIsNone(commander.get("cardinality"))
+        self.assertEqual(commander["options"], {"none": "../../common/fragments/none.json5",
+                                                "drive_controls": "drive_controls.json5"})
+        self.assertIn({"robot_commander": "none"}, base["deployments"])
+        self.assertEqual(option_file(ROBOT_FILES["botshare_sim"], "drive_controls.json5"),
+                         {"peppy_schema": "launcher_fragment/v1"})
+        # Each guard pairs the backbone's leader_base into one leader, and no
+        # other adjustment touches it.
+        leaders = [(a["when"], a["set_links"]["leader_base"]) for a in base["adjustments"]
+                   if "leader_base" in a.get("set_links", {})]
+        self.assertEqual(leaders, [({"robot_commander": "drive_controls"}, "simulation_inst/drive_controls"),
+                                   (HEADSET_LEADS_A_BASE, "headset_inst/base"),
+                                   ({"navigator": "base_navigator"}, "navigator_inst/base")])
+        self.assertFalse(any("leader_base" in a.get("unset_links", []) for a in base["adjustments"]))
+        # The headset does not lead a base whose navigator runs: beside the
+        # headset, the navigator's guard alone holds.
+        beside_the_headset = {**HEADSET_LEADS, "navigator": "base_navigator"}
+        self.assertEqual([leader for when, leader in leaders if guard_holds(when, beside_the_headset)],
+                         ["navigator_inst/base"])
+        # The drive controls are on Waldo's page and lead the base alone:
+        # under another simulation or beside the navigator the launch is
+        # refused, its reason saying what to select.
+        refusal, = [c for c in base["constraints"] if c.get("when") == {"robot_commander": "drive_controls"}]
+        self.assertEqual(refusal["requires"], [{"simulation": "waldo", "navigator": "none"}])
+        beside_the_navigator = {"simulation": "waldo", "robot_commander": "drive_controls", "navigator": "base_navigator"}
+        self.assertFalse(any(guard_holds(alternative, beside_the_navigator) for alternative in refusal["requires"]))
+        self.assertIn("launch with waldo", refusal["reason"])
+        self.assertIn("select navigator=none", refusal["reason"])
+        self.assertIn("select robot_commander=none", refusal["reason"])
+
     def test_the_bases_rig_renders_its_camera(self):
         root = Path(__file__).resolve().parents[2]
         base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
@@ -1609,18 +1679,25 @@ class CombinationsTests(unittest.TestCase):
         self.assertEqual([relay["instance_id"] for relay in relays], ["base_camera"])
         # The backbone takes its wheels and its outline from the URDF of the
         # model it asks the initializer for: its arguments copy neither, and
-        # the robot adjusts nothing of it per rig. Its one adjustment is the
-        # odometry window under Isaac Sim,
+        # the robot adjusts nothing of it per rig. Its adjustments are its
+        # leaders, test_the_base_pairs_its_one_leader's, and the odometry
+        # window under Isaac Sim,
         # test_the_bases_odometry_window_spans_a_tenth_of_a_second_in_every_simulation's.
         arguments = instance_of(base, "backbone_inst")["arguments"]
         self.assertEqual(set(arguments), {"linear_limits", "angular_limits", "smoothing_frequency_hz", "velocity_rolling_window_size",
                                           "rotate_to_heading_min_angle_rad", "stop_answer_timeout_s",
                                           "lookup_timeout_s"})
-        # No leader streams to the base: its leader_base slot stands vacant.
+        # Until its commander, its navigator or the headset pairs a leader,
+        # the base's leader_base slot stands vacant, its reason naming all
+        # three.
         leader = instance_of(base, "backbone_inst")["links"]["leader_base"]
         self.assertEqual(set(leader), {"vacant"})
-        self.assertTrue(leader["vacant"].strip())
-        self.assertEqual([adjustment["when"] for adjustment in base["adjustments"]], [{"simulation": "isaac_sim"}])
+        self.assertIn("robot_commander=drive_controls", leader["vacant"])
+        self.assertIn("navigator=base_navigator", leader["vacant"])
+        self.assertIn("xr_commander", leader["vacant"])
+        self.assertEqual([adjustment["when"] for adjustment in base["adjustments"]],
+                         [{"robot_commander": "drive_controls"}, HEADSET_LEADS_A_BASE,
+                          {"navigator": "base_navigator"}, {"simulation": "isaac_sim"}])
         # Every launcher lists the camera the rig renders on the MCP endpoint.
         for path, robots in ROBOT_LAUNCHERS.items():
             if "botshare_sim" not in robots:
@@ -1646,6 +1723,60 @@ class CombinationsTests(unittest.TestCase):
                            if adjustment["when"] == {"simulation": engine}), default_window)
             spans[engine] = Fraction(window, rate)
         self.assertEqual(spans, dict.fromkeys(spans, Fraction(1, 10)))
+
+    def test_the_bases_navigator_leads_it_around_what_its_camera_sees(self):
+        root = Path(__file__).resolve().parents[2]
+        base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
+        # An axis of the robot's own, `one`, deployed as `none`: a copy runs
+        # the navigator only when its words select it.
+        navigator_axis = axis_of(base, "navigator")
+        self.assertEqual(navigator_axis["options"],
+                         {"none": "../../common/fragments/none.json5", "base_navigator": "base_navigator.json5"})
+        self.assertIsNone(navigator_axis.get("cardinality"))
+        self.assertIn({"navigator": "none"}, base["deployments"])
+        # One navigator on the simulation's clock. It reads what the base is
+        # from the backbone, the sensors the base carries from the
+        # initializer, the robot's tree from every publisher the transform
+        # server reads, and the depth frames and geometry of the rig's
+        # relays, and writes no adjustment: the robot file pairs it.
+        fragment = option_file(ROBOT_FILES["botshare_sim"], "base_navigator.json5")
+        deployment, = fragment["deployments"]
+        self.assertEqual(deployment["source"], {"name": "base_navigator", "tag": "v1"})
+        navigator, = deployment["instances"]
+        self.assertEqual(navigator["instance_id"], "navigator_inst")
+        self.assertEqual(navigator["framework"], {"clock": "simulation"})
+        relays = [instance["instance_id"]
+                  for rig in option_file(ROBOT_FILES["botshare_sim"], "cameras_sim.json5")["deployments"]
+                  for instance in rig["instances"]]
+        self.assertEqual(navigator["links"], {
+            "base_state": "backbone_inst",
+            "sensor_mounts": "init_inst",
+            "transforms": instance_of(base, "transforms_inst")["links"]["transforms"],
+            "cameras": relays,
+            "geometry": relays,
+        })
+        self.assertNotIn("adjustments", fragment)
+        # The navigator leads the base: the backbone pairs into its base slot.
+        self.assertIn({"target": "backbone_inst", "when": {"navigator": "base_navigator"},
+                       "set_links": {"leader_base": "navigator_inst/base"}}, base["adjustments"])
+        # The navigator reads the rig's camera, so it requires the rig and is
+        # one of the camera's consumers, each rule saying what to select.
+        rule, = [c for c in base["constraints"] if c.get("when") == {"navigator": "base_navigator"}]
+        self.assertEqual(rule["requires"], [{"camera_rig": "cameras_sim"}])
+        self.assertIn("select camera_rig=cameras_sim, or navigator=none", rule["reason"])
+        consumer, = [c for c in base["constraints"] if c.get("when") == {"camera_rig": "cameras_sim"}]
+        self.assertEqual(consumer["requires"],
+                         [{"robot_control": "robot_control"}, HEADSET_LEADS_A_BASE, {"navigator": "base_navigator"}])
+        self.assertIn("select navigator=base_navigator", consumer["reason"])
+        # Every launcher of the base lists the navigator's tools on the MCP
+        # endpoint whenever the navigator runs.
+        for path, robots in ROBOT_LAUNCHERS.items():
+            if "botshare_sim" not in robots:
+                continue
+            with self.subTest(path=path):
+                entries = robot_option(combinations.load_json5(root / path, path), "botshare_sim")["adjustments"]
+                self.assertIn({"target": SERVER, "when": {"navigator": "base_navigator"},
+                               "add_links": {"navigator": ["navigator_inst"]}}, entries)
 
     def test_the_launcher_binds_the_leaders_telemetry_and_the_simulated_panels_cap(self):
         root = Path(__file__).resolve().parents[2]
@@ -1738,14 +1869,10 @@ class CombinationsTests(unittest.TestCase):
                     self.assertEqual(
                         option["fragments"],
                         [f"fragments/{robot}.json5" if own else f"{prefix}{family}/fragments/{robot}.json5"])
-                # The stack's headset beside it, in every launcher with a
-                # arm robot, the robots it leads: deployed by
-                # simulation_mcp, with `none` to switch it off, and `--with
-                # xr_commander` on the others. A launcher of a base alone
-                # declares none.
-                if not limbed(robots):
-                    self.assertNotIn("teleop", axes)
-                    continue
+                # The stack's headset beside the robots it leads, in every
+                # launcher with robots: deployed by simulation_mcp, with
+                # `none` to switch it off, and `--with xr_commander` on the
+                # others.
                 self.assertEqual(axes["teleop"]["cardinality"], "one" if deployed else "zero_or_one")
                 teleop = {"xr_commander": f"{prefix}teleop/fragments/xr_commander.json5"}
                 if deployed:
@@ -1773,7 +1900,7 @@ class CombinationsTests(unittest.TestCase):
                     + [SERVER_CLOCK]
                     + ([DIRECTOR_CLOCK] if path in DIRECTOR_ON_THE_SIMULATION_CLOCK else [])
                     + ([SO101_DIRECTOR_CONTRACTS] if path == "so101_simulation.json5" else [])
-                    + (HEADSET_WIRING if limbed(ROBOT_LAUNCHERS[path]) else [])
+                    + HEADSET_WIRING
                 )
                 self.assertEqual(
                     [a for a in document["adjustments"] if "set_daemon_scopes" not in a], expected)
@@ -2052,12 +2179,11 @@ class CombinationsTests(unittest.TestCase):
                                   if len(description) > SCOPE_DESCRIPTION_MAX_CHARS], [])
                 # Every robot it adds runs no commander of its own: the
                 # endpoint lists its moves, and the stack's headset leads it.
-                # A base has no commander axis, and every robot it adds films.
+                # A base it adds runs no navigator either.
                 setup = entries[entry["option"]]["with"]
+                self.assertEqual(setup["robot_commander"], "none")
                 if family_of(entry["option"]) == BASE_FAMILY:
-                    self.assertEqual(setup, {"camera_rig": "cameras_sim"})
-                else:
-                    self.assertEqual(setup["robot_commander"], "none")
+                    self.assertEqual(setup["navigator"], "none")
 
     def test_every_robot_offers_none_and_a_rig_with_a_consumer_rule(self):
         root = Path(__file__).resolve().parents[2]
@@ -2069,6 +2195,7 @@ class CombinationsTests(unittest.TestCase):
              ["web_commander", "ker_commander", "none"], "cameras_sim", ["none", "cameras_sim"]),
             ("so101/fragments/so101.json5", ["so101_leader", "none"], "cameras", ["cameras"]),
             ("so101/fragments/so101_sim.json5", ["so101_leader", "none"], "cameras_sim", ["cameras_sim"]),
+            ("botshare/fragments/botshare_sim.json5", ["drive_controls", "none"], "cameras_sim", ["none", "cameras_sim"]),
         ]:
             with self.subTest(path=path):
                 robot = combinations.load_json5(root / path, path)
@@ -2085,15 +2212,22 @@ class CombinationsTests(unittest.TestCase):
                     {name: axis["role"] for name, axis in axes.items() if "role" in axis},
                     {"robot_commander": "robot_commander"})
                 self.assertCountEqual(axes["camera_rig"]["options"], rigs)
-                # The rig's streams need a consumer: the recorder, the robots'
-                # endpoint, or the stack's headset leading the robot.
+                # The rig's streams need a consumer: the recorder of a robot
+                # that runs one, the robots' endpoint, or the stack's headset
+                # leading the robot.
                 consumer, = [c for c in robot["constraints"]
                              if c.get("when") == {"camera_rig": rig} and "model" not in str(c["requires"])]
-                requires = [{"recorder": "lerobot_recorder"}, {"robot_control": "robot_control"}, HEADSET_LEADS]
+                base = path.startswith(f"{BASE_FAMILY}/")
+                recorder = [] if base else [{"recorder": "lerobot_recorder"}]
+                requires = recorder + [{"robot_control": "robot_control"}, HEADSET_LEADS_A_BASE if base else HEADSET_LEADS]
                 if path == "openarm/fragments/openarm_sim.json5":
                     # The rendered OpenArm rig also feeds the brain's camera
                     # slot, so there the brain is a consumer too.
                     requires.append({"brain": BRAINS})
+                if base:
+                    # The base's navigator reads the rendered rig into its
+                    # grid, so there the navigator is a consumer too.
+                    requires.append({"navigator": "base_navigator"})
                 self.assertEqual(consumer["requires"], requires)
                 self.assertIn("launch with robot_control", consumer["reason"])
                 self.assertIn("robot_commander=none and launch with xr_commander", consumer["reason"])
@@ -2587,7 +2721,8 @@ class CombinationsTests(unittest.TestCase):
             {"simulation": "waldo", "robot_control": "robot_control", "world_control": "world_control",
              "teleop": "xr_commander"})
         # Each robot's entry states, for every copy of the option, no
-        # commander of its own and the rendered rig, and for the OpenArm the
+        # commander of its own and the rendered rig, for the base no
+        # navigator, and for the OpenArm the
         # router brain and the motion planner: the ones `--join OPTION:NAME`
         # starts with the launch and the ones joined later without it, a v1
         # being one the simulations render no rig for and the planner plans
@@ -2600,7 +2735,7 @@ class CombinationsTests(unittest.TestCase):
                       "motion_planner": "motion_planner"}},
             {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim",
                                             "motion_planner": "motion_planner"}},
-            {"robot": "botshare_sim", "with": {"camera_rig": "cameras_sim"}},
+            {"robot": "botshare_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "navigator": "none"}},
         ])
         launcher = combinations.read_launcher(root, path)
         self.assertEqual(launcher.copies, [])

@@ -22,7 +22,7 @@ table and the copy semantics.
 |---|---|---|---|---|
 | Framework | `http://127.0.0.1:8903/framework_controls/v1/mcp` | `framework_controls:v1`: the stack of nodes that runs the robots: the robots it can add, adding one and removing one, the fleet of the stack, and the halt of the stack | the peppy daemon that started the server, within the scope the launcher gives each target | the fleet and the halt; `physical.json5` leaves the `stack` target vacant, so a client adds no robot there |
 | Workflows | `http://127.0.0.1:8904/workflow_controls/v1/mcp` | `workflow_controls:v1`: the robots a workflow can bind, the check of a workflow, its runs with their confirmations, suspensions, resumes and aborts, and the state and the journal of each run | the workflow director, `workflow_director_inst` | yes, with `--with workflow_control`; a run there calls `limb_motion` and no `item_manipulation`. A run in `simulation_mcp` calls `item_manipulation` and no `limb_motion`, and a run in `so101_simulation` calls both |
-| Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, a mobile base's moves and odometry, its cameras and their depth, where its design lets it work, its brain, its recorder and its motion planner | each robot's initializer, backbone, rig, brain, recorder and motion planner | yes |
+| Robots | `http://127.0.0.1:8900/robot_control/v1/mcp` | `robot_control:v1`: every robot of the stack by name: who it is, its posture, arm and gripper moves, its limb state, a mobile base's moves and odometry, its cameras and their depth, where its design lets it work, its brain, its recorder, its motion planner and a mobile base's navigator | each robot's initializer, backbone, rig, brain, recorder, motion planner and navigator | yes |
 | Simulated world | `http://127.0.0.1:8902/simulation/v1/mcp` | `simulation:v1`: the scene, the controls of its objects, its light sources, its materials, a picture of it from any viewpoint, its clock, where a robot can work in it, the rate of its robots' sensor streams, and its worlds: the live world as a world document, the check and the apply of a world, a workflow run in one and the judges that check it | the simulation, and for its worlds the applier of worlds, `sim_harness_inst` | no |
 
 The four URLs are the stack's: the same for one robot or ten, and the same before and after any join or removal, so a client registers them once. A model reads four `instructions` blocks. The framework's says it controls the stack of nodes, not the world and not the motion of a robot, and that a halt is not a motion and not a safety function; the robots' says it is the robots' own surface and names no other endpoint, so a client of the physical robots reads it alone; the simulated world's says it configures a simulated world and, through its world target, applies worlds and runs workflows in it, with no effect on and no counterpart in the physical robot; the workflows' says it runs workflows on the robots, not the world, and moves a robot only through a run.
@@ -41,7 +41,9 @@ Each endpoint comes from an axis of the file that owns what it publishes:
   on an arm robot its backbone for its limb state, its moves, where its
   design lets it work and, on an OpenArm, its collision readout, and its
   drivers on the physical robots for their motor health and alerts; on a
-  mobile base its backbone for its base state and its moves;
+  mobile base its backbone for its base state and its moves, and its
+  navigator ([base_navigator](../botshare/fragments/base_navigator.json5))
+  for its tools whenever it runs;
   so every robot of the stack is listed with what it is, how it stands and
   how a model moves it, under any commander; its
   recorder ([openarm](../openarm/fragments/lerobot_recorder.json5),
@@ -119,19 +121,17 @@ document tells a model to expect.
 [simulation_mcp.json5](simulation_mcp.json5) is `openarm_simulation` with
 the botshare base of `botshare_simulation` beside its robots, the four
 endpoints and the stack's headset deployed and every robot driven over MCP
-by default, an arm robot from the headset too. It lists no
-robot, so its bare launch is Waldo, the headset and the four endpoints
-alone, and each robot entry states the rendered rig for every copy of its
-option, and the OpenArm's and the SO-101's no commander of their own
+and from the headset by default. It lists no robot, so its bare launch is
+Waldo, the headset and the four endpoints alone, and each robot entry states
+the rendered rig for every copy of its option and no commander of its own
 (`robot_commander` `none`), so every robot named on the command line, at
 launch with `--join OPTION:NAME` or later with `stack join`, and every robot
-added over MCP, is driven over MCP with its cameras, an arm robot paired
-into the headset too: `--join openarm_sim:alpha` starts `alpha`, an OpenArm
-v2, with the launch. A launch
-or a join of a simulated robot returns only once the simulation stands the
-robot. The launcher turns the simulation's rendering on itself, which a
-join cannot, so every robot joined onto it gets its rig; a v1 OpenArm,
-which the simulations render no rig for, joins with `--with
+added over MCP, is driven over MCP with its cameras and paired into the
+headset too: `--join openarm_sim:alpha` starts `alpha`, an OpenArm v2, with
+the launch. A launch or a join of a simulated robot returns only once the
+simulation stands the robot. The launcher turns the simulation's rendering
+on itself, which a join cannot, so every robot joined onto it gets its rig;
+a v1 OpenArm, which the simulations render no rig for, joins with `--with
 openarm_v1,camera_rig=none`.
 
 The headset is the file's `teleop` axis; `--with teleop=none` switches it
@@ -143,8 +143,8 @@ client and the headset share the robots through the robot leases. A squeeze
 takes the lease of the robot and stops the moves in flight on it, so a
 client's move in flight ends cancelled. While the headset holds a robot, the
 stack refuses a client's move on it with the failure kind `leased`, naming
-the headset; the headset releases the lease after the release burst of the
-last hand, once no posture move of its own runs.
+the headset; the headset releases the lease after the last release burst,
+of a hand or of the base, once no posture move of its own runs.
 
 ### The brain of each OpenArm
 

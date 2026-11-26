@@ -216,7 +216,6 @@ jobs:
     permissions:
       contents: read
     outputs:
-      plan: ${{ steps.plan.outputs.plan }}
       launches: ${{ steps.plan.outputs.launches }}
       commit: ${{ steps.checkout.outputs.commit }}
     steps:
@@ -427,7 +426,18 @@ jobs:
             --base-root "$RUNNER_TEMP/base" \
             --skips .github/unlaunchable-nodes.json5 \
             --plan "$RUNNER_TEMP/plan.json"
-          echo "plan=$(cat "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+
+      # The plan reaches the launch job as an artifact. A job output reaches a
+      # step through its environment, where Linux holds each value to 128 KiB,
+      # and the plan of every combination is larger.
+      - name: Hand the plan to the launch job
+        if: steps.plan.outputs.launches == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: launch-plan
+          path: ${{ runner.temp }}/plan.json
+          if-no-files-found: error
+          retention-days: 1
 
   launch:
     name: Launch the planned combinations
@@ -730,14 +740,18 @@ jobs:
       # the provider, and no launch here runs one. So no real key is needed,
       # and a pull request from a fork, which is given no secrets, launches
       # the brain as well.
+      - name: Fetch the plan the discover job planned
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: launch-plan
+          path: ${{ runner.temp }}
+
       - name: Launch every planned combination start to end
         env:
-          PLAN: ${{ needs.discover.outputs.plan }}
           GEMINI_API_KEY: launchers-hub-ci-no-provider-call
           OPENROUTER_API_KEY: launchers-hub-ci-no-provider-call
         run: |
           set -euo pipefail
-          printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
           python3 .github/scripts/launcher_combinations.py launch --plan "$RUNNER_TEMP/plan.json"
 
       # Every launch ran on the one daemon, so when a launch failed its side

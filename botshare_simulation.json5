@@ -8,12 +8,14 @@
     "`peppy stack launch botshare_simulation --with isaac_sim`: the same base in Isaac Sim.",
     "`peppy stack launch botshare_simulation --with robot_control`: the base driven over MCP.",
     "`peppy stack launch botshare_simulation --with robot_control,alpha.cameras_sim`: driven over MCP, its depth camera served.",
+    "`peppy stack launch botshare_simulation --with robot_control,alpha.lidar_sim,alpha.room_mapper`: driven over MCP, mapping the rooms it drives in with its lidar, saving the maps by name and localized in the loaded one.",
     "`peppy stack launch botshare_simulation --with alpha.drive_controls`: alpha driven by hand from Waldo's page, with its stick, the arrow keys or a gamepad.",
     "`peppy stack launch botshare_simulation --with xr_commander`: alpha driven by hand from the stack's headset, in any simulation.",
     "`peppy stack launch botshare_simulation --with robot_control,alpha.cameras_sim,alpha.base_navigator`: driven over MCP, its navigator driving it around what its depth camera sees.",
+    "`peppy stack launch botshare_simulation --with robot_control,alpha.lidar_sim,alpha.room_mapper,alpha.base_navigator`: driven over MCP, its navigator driving it around what its lidar sees, and to poses in the room mapper's loaded map.",
     "`peppy stack join botshare_sim:bravo`: another botshare base beside alpha.",
     "The robot axis offers the botshare base alone, and every simulation stands as many as the machines can run, each joined copy bringing its own. A copy named with `--join` is composed as a join, as `stack join` is, and a join cannot turn rendering on: the simulation renders when the copy this launcher lists selects its rig, as the fifth command above does, and `--with cameras_sim` on a join is refused on a launch without one.",
-    "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the base through base_motion, and through base_navigation where its navigator runs, reads its odometry, stops it and sees through its depth camera, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
+    "`--with robot_control` serves the robots' MCP endpoint, http://127.0.0.1:8900/robot_control/v1/mcp, where every robot is listed and a model drives the base through base_motion, and through base_navigation where its navigator runs, reads its odometry, stops it, sees through its depth camera and, on a base that maps, maps the rooms, saves and loads the maps and localizes the base in them, and the framework's, http://127.0.0.1:8903/framework_controls/v1/mcp, where a client halts the stack and adds no robot.",
     "`--with alpha.drive_controls` gives alpha Waldo's drive controls as its commander, which lead its base on drive_link; Waldo's page lists every base that selects them and drives the one chosen. `--with xr_commander` runs the stack's headset, which leads every base that runs no commander of its own and no navigator, one at a time, chosen on the headset's page. `--with alpha.base_navigator` gives alpha its navigator, which leads its base for base_navigation's goals. A base has one leader: the drive controls under Waldo alone, the headset, or its navigator.",
     "simulation_mcp stands the base beside the arm robots in one simulation: `peppy stack launch simulation_mcp --join botshare_sim:india`.",
   ],
@@ -74,6 +76,10 @@
             // The navigator's tools, listed beside the moves.
             { target: "robot_control_inst", when: { navigator: "base_navigator" },
               add_links: { navigator: ["navigator_inst"] } },
+            // Listed on the MCP endpoint with its maps and its place in the
+            // loaded one, while it maps with its lidar.
+            { target: "robot_control_inst", when: { mapper: "room_mapper" },
+              add_links: { room_map: ["mapper_inst"] } },
             // Rendering, while this robot films.
             { target: "simulation_inst", when: { camera_rig: "cameras_sim" },
               set_arguments: { cameras_enabled: true } },

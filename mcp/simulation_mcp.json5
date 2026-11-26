@@ -16,7 +16,7 @@
     "`peppy stack launch simulation_mcp`: Waldo and the four endpoints, no robot.",
     "`peppy stack launch simulation_mcp --join openarm_sim:alpha`: an OpenArm v2 over MCP.",
     "`peppy stack launch simulation_mcp --join openarm_sim:alpha,so101_sim:charlie`: an OpenArm and an SO-101.",
-    "`peppy stack launch simulation_mcp --join botshare_sim:india`: the botshare base over MCP, its camera served.",
+    "`peppy stack launch simulation_mcp --join botshare_sim:india`: the botshare base over MCP, its camera served and its room mapper mapping from its swept lidar.",
     "`peppy stack launch simulation_mcp --with mujoco,world_control=none`: the robots' and the framework's endpoints, under MuJoCo.",
     "`peppy stack join openarm_sim:bravo`: an OpenArm, on the same URL when the join returns.",
     "`peppy stack join openarm_sim:delta --with ai_brain_vla@cn-gpu-box`: an OpenArm here, with ai_brain_vla in place of the router brain, on the machine cn-gpu-box.",
@@ -275,6 +275,10 @@
             // The navigator's tools, listed beside the moves.
             { target: "robot_control_inst", when: { navigator: "base_navigator" },
               add_links: { navigator: ["navigator_inst"] } },
+            // Listed on the MCP endpoint with its maps and its place in the
+            // loaded one, while it maps with its lidar.
+            { target: "robot_control_inst", when: { mapper: "room_mapper" },
+              add_links: { room_map: ["mapper_inst"] } },
             // The stack's headset leads a base with no commander of its own
             // and no navigator: the backbone pairs into it (the robot's
             // fragment), and a squeeze stops the base's moves in flight
@@ -318,7 +322,7 @@
     // selects its navigator with base_navigator.
     {
       robot: "botshare_sim",
-      with: { robot_commander: "none", camera_rig: "cameras_sim", navigator: "none" },
+      with: { robot_commander: "none", camera_rig: "cameras_sim", navigator: "none", lidar_rig: "lidar_sim", mapper: "room_mapper" },
     },
   ],
 
@@ -369,7 +373,7 @@
           { option: "so101_sim", model: "so101",
             description: "A simulated SO-101 clamped on the edge of a table: one arm with a gripper and a camera on its wrist, and a motion planner" },
           { option: "botshare_sim", model: "botshare_base",
-            description: "A simulated botshare base on two driven wheels, with a depth camera at its front; it has no arm, and the headset drives it" },
+            description: "A simulated botshare base on two driven wheels, with a depth camera at its front and a 2-D lidar its room mapper maps rooms with; it has no arm, and the headset drives it" },
         ],
       } } },
     // Without the robots' endpoint, a robot of these options that joins has

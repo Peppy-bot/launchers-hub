@@ -414,7 +414,7 @@ class FragmentInventoryTests(unittest.TestCase):
                                  "motion_planner.json5", "so101.json5", "so101_leader.json5",
                                  "so101_sim.json5"}),
             ("botshare/fragments", {"base_navigator.json5", "cameras_sim.json5", "botshare_sim.json5",
-                                    "drive_controls.json5"}),
+                                    "drive_controls.json5", "lidar_sim.json5", "room_mapper.json5"}),
             ("teleop/fragments", {"xr_commander.json5"}),
             ("simulation/fragments", {"isaac_sim.json5", "mujoco.json5", "waldo.json5",
                                       "web_scene_commander.json5"}),
@@ -813,10 +813,11 @@ class CombinationsTests(unittest.TestCase):
         # default, so every join names one.
         openarm, so101 = 2 * 3 * 2 * 2 * 3 * 2, 1 + 2 * 2 * 2 * 2
         openarm_sim, so101_sim = 1 + openarm, 1 + 2 * 2 * 2 * 2
-        # A base has three axes of its own, its commander (none or Waldo's
-        # drive controls), its rig (off or its camera) and its navigator
-        # (none or base_navigator).
-        base_sim = 1 + 2 * 2 * 2
+        # A base has five axes of its own, its commander (none or Waldo's
+        # drive controls), its rig (off or its camera), its navigator (none or
+        # base_navigator), its lidar rig (off or its lidar) and its mapper
+        # (off or the room mapper).
+        base_sim = 1 + 2 * 2 * 2 * 2 * 2
         # The physical launcher: the endpoint, the workflows and the headset
         # each unfilled or on, each bare and joined by any physical robot. It
         # lists no robot, so no launch names one.
@@ -893,23 +894,24 @@ class CombinationsTests(unittest.TestCase):
         # The botshare_simulation launcher: the same simulations with and
         # without their scene commander, the robots' endpoint and the headset
         # each unfilled or on; each launched with alpha under every selection
-        # of its commander, its rig and its navigator, and joined by a base,
-        # plain and under every selection of its axes.
-        base_stacks, alpha_base = (1 + 2 + 2) * 2 * 2, 2 * 2 * 2
+        # of its commander, its rig, its navigator, its lidar rig and its
+        # mapper, and joined by a base, plain and under every selection of its
+        # axes.
+        base_stacks, alpha_base = (1 + 2 + 2) * 2 * 2, 2 * 2 * 2 * 2 * 2
         base_launcher = combos("botshare_simulation")
         self.assertEqual(len(base_launcher), base_stacks * (alpha_base + base_sim))
         self.assertIn(["combo", "botshare_simulation", "simulation=waldo", "", "", "", "-"], base_launcher)
         self.assertIn(["combo", "botshare_simulation", "simulation=mujoco", "", "", "", "-"], base_launcher)
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=none,alpha.camera_rig=cameras_sim,alpha.navigator=none", "", "", "", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=none,alpha.camera_rig=cameras_sim,alpha.navigator=none,alpha.lidar_rig=none,alpha.mapper=none", "", "", "", "-"],
             base_launcher,
         )
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,alpha.robot_commander=drive_controls,alpha.camera_rig=none,alpha.navigator=none", "", "", "", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,alpha.robot_commander=drive_controls,alpha.camera_rig=none,alpha.navigator=none,alpha.lidar_rig=none,alpha.mapper=none", "", "", "", "-"],
             base_launcher,
         )
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=none,alpha.camera_rig=cameras_sim,alpha.navigator=base_navigator", "", "", "", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control,alpha.robot_commander=none,alpha.camera_rig=cameras_sim,alpha.navigator=base_navigator,alpha.lidar_rig=none,alpha.mapper=none", "", "", "", "-"],
             base_launcher,
         )
         self.assertIn(
@@ -917,11 +919,11 @@ class CombinationsTests(unittest.TestCase):
             base_launcher,
         )
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "robot_commander=none,camera_rig=cameras_sim,navigator=none", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "robot_commander=none,camera_rig=cameras_sim,navigator=none,lidar_rig=none,mapper=none", "-"],
             base_launcher,
         )
         self.assertIn(
-            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "robot_commander=none,camera_rig=cameras_sim,navigator=base_navigator", "-"],
+            ["combo", "botshare_simulation", "simulation=waldo,robot_control=robot_control", "", "botshare_sim", "robot_commander=none,camera_rig=cameras_sim,navigator=base_navigator,lidar_rig=none,mapper=none", "-"],
             base_launcher,
         )
         references = next(line for line in lines if line.startswith("launcher\tbotshare_simulation\t"))
@@ -1617,6 +1619,60 @@ class CombinationsTests(unittest.TestCase):
         self.assertIn("select navigator=none", refusal["reason"])
         self.assertIn("select robot_commander=none", refusal["reason"])
 
+    def test_the_bases_mapper_maps_from_its_lidar_and_publishes_on_its_tree(self):
+        root = Path(__file__).resolve().parents[2]
+        base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
+        # The lidar rig sweeps the lidar and the mapper maps from it, each its
+        # own axis; the base starts with neither.
+        self.assertEqual(axis_of(base, "lidar_rig")["options"],
+                         {"none": "../../common/fragments/none.json5", "lidar_sim": "lidar_sim.json5"})
+        self.assertEqual(axis_of(base, "mapper")["options"],
+                         {"none": "../../common/fragments/none.json5", "room_mapper": "room_mapper.json5"})
+        self.assertIn({"lidar_rig": "none"}, base["deployments"])
+        self.assertIn({"mapper": "none"}, base["deployments"])
+        # The lidar needs a consumer, the mapper or the navigator, and the mapper
+        # needs the lidar: each refusal says what to select.
+        unread, = [c for c in base["constraints"] if c.get("when") == {"lidar_rig": "lidar_sim"}]
+        self.assertEqual(unread["requires"], [{"mapper": "room_mapper"}, {"navigator": "base_navigator"}])
+        self.assertIn("select room_mapper", unread["reason"])
+        self.assertIn("lidar_rig=none", unread["reason"])
+        # The lidar's relay, named as the lidar of the model's description,
+        # pairs into the simulation's lidars slot and reads its frame from the
+        # initializer.
+        relays = [instance for deployment in option_file(ROBOT_FILES["botshare_sim"], "lidar_sim.json5")["deployments"]
+                  for instance in deployment["instances"]]
+        self.assertEqual([(relay["instance_id"], relay["links"]) for relay in relays],
+                         [("lidar", {"simulation": "simulation_inst/lidars", "sensor_mounts": "init_inst"})])
+        mappers = [instance for deployment in option_file(ROBOT_FILES["botshare_sim"], "room_mapper.json5")["deployments"]
+                   for instance in deployment["instances"]]
+        self.assertEqual([(mapper["instance_id"], mapper["links"]) for mapper in mappers],
+                         [("mapper_inst", {"lidar": "lidar", "base": "backbone_inst", "sensor_mounts": "init_inst",
+                                           "transform_lookup": "transforms_inst"})])
+        self.assertEqual({mapper["framework"]["clock"] for mapper in [*relays, *mappers]}, {"simulation"})
+        # The mapper publishes map to odom: the transform server takes it
+        # among the tree's publishers while it maps.
+        publishers = [a for a in base["adjustments"] if a["target"] == "transforms_inst"]
+        self.assertEqual(publishers, [{"target": "transforms_inst", "when": {"mapper": "room_mapper"},
+                                       "add_links": {"transforms": ["mapper_inst"]}}])
+        # The mapper needs the lidar and a caller: without either the launch
+        # is refused, its reason saying what to select.
+        blind, caller = [c for c in base["constraints"] if c.get("when") == {"mapper": "room_mapper"}]
+        self.assertEqual(blind["requires"], [{"lidar_rig": "lidar_sim"}])
+        self.assertIn("select lidar_sim", blind["reason"])
+        self.assertEqual(caller["requires"], [{"robot_control": "robot_control"}])
+        self.assertIn("launch with robot_control", caller["reason"])
+        for refusal in (blind, caller):
+            self.assertIn("mapper=none", refusal["reason"])
+        # Each launcher that offers the base lists the mapper's room_map on
+        # the robots' endpoint while the copy maps.
+        for path in ["botshare_simulation.json5", "mcp/simulation_mcp.json5"]:
+            with self.subTest(path=path):
+                document = combinations.load_json5(root / path, path)
+                listed = [a for a in robot_option(document, "botshare_sim")["adjustments"]
+                          if a.get("when") == {"mapper": "room_mapper"}]
+                self.assertEqual(listed, [{"target": "robot_control_inst", "when": {"mapper": "room_mapper"},
+                                           "add_links": {"room_map": ["mapper_inst"]}}])
+
     def test_the_bases_rig_renders_its_camera(self):
         root = Path(__file__).resolve().parents[2]
         base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
@@ -1632,13 +1688,15 @@ class CombinationsTests(unittest.TestCase):
         # The backbone takes its wheels and its outline from the URDF of the
         # model it asks the initializer for: its arguments copy neither, and
         # the robot adjusts nothing of it per rig. Its adjustments are its
-        # leaders, test_the_base_pairs_its_one_leader's, and the odometry
-        # window under Isaac Sim,
+        # leaders, test_the_base_pairs_its_one_leader's, the mapper among the
+        # tree's publishers,
+        # test_the_bases_mapper_maps_from_its_lidar_and_publishes_on_its_tree's,
+        # and the odometry window under Isaac Sim,
         # test_the_bases_odometry_window_spans_a_tenth_of_a_second_in_every_simulation's.
         arguments = instance_of(base, "backbone_inst")["arguments"]
         self.assertEqual(set(arguments), {"linear_limits", "angular_limits", "smoothing_frequency_hz", "velocity_rolling_window_size",
-                                          "rotate_to_heading_min_angle_rad", "stop_answer_timeout_s",
-                                          "lookup_timeout_s"})
+                                          "rotate_to_heading_min_angle_rad", "min_turn_rate_rad_s", "min_forward_speed_m_s",
+                                          "min_backward_speed_m_s", "stop_answer_timeout_s", "lookup_timeout_s"})
         # Until its commander, its navigator or the headset pairs a leader,
         # the base's leader_base slot stands vacant, its reason naming all
         # three.
@@ -1649,7 +1707,7 @@ class CombinationsTests(unittest.TestCase):
         self.assertIn("xr_commander", leader["vacant"])
         self.assertEqual([adjustment["when"] for adjustment in base["adjustments"]],
                          [{"robot_commander": "drive_controls"}, HEADSET_LEADS_A_BASE,
-                          {"navigator": "base_navigator"}, {"simulation": "isaac_sim"}])
+                          {"navigator": "base_navigator"}, {"mapper": "room_mapper"}, {"simulation": "isaac_sim"}])
         # Every launcher lists the camera the rig renders on the MCP endpoint.
         for path, robots in ROBOT_LAUNCHERS.items():
             if "botshare_sim" not in robots:
@@ -1676,7 +1734,7 @@ class CombinationsTests(unittest.TestCase):
             spans[engine] = Fraction(window, rate)
         self.assertEqual(spans, dict.fromkeys(spans, Fraction(1, 10)))
 
-    def test_the_bases_navigator_leads_it_around_what_its_camera_sees(self):
+    def test_the_bases_navigator_leads_it_around_what_its_camera_and_its_lidar_see(self):
         root = Path(__file__).resolve().parents[2]
         base = combinations.load_json5(root / ROBOT_FILES["botshare_sim"], "botshare_sim")
         # An axis of the robot's own, `one`, deployed as `none`: a copy runs
@@ -1688,9 +1746,12 @@ class CombinationsTests(unittest.TestCase):
         self.assertIn({"navigator": "none"}, base["deployments"])
         # One navigator on the simulation's clock. It reads what the base is
         # from the backbone, the sensors the base carries from the
-        # initializer, the robot's tree from every publisher the transform
-        # server reads, and the depth frames and geometry of the rig's
-        # relays, and writes no adjustment: the robot file pairs it.
+        # initializer and odom's tree from the publishers the transform
+        # server's own links name, the initializer and the backbone; it
+        # places map by the room mapper's map_poses. Its own adjustments bind
+        # the rig's relays, the lidar's relay and the room mapper of the axes
+        # that run them, and its map link stays vacant, saying what to select,
+        # while no room mapper runs.
         fragment = option_file(ROBOT_FILES["botshare_sim"], "base_navigator.json5")
         deployment, = fragment["deployments"]
         self.assertEqual(deployment["source"], {"name": "base_navigator", "tag": "v1"})
@@ -1700,22 +1761,41 @@ class CombinationsTests(unittest.TestCase):
         relays = [instance["instance_id"]
                   for rig in option_file(ROBOT_FILES["botshare_sim"], "cameras_sim.json5")["deployments"]
                   for instance in rig["instances"]]
-        self.assertEqual(navigator["links"], {
+        lidars = [instance["instance_id"]
+                  for rig in option_file(ROBOT_FILES["botshare_sim"], "lidar_sim.json5")["deployments"]
+                  for instance in rig["instances"]]
+        mappers = [instance["instance_id"]
+                   for deployment in option_file(ROBOT_FILES["botshare_sim"], "room_mapper.json5")["deployments"]
+                   for instance in deployment["instances"]]
+        links = dict(navigator["links"])
+        unmapped = links.pop("room_map")
+        self.assertEqual(links, {
             "base_state": "backbone_inst",
             "sensor_mounts": "init_inst",
             "transforms": instance_of(base, "transforms_inst")["links"]["transforms"],
-            "cameras": relays,
-            "geometry": relays,
         })
-        self.assertNotIn("adjustments", fragment)
+        self.assertEqual(set(unmapped), {"vacant"})
+        self.assertIn("select mapper=room_mapper", unmapped["vacant"])
+        self.assertEqual(fragment["adjustments"], [
+            {"target": "navigator_inst", "when": {"camera_rig": "cameras_sim"},
+             "add_links": {"cameras": relays, "geometry": relays}},
+            {"target": "navigator_inst", "when": {"lidar_rig": "lidar_sim"}, "add_links": {"lidars": lidars}},
+            {"target": "navigator_inst", "when": {"mapper": "room_mapper"},
+             "set_links": {"room_map": mappers[0]}},
+        ])
+        self.assertEqual(len(mappers), 1)
         # The navigator leads the base: the backbone pairs into its base slot.
         self.assertIn({"target": "backbone_inst", "when": {"navigator": "base_navigator"},
                        "set_links": {"leader_base": "navigator_inst/base"}}, base["adjustments"])
-        # The navigator reads the rig's camera, so it requires the rig and is
-        # one of the camera's consumers, each rule saying what to select.
+        # The navigator reads the rig's camera or the lidar, so it requires
+        # one of them and is a consumer of each, each rule saying what to
+        # select.
         rule, = [c for c in base["constraints"] if c.get("when") == {"navigator": "base_navigator"}]
-        self.assertEqual(rule["requires"], [{"camera_rig": "cameras_sim"}])
-        self.assertIn("select camera_rig=cameras_sim, or navigator=none", rule["reason"])
+        self.assertEqual(rule["requires"], [{"camera_rig": "cameras_sim"}, {"lidar_rig": "lidar_sim"}])
+        self.assertIn("select camera_rig=cameras_sim or lidar_rig=lidar_sim, or navigator=none", rule["reason"])
+        lidar_consumer, = [c for c in base["constraints"] if c.get("when") == {"lidar_rig": "lidar_sim"}]
+        self.assertIn({"navigator": "base_navigator"}, lidar_consumer["requires"])
+        self.assertIn("base_navigator (its grid reads them)", lidar_consumer["reason"])
         consumer, = [c for c in base["constraints"] if c.get("when") == {"camera_rig": "cameras_sim"}]
         self.assertEqual(consumer["requires"],
                          [{"robot_control": "robot_control"}, HEADSET_LEADS_A_BASE, {"navigator": "base_navigator"}])
@@ -2687,7 +2767,8 @@ class CombinationsTests(unittest.TestCase):
                       "motion_planner": "motion_planner"}},
             {"robot": "so101_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim",
                                             "motion_planner": "motion_planner"}},
-            {"robot": "botshare_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "navigator": "none"}},
+            {"robot": "botshare_sim", "with": {"robot_commander": "none", "camera_rig": "cameras_sim", "navigator": "none",
+                                               "lidar_rig": "lidar_sim", "mapper": "room_mapper"}},
         ])
         launcher = combinations.read_launcher(root, path)
         self.assertEqual(launcher.copies, [])

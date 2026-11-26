@@ -1,16 +1,18 @@
 // The simulated botshare base, botshare.ai's OpenAMRobot 2.0 base: the
 // initializer that joins the simulation as this robot, its backbone that
 // drives the base's two wheels, the server of its tree of frames, and the
-// robot's own axes, its rendered camera and its navigator. The simulation
-// plays the wheels' follower role toward the backbone, on joint_link, in each
-// simulation's bases slot.
+// robot's own axes, its rendered camera, its navigator, its swept lidar
+// and its room mapper. The simulation plays the wheels' follower role
+// toward the backbone, on joint_link, in each simulation's bases slot.
 //
 // base_motion's goals drive it, from the robots' MCP endpoint when the
 // launcher runs one. A person drives it by hand on drive_link: through
 // Waldo's drive controls, the robot_commander drive_controls, or through
 // the stack's headset, which leads a base with no commander of its own and
 // no navigator; and base_navigation's goals drive it through its navigator
-// when the navigator axis selects one.
+// when the navigator axis selects one, the navigator's grid reading the
+// camera and the lidar the robot runs, and its navigations in map running
+// on the room mapper's loaded map when the mapper axis selects one.
 //
 // This file writes only the instances it deploys. The launcher's simulation
 // axis supplies simulation_inst, and the launcher that selects this robot
@@ -76,6 +78,19 @@
             // 104-105): past this bearing move_base's drive turns toward its
             // target again.
             rotate_to_heading_min_angle_rad: 0.785,
+            // botshare's behavior_server (openamr-platform-sw 69847ab,
+            // openamrobot_nav2/config/nav2_params.yaml:320): Spin's
+            // min_rotational_vel, the slowest rate move_base's turn commands.
+            // Its backup and drive_on_heading (nav2_params.yaml:306-309) take
+            // DriveOnHeading's default minimum_speed (nav2_behaviors include/
+            // nav2_behaviors/plugins/drive_on_heading.hpp:255-256), the
+            // slowest speed its drive commands each way. move_base then takes
+            // an orientation tolerance from 0.0075 rad, the turn of one step
+            // from rest at 3 rad/s^2, and a position tolerance from 2.5 mm,
+            // the drive of one step from rest at 1 m/s^2.
+            min_turn_rate_rad_s: 0.4,
+            min_forward_speed_m_s: 0.1,
+            min_backward_speed_m_s: 0.1,
             // Below robot.stop's deadline_ms on the robots' MCP endpoint
             // (mcp-hub robot/robot_control.json5), 2 s, by 0.5 s for the
             // call's round trip: a stop the control loop does not answer
@@ -127,6 +142,8 @@
     { robot_commander: "none" },
     { camera_rig: "none" },
     { navigator: "none" },
+    { lidar_rig: "none" },
+    { mapper: "none" },
   ],
 
   components: [
@@ -161,6 +178,26 @@
         base_navigator: "base_navigator.json5",
       },
     },
+    {
+      // The swept lidar, the RPLIDAR S3 (`lidar_sim`). A swept lidar costs
+      // the simulation its rays, so the robot starts without one: the
+      // option on a copy turns it on.
+      name: "lidar_rig",
+      options: {
+        none: "../../common/fragments/none.json5",
+        lidar_sim: "lidar_sim.json5",
+      },
+    },
+    {
+      // The room mapper (`room_mapper`), which maps the rooms the base
+      // drives in from the lidar, saves the maps by name and keeps the base
+      // localized in the loaded one; `none` gives none.
+      name: "mapper",
+      options: {
+        none: "../../common/fragments/none.json5",
+        room_mapper: "room_mapper.json5",
+      },
+    },
   ],
 
   constraints: [
@@ -170,14 +207,28 @@
     { when: { camera_rig: "cameras_sim" },
       requires: [{ robot_control: "robot_control" }, { teleop: "xr_commander", robot_commander: "none", navigator: "none" }, { navigator: "base_navigator" }],
       reason: "the camera needs a consumer: launch with robot_control (the MCP endpoint lists the camera), select navigator=base_navigator (the navigator's grid reads it), select robot_commander=none and launch with xr_commander (the headset shows it), or select camera_rig=none" },
+    // The lidar's scans need a consumer: the room mapper maps from them.
+    { when: { lidar_rig: "lidar_sim" },
+      requires: [{ mapper: "room_mapper" }, { navigator: "base_navigator" }],
+      reason: "the lidar needs a consumer: select room_mapper (it maps from the lidar's scans) or base_navigator (its grid reads them), or select lidar_rig=none" },
+    // The room mapper maps from the lidar.
+    { when: { mapper: "room_mapper" },
+      requires: [{ lidar_rig: "lidar_sim" }],
+      reason: "the room mapper maps from the lidar: select lidar_sim, or select mapper=none" },
+    // The mapper needs a caller: the robots' MCP endpoint lists room_map's
+    // tools, which start a map, save it, load one and localize the base.
+    { when: { mapper: "room_mapper" },
+      requires: [{ robot_control: "robot_control" }],
+      reason: "the room mapper needs a caller: launch with robot_control (the MCP endpoint lists room_map's tools), or select mapper=none" },
     // The drive controls are on Waldo's page, and lead the base alone.
     { when: { robot_commander: "drive_controls" },
       requires: [{ simulation: "waldo", navigator: "none" }],
       reason: "drive_controls are on Waldo's page and lead the base alone: launch with waldo and select navigator=none, or select robot_commander=none (the navigator or the headset drives the base)" },
-    // The navigator's grid reads the base's rendered camera.
+    // The navigator's grid reads the base's rendered camera, its swept lidar,
+    // or both.
     { when: { navigator: "base_navigator" },
-      requires: [{ camera_rig: "cameras_sim" }],
-      reason: "the navigator's grid reads the base's camera: select camera_rig=cameras_sim, or navigator=none" },
+      requires: [{ camera_rig: "cameras_sim" }, { lidar_rig: "lidar_sim" }],
+      reason: "the navigator's grid reads the base's camera or its lidar: select camera_rig=cameras_sim or lidar_rig=lidar_sim, or navigator=none" },
   ],
 
   adjustments: [
@@ -193,6 +244,10 @@
     // navigator's base slot.
     { target: "backbone_inst", when: { navigator: "base_navigator" },
       set_links: { leader_base: "navigator_inst/base" } },
+    // The mapper publishes map to odom on the robot's tree, so the transform
+    // server takes it among the tree's publishers.
+    { target: "transforms_inst", when: { mapper: "room_mapper" },
+      add_links: { transforms: ["mapper_inst"] } },
     // Isaac steps its physics slower than the others: 6 of its 60 Hz wheel
     // states span the odometry's 0.1 s.
     { target: "backbone_inst", when: { simulation: "isaac_sim" },

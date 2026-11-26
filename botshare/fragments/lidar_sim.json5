@@ -1,0 +1,27 @@
+// The botshare base's RPLIDAR S3, swept by the simulation as a lidar
+// producer on the simulation clock. The relay pairs into the simulation's
+// lidars slot and presents the lidar_2d contract. The slot holds any number
+// of pairs: the simulation tells a pair's robot by its copy and its lidar by
+// the relay's name in that copy, the instance id written here.
+//
+// The relay names in every scan the lidar's frame, which the initializer's
+// sensor_mounts gives for the relay's instance id. The simulation sweeps the
+// lidar where its botshare_base model's description places it on the
+// chassis, over that model's ranges and fan.
+{
+  peppy_schema: "launcher_fragment/v1",
+
+  deployments: [
+    {
+      source: { name: "sim_lidar", tag: "v1" },
+      instances: [
+        { instance_id: "lidar",
+          links: {
+            simulation: "simulation_inst/lidars",
+            sensor_mounts: "init_inst",
+          },
+          framework: { clock: "simulation" } },
+      ],
+    },
+  ],
+}

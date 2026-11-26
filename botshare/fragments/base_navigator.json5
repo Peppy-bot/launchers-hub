@@ -1,19 +1,22 @@
 // The simulated base's navigator: it drives the base to a pose around what
-// the rendered camera sees, and turns it in place and drives it straight
-// ahead or back clear of the same, as base_navigation states, leading the
-// base over drive_link. It reads what the base is from the backbone's
-// base_state, the base's odometry and whether the base follows it from
-// drive_link's drive_states, which sensors the base carries from the
-// initializer's sensor_mounts, the robot's tree from every publisher of it,
-// and the depth frames and geometry of the rendered camera, and keeps its own
-// grid of them in the base's odometry frame.
+// the rendered camera and the swept lidar see, and turns it in place and
+// drives it straight ahead or back clear of the same, as base_navigation
+// states, leading the base over drive_link. It reads what the base is from
+// the backbone's base_state, the base's odometry and whether the base follows
+// it from drive_link's drive_states, which sensors the base carries from the
+// initializer's sensor_mounts, odom's tree from the initializer and the
+// backbone, the depth frames and geometry of the rendered camera and the
+// scans of the lidar, and keeps its own grid of them in the base's odometry
+// frame. A navigation to a target in map runs on the room mapper's loaded
+// map, which the room mapper's map_poses place in odom.
 //
 // This file writes only the instance it deploys: the navigator axis of
 // botshare_sim.json5 selects it. That robot file supplies init_inst,
-// backbone_inst and the rendered camera, and pairs the backbone into the
-// navigator's base slot, and the launcher that selects the robot lists the
-// navigator's tools on the robots' MCP endpoint. The robot stop and the
-// base's own moves stay the backbone's.
+// backbone_inst, the rendered camera, the lidar and the room mapper, and pairs
+// the backbone into the navigator's base slot; this file binds the ones the
+// robot runs to the navigator; the launcher that selects the robot lists the
+// navigator's tools on the robots' MCP endpoint. The robot stop and the base's
+// own moves stay the backbone's.
 {
   peppy_schema: "launcher_fragment/v1",
 
@@ -160,18 +163,33 @@
             // source.
             base_state: "backbone_inst",
             // Which sensors the robot carries, and the part that carries
-            // each: the grid reads the depth cameras fixed to the base.
+            // each: the grid reads the depth cameras and the 2-D lidars fixed
+            // to the base, which the adjustments below bind by the robot's rig
+            // axes.
             sensor_mounts: "init_inst",
-            // Every publisher of the robot's tree, which places each goal at
-            // its timestamp and each depth frame by the frame its header
-            // names at its time.
+            // The publishers of odom's tree, the initializer and the
+            // backbone: the tree places each goal at its timestamp and each
+            // reading by the frame its header names at its time. The
+            // navigator places map by the room mapper's map_poses.
             transforms: ["init_inst", "backbone_inst"],
-            // The Gemini's depth frames and geometry.
-            cameras: ["base_camera"],
-            geometry: ["base_camera"],
+            // The loaded map of navigations in map: the adjustments below bind
+            // the room mapper when the robot's mapper axis selects one.
+            room_map: { vacant: "no room mapper runs for this base: select mapper=room_mapper for navigations in map" },
           },
         },
       ],
     },
+  ],
+
+  adjustments: [
+    // The grid reads each sensor the robot runs: the rendered camera with its
+    // geometry, and the swept lidar.
+    { target: "navigator_inst", when: { camera_rig: "cameras_sim" },
+      add_links: { cameras: ["base_camera"], geometry: ["base_camera"] } },
+    { target: "navigator_inst", when: { lidar_rig: "lidar_sim" },
+      add_links: { lidars: ["lidar"] } },
+    // A navigation in map runs on the room mapper's loaded map.
+    { target: "navigator_inst", when: { mapper: "room_mapper" },
+      set_links: { room_map: "mapper_inst" } },
   ],
 }
